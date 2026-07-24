@@ -4,6 +4,7 @@ members = [
     "crates/taza-core",
     "crates/taza-pack",
     "crates/taza-lexicon-compiler",
+    "crates/taza-evaluation",
 ]
 
 [workspace.package]

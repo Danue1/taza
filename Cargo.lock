@@ -10,6 +10,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "taza-evaluation"
+version = "0.1.0"
+dependencies = [
+ "taza-core",
+ "taza-pack",
+]
+
+[[package]]
 name = "taza-lexicon-compiler"
 version = "0.1.0"
 dependencies = [

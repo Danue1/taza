@@ -177,7 +177,10 @@ struct Candidate { text, kind /* 예측|변환|교정 */, commit_policy /* 후�
 | 한국어 | mecab-ko-dic(Apache-2.0) 형태소 사전 + 위키·공개 말뭉치(모두의 말뭉치는 이용 조건 확인 필수) | **어절 단위 사전은 교착어 특성상 폭발** — 형태소 단위 LM + 조사·어미 결합 모델로 설계. 오타 모델은 자모 레벨 |
 | 일본어 | AzooKeyKanaKanjiConverter 사전(Apache-2.0)을 기반, 부족분 보강 | 랭킹은 엔진 내장 + 아래 개인화 레이어를 코어 측에 |
 
-### 랭킹: 오프라인 평가 하네스가 튜닝의 전제
+### 랭킹: 오프라인 평가 하네스가 튜닝의 전제 — 구현됨 (taza-evaluation)
+- 레이아웃 기하 기반 오타 합성(인접 치환·전치·탈락·삽입, 시드 고정 결정론) +
+  top-1/top-3·MRR·자동교정 정확도·keystroke savings + 임계값 CI 게이트(tests/gate.rs).
+  영어 기준선(seed 42): top1 0.90 / top3 0.98 / MRR 0.94 / autocorrect 0.92 / KS 0.62.
 - 평가 셋: 언어별 (입력 시퀀스 → 의도 텍스트) 쌍 코퍼스. 실사용 로그가 없는 초기에는
   공개 오타 코퍼스 + 코퍼스에서 합성한 오타(터치 기하 기반 노이즈 주입)로 구성.
 - 메트릭: top-1/top-3 정확도, MRR, keystroke savings. CI 회귀 게이트로 등록 —

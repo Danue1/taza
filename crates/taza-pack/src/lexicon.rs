@@ -67,6 +67,13 @@ pub struct Completion {
     pub frequency: u32,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Correction {
+    pub word: String,
+    pub frequency: u32,
+    pub distance: u32,
+}
+
 /// 바이트 슬라이스 위의 zero-copy lexicon 뷰. 손상된 데이터는 조회 실패(None/빈 결과)로
 /// 처리하며 패닉하지 않는다.
 pub struct Lexicon<'bytes> {
@@ -139,6 +146,85 @@ impl<'bytes> Lexicon<'bytes> {
 
     pub fn contains(&self, word: &str) -> bool {
         self.frequency(word).is_some()
+    }
+
+    /// 편집거리(OSA — 인접 전치를 거리 1로 취급, "teh"→"the") max_distance 이내의 단어를
+    /// (거리, 빈도 내림차순, 사전순)으로 최대 limit개 반환. trie DFS + DP 행 전파,
+    /// 행 최솟값이 한도를 넘는 가지는 잘라낸다.
+    /// 거리는 바이트 단위 — 라틴 v1 용도이며 멀티바이트 스크립트의 교정에는 쓰지 않는다.
+    pub fn corrections(&self, word: &str, max_distance: u32, limit: usize) -> Vec<Correction> {
+        let query = word.as_bytes();
+        let Some(root) = self.read_u32(0).map(|offset| offset as usize) else {
+            return Vec::new();
+        };
+        struct Frame {
+            node: usize,
+            word_bytes: Vec<u8>,
+            row: Vec<u32>,
+            previous: Option<(Vec<u32>, u8)>,
+        }
+        let initial_row: Vec<u32> = (0..=query.len() as u32).collect();
+        let mut corrections = Vec::new();
+        let mut stack = vec![Frame {
+            node: root,
+            word_bytes: Vec::new(),
+            row: initial_row,
+            previous: None,
+        }];
+        while let Some(frame) = stack.pop() {
+            if let Some(frequency) = self.node_frequency(frame.node)
+                && frequency > 0
+                && let Some(&distance) = frame.row.last()
+                && distance <= max_distance
+                && let Ok(word) = String::from_utf8(frame.word_bytes.clone())
+            {
+                corrections.push(Correction {
+                    word,
+                    frequency,
+                    distance,
+                });
+            }
+            let Some(children) = self.node_children(frame.node) else {
+                continue;
+            };
+            for (byte, child) in children {
+                let mut next_row = Vec::with_capacity(frame.row.len());
+                next_row.push(frame.row[0] + 1);
+                for column in 1..frame.row.len() {
+                    let substitution_cost = u32::from(query[column - 1] != byte);
+                    let mut cost = (next_row[column - 1] + 1)
+                        .min(frame.row[column] + 1)
+                        .min(frame.row[column - 1] + substitution_cost);
+                    if let Some((row_before_previous, previous_byte)) = &frame.previous
+                        && column >= 2
+                        && byte == query[column - 2]
+                        && *previous_byte == query[column - 1]
+                    {
+                        cost = cost.min(row_before_previous[column - 2] + 1);
+                    }
+                    next_row.push(cost);
+                }
+                if next_row.iter().min().copied().unwrap_or(u32::MAX) > max_distance {
+                    continue;
+                }
+                let mut extended = frame.word_bytes.clone();
+                extended.push(byte);
+                stack.push(Frame {
+                    node: child,
+                    word_bytes: extended,
+                    row: next_row,
+                    previous: Some((frame.row.clone(), byte)),
+                });
+            }
+        }
+        corrections.sort_by(|a, b| {
+            a.distance
+                .cmp(&b.distance)
+                .then_with(|| b.frequency.cmp(&a.frequency))
+                .then_with(|| a.word.cmp(&b.word))
+        });
+        corrections.truncate(limit);
+        corrections
     }
 
     /// prefix로 시작하는 단어들을 빈도 내림차순(동률은 사전순)으로 최대 limit개 반환.

@@ -78,6 +78,39 @@ fn duplicate_insert_keeps_higher_frequency() {
 }
 
 #[test]
+fn ngram_model_roundtrip() {
+    use taza_pack::ngram::NgramModelBuilder;
+    let mut ngram = NgramModelBuilder::new();
+    ngram.insert_bigram("the", "quick", 30);
+    ngram.insert_bigram("the", "best", 50);
+    ngram.insert_bigram("the", "quick", 20); // 누적 → 50
+    ngram.insert_bigram("안녕", "하세요", 10);
+    let mut writer = PackWriter::new("en");
+    writer.add_section(SectionKind::NgramModel, ngram.build());
+    let bytes = writer.finish();
+
+    let pack = Pack::open(&bytes).unwrap();
+    assert!(pack.lexicon().is_none());
+    let language_model = pack.language_model().unwrap();
+
+    let predictions: Vec<(String, u32)> = language_model
+        .predict_next("the", 10)
+        .into_iter()
+        .map(|prediction| (prediction.word, prediction.weight))
+        .collect();
+    assert_eq!(
+        predictions,
+        vec![("best".to_string(), 50), ("quick".to_string(), 50)]
+    );
+    assert_eq!(language_model.predict_next("the", 1).len(), 1);
+    assert_eq!(
+        language_model.predict_next("안녕", 10)[0].word,
+        "하세요"
+    );
+    assert!(language_model.predict_next("unknown", 10).is_empty());
+}
+
+#[test]
 fn rejects_invalid_input() {
     assert_eq!(Pack::open(b"NOPE").unwrap_err(), PackError::InvalidMagic);
     assert_eq!(Pack::open(b"TA").unwrap_err(), PackError::Truncated);

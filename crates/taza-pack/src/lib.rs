@@ -5,6 +5,7 @@
 //! 섹션 태그 레지스트리로 확장한다: 미지 태그는 무시되므로 구버전 앱도 신버전 팩을 읽는다.
 
 pub mod lexicon;
+pub mod ngram;
 mod reader;
 mod writer;
 
@@ -18,18 +19,21 @@ pub(crate) const MAGIC: &[u8; 4] = b"TAZA";
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SectionKind {
     Lexicon,
+    NgramModel,
 }
 
 impl SectionKind {
     pub(crate) fn tag(self) -> u32 {
         match self {
             SectionKind::Lexicon => 1,
+            SectionKind::NgramModel => 2,
         }
     }
 
     pub(crate) fn from_tag(tag: u32) -> Option<Self> {
         match tag {
             1 => Some(SectionKind::Lexicon),
+            2 => Some(SectionKind::NgramModel),
             _ => None,
         }
     }

@@ -1,7 +1,7 @@
 use taza_core::composer::direct::DirectComposer;
 use taza_core::composer::{
     Candidate, CandidateKind, CommittedText, Composer, ComposerEvent, ComposerOutput,
-    ComposerState, EditorContext,
+    ComposerState, EditorContext, Pack,
 };
 use taza_core::session::{Effect, InputEvent, Session};
 
@@ -10,15 +10,15 @@ fn direct_composer_commits_every_key() {
     let mut session = Session::new(Box::new(DirectComposer::new()));
     let context = EditorContext::unavailable();
     assert_eq!(
-        session.handle(InputEvent::Key('h'), &context),
+        session.handle(InputEvent::Key('h'), &context, None),
         vec![Effect::CommitText("h".to_string())]
     );
     assert_eq!(
-        session.handle(InputEvent::Separator(' '), &context),
+        session.handle(InputEvent::Separator(' '), &context, None),
         vec![Effect::CommitText(" ".to_string())]
     );
     assert_eq!(
-        session.handle(InputEvent::Backspace, &context),
+        session.handle(InputEvent::Backspace, &context, None),
         vec![Effect::DeleteBackward(1)]
     );
 }
@@ -28,7 +28,12 @@ fn direct_composer_commits_every_key() {
 struct ReplacingComposer;
 
 impl Composer for ReplacingComposer {
-    fn feed(&mut self, event: ComposerEvent, _context: &EditorContext) -> ComposerOutput {
+    fn feed(
+        &mut self,
+        event: ComposerEvent,
+        _context: &EditorContext,
+        _pack: Option<&Pack<'_>>,
+    ) -> ComposerOutput {
         match event {
             ComposerEvent::Key(_) => ComposerOutput {
                 candidates: vec![Candidate {
@@ -70,7 +75,7 @@ fn candidate_replacement_translates_to_delete_then_commit() {
     let mut session = Session::new(Box::new(ReplacingComposer));
     let context = EditorContext::unavailable();
 
-    let effects = session.handle(InputEvent::Key('h'), &context);
+    let effects = session.handle(InputEvent::Key('h'), &context, None);
     assert_eq!(
         effects,
         vec![Effect::UpdateCandidates(vec![Candidate {
@@ -79,7 +84,7 @@ fn candidate_replacement_translates_to_delete_then_commit() {
         }])]
     );
 
-    let effects = session.handle(InputEvent::CandidateSelected(0), &context);
+    let effects = session.handle(InputEvent::CandidateSelected(0), &context, None);
     assert_eq!(
         effects,
         vec![

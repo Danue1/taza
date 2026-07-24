@@ -1,4 +1,5 @@
 use crate::lexicon::Lexicon;
+use crate::ngram::NgramModel;
 use crate::{FORMAT_VERSION, MAGIC, SectionKind};
 use std::fmt;
 
@@ -116,5 +117,11 @@ impl<'bytes> Pack<'bytes> {
 
     pub fn lexicon(&self) -> Option<Lexicon<'bytes>> {
         self.section(SectionKind::Lexicon).map(Lexicon::new)
+    }
+
+    /// 팩에 담긴 언어모델 뷰. 지금은 ngram-v1 하나 — 신경망 등 새 LM 섹션이 생기면
+    /// 여기서 태그로 디스패치한다 (소비자는 이 메서드만 보므로 교체가 팩 배포로 끝난다).
+    pub fn language_model(&self) -> Option<NgramModel<'bytes>> {
+        self.section(SectionKind::NgramModel).map(NgramModel::new)
     }
 }

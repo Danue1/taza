@@ -21,7 +21,7 @@ fn run(events: &str) -> (String, Option<String>) {
                 composing.as_deref().unwrap_or("")
             )),
         };
-        for effect in session.handle(input, &context) {
+        for effect in session.handle(input, &context, None) {
             match effect {
                 Effect::CommitText(text) => {
                     committed.push_str(&text);
@@ -152,7 +152,7 @@ fn decomposes_compound_vowel_when_resuming() {
 #[test]
 fn resume_skips_when_context_unavailable() {
     let mut session = Session::new(Box::new(HangulComposer::new()));
-    let effects = session.handle(InputEvent::Backspace, &EditorContext::unavailable());
+    let effects = session.handle(InputEvent::Backspace, &EditorContext::unavailable(), None);
     assert_eq!(effects, vec![Effect::DeleteBackward(1)]);
 }
 
@@ -160,9 +160,9 @@ fn resume_skips_when_context_unavailable() {
 fn cursor_move_finalizes_composing() {
     let mut session = Session::new(Box::new(HangulComposer::new()));
     let context = EditorContext::unavailable();
-    session.handle(InputEvent::Key('ㄱ'), &context);
-    session.handle(InputEvent::Key('ㅏ'), &context);
-    let effects = session.handle(InputEvent::CursorMoved, &context);
+    session.handle(InputEvent::Key('ㄱ'), &context, None);
+    session.handle(InputEvent::Key('ㅏ'), &context, None);
+    let effects = session.handle(InputEvent::CursorMoved, &context, None);
     assert_eq!(
         effects,
         vec![
@@ -176,9 +176,9 @@ fn cursor_move_finalizes_composing() {
 fn snapshot_roundtrip_preserves_composing() {
     let context = EditorContext::unavailable();
     let mut composer = HangulComposer::new();
-    composer.feed(ComposerEvent::Key('ㄱ'), &context);
-    composer.feed(ComposerEvent::Key('ㅏ'), &context);
-    composer.feed(ComposerEvent::Key('ㅂ'), &context);
+    composer.feed(ComposerEvent::Key('ㄱ'), &context, None);
+    composer.feed(ComposerEvent::Key('ㅏ'), &context, None);
+    composer.feed(ComposerEvent::Key('ㅂ'), &context, None);
     let state = composer.snapshot();
     assert_eq!(
         state,
@@ -189,6 +189,6 @@ fn snapshot_roundtrip_preserves_composing() {
 
     let mut restored = HangulComposer::new();
     restored.restore(state);
-    let output = restored.feed(ComposerEvent::Key('ㅏ'), &context);
+    let output = restored.feed(ComposerEvent::Key('ㅏ'), &context, None);
     assert_eq!(output.composing.unwrap().text, "가바");
 }

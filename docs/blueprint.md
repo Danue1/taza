@@ -129,7 +129,7 @@ struct Candidate { text, kind /* 예측|변환|교정 */, commit_policy /* 후�
 |---|---|
 | 한국어·베트남어·인도계 네이티브 조합 | 직접 구현 (조합 오토마톤은 소규모 — 단 교정·예측은 별도 계상) |
 | 라틴 Direct + CLDR 데이터 | 직접 구현 |
-| **라틴(+한국어) 자동교정·예측 엔진** | **직접 구현, 최대 단일 컴포넌트로 승격 계상**: n-gram LM + 편집거리/FST + 공간(터치) 모델. v1은 키 기하 기반 Gaussian 프라이어 + 온디바이스 적응(스냅샷에 포함), 로그 부재로 인한 초기 품질 한계를 리스크에 기록 |
+| **라틴(+한국어) 자동교정·예측 엔진** | **직접 구현, 최대 단일 컴포넌트로 승격 계상**: n-gram LM + 편집거리/FST + 공간(터치) 모델. v1은 키 기하 기반 Gaussian 프라이어 + 온디바이스 적응(스냅샷에 포함), 로그 부재로 인한 초기 품질 한계를 리스크에 기록. **1차 구현됨(LatinComposer)**: lexicon 완성 + OSA 거리 1 교정 + separator 자동교정 + 제안 치환 — LM·공간 모델·개인화는 미착수 |
 | 중국어 | librime(BSD-3) 채택 검토 — 조건부 (아래) |
 | 일본어 | **AzooKeyKanaKanjiConverter(MIT, 사전 Apache-2.0) 1순위** — iOS 상용 실증(azooKey). Android는 동일 사전 포맷(LOUDS) 자체 리더 또는 Swift-for-Android 스파이크. **mozc는 엔진 채택 탈락**(iOS 공식 미지원, OSS 사전은 IPAdic 라이선스·품질 하향판) — connection data 참고 자료로만 |
 | 인도계 음역 | 직접 구현 |
@@ -225,6 +225,9 @@ trait LanguageModel {
 - **랭킹 함수는 이 trait만 소비** — n-gram이든 신경망이든 랭킹·Composer·평가 하네스는 불변.
 - 언어팩의 LM 섹션은 **타입 태그 레지스트리**: `ngram-v1`(현재), `neural-v1`(추후, 양자화
   가중치 mmap) 등. 로더가 태그로 디스패치, 미지 태그는 해당 섹션 무시 + 폴백.
+- **구현 현황**: `ngram-v1`(bigram) 섹션 + `Pack::language_model()` 디스패치 지점 구현됨.
+  Composer는 `Pack` 핸들만 받으므로(feed 시그니처) LM 교체는 팩 배포로 끝난다.
+  다음 단어 예측이 LatinComposer의 단어 경계(separator·후보 선택·자동교정 직후)에 연결됨.
 - **토크나이저도 팩에 포함** — LM 교체는 토큰화 교체를 수반하므로 (형태소/자모/BPE)
   LM 섹션과 토크나이저 섹션을 쌍으로 버저닝.
 - **폴백 체인**: neural 로드 실패(메모리 예산 초과 포함) → ngram → lexicon-only.

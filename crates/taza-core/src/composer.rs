@@ -1,5 +1,8 @@
 pub mod direct;
 pub mod hangul;
+pub mod latin;
+
+pub use taza_pack::Pack;
 
 /// 커서 주변 문맥. 플랫폼이 제공하지 못하면 None (iOS는 앱에 따라 0자·nil이 일상).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -75,13 +78,23 @@ pub struct ComposerOutput {
 pub enum ComposerState {
     Direct,
     Hangul { composing_jamo: Vec<char> },
+    Latin { current_word: String },
 }
 
 pub trait Composer {
     /// composing이 없을 때 커서 앞 확정 텍스트를 채택(adopt)해 합성을 재개할 수 있다 —
     /// 채택분은 delete_before_commit으로 치환하고 composing으로 되가져온다.
     /// (한국어 자모 분해 삭제·도깨비불 재개, 추후 텔렉스 성조 소급 수정 등 언어 공통 통로)
-    fn feed(&mut self, event: ComposerEvent, context: &EditorContext) -> ComposerOutput;
+    ///
+    /// pack은 활성 언어팩 핸들 — 미다운로드 언어에서는 None이며 Composer는
+    /// 팩 없이도 합성 자체는 동작해야 한다. Composer는 필요한 섹션(lexicon,
+    /// language_model)만 꺼내 쓴다 — LM 교체는 팩 섹션 교체로 끝나고 계약은 불변.
+    fn feed(
+        &mut self,
+        event: ComposerEvent,
+        context: &EditorContext,
+        pack: Option<&Pack<'_>>,
+    ) -> ComposerOutput;
 
     /// 커서 이동·포커스 이탈 시 진행 중 composing을 언어별 정책으로 강제 확정한다.
     fn finalize(&mut self) -> Option<CommittedText>;

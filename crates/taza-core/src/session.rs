@@ -1,5 +1,5 @@
 use crate::composer::{
-    Candidate, Composer, ComposerEvent, ComposerOutput, ComposingText, EditorContext,
+    Candidate, Composer, ComposerEvent, ComposerOutput, ComposingText, EditorContext, Pack,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -38,7 +38,12 @@ impl Session {
         }
     }
 
-    pub fn handle(&mut self, event: InputEvent, context: &EditorContext) -> Vec<Effect> {
+    pub fn handle(
+        &mut self,
+        event: InputEvent,
+        context: &EditorContext,
+        pack: Option<&Pack<'_>>,
+    ) -> Vec<Effect> {
         match event {
             InputEvent::CursorMoved | InputEvent::FocusLost => {
                 let was_composing = self.composer.is_composing();
@@ -49,22 +54,33 @@ impl Session {
                 if was_composing {
                     effects.push(Effect::ClearComposing);
                 }
+                if self.showing_candidates {
+                    self.showing_candidates = false;
+                    effects.push(Effect::UpdateCandidates(Vec::new()));
+                }
                 effects
             }
-            InputEvent::Key(character) => self.feed(ComposerEvent::Key(character), context),
-            InputEvent::Backspace => self.feed(ComposerEvent::Backspace, context),
+            InputEvent::Key(character) => {
+                self.feed(ComposerEvent::Key(character), context, pack)
+            }
+            InputEvent::Backspace => self.feed(ComposerEvent::Backspace, context, pack),
             InputEvent::Separator(character) => {
-                self.feed(ComposerEvent::Separator(character), context)
+                self.feed(ComposerEvent::Separator(character), context, pack)
             }
             InputEvent::CandidateSelected(index) => {
-                self.feed(ComposerEvent::CandidateSelected(index), context)
+                self.feed(ComposerEvent::CandidateSelected(index), context, pack)
             }
         }
     }
 
-    fn feed(&mut self, event: ComposerEvent, context: &EditorContext) -> Vec<Effect> {
+    fn feed(
+        &mut self,
+        event: ComposerEvent,
+        context: &EditorContext,
+        pack: Option<&Pack<'_>>,
+    ) -> Vec<Effect> {
         let was_composing = self.composer.is_composing();
-        let output = self.composer.feed(event, context);
+        let output = self.composer.feed(event, context, pack);
         self.translate(output, was_composing)
     }
 

@@ -20,6 +20,7 @@ fn run(events: &str) -> (String, Option<String>) {
                 "{committed}{}",
                 composing.as_deref().unwrap_or("")
             )),
+            incognito: false,
         };
         for effect in session.handle(input, &context, None) {
             match effect {
@@ -174,11 +175,19 @@ fn cursor_move_finalizes_composing() {
 
 #[test]
 fn snapshot_roundtrip_preserves_composing() {
+    use taza_core::composer::ComposerEnvironment;
+    use taza_core::personalization::PersonalizationStore;
     let context = EditorContext::unavailable();
+    let mut personalization = PersonalizationStore::new();
+    let mut environment = ComposerEnvironment {
+        context: &context,
+        pack: None,
+        personalization: &mut personalization,
+    };
     let mut composer = HangulComposer::new();
-    composer.feed(ComposerEvent::Key('ㄱ'), &context, None);
-    composer.feed(ComposerEvent::Key('ㅏ'), &context, None);
-    composer.feed(ComposerEvent::Key('ㅂ'), &context, None);
+    composer.feed(ComposerEvent::Key('ㄱ'), &mut environment);
+    composer.feed(ComposerEvent::Key('ㅏ'), &mut environment);
+    composer.feed(ComposerEvent::Key('ㅂ'), &mut environment);
     let state = composer.snapshot();
     assert_eq!(
         state,
@@ -189,6 +198,6 @@ fn snapshot_roundtrip_preserves_composing() {
 
     let mut restored = HangulComposer::new();
     restored.restore(state);
-    let output = restored.feed(ComposerEvent::Key('ㅏ'), &context, None);
+    let output = restored.feed(ComposerEvent::Key('ㅏ'), &mut environment);
     assert_eq!(output.composing.unwrap().text, "가바");
 }

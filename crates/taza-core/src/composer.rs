@@ -4,10 +4,15 @@ pub mod latin;
 
 pub use taza_pack::Pack;
 
+use crate::personalization::PersonalizationStore;
+
 /// 커서 주변 문맥. 플랫폼이 제공하지 못하면 None (iOS는 앱에 따라 0자·nil이 일상).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct EditorContext {
     pub text_before_cursor: Option<String>,
+    /// 시크릿 필드 등 학습 금지 신호 (Android IME_FLAG_NO_PERSONALIZED_LEARNING 등) —
+    /// true면 개인화 기록을 하지 않는다
+    pub incognito: bool,
 }
 
 impl EditorContext {
@@ -81,20 +86,20 @@ pub enum ComposerState {
     Latin { current_word: String },
 }
 
+/// Composer가 판단에 쓰는 주변 상태 묶음. 새 의존이 생겨도 trait 시그니처는 불변.
+pub struct ComposerEnvironment<'call> {
+    /// composing이 없을 때 커서 앞 확정 텍스트를 채택(adopt)해 합성을 재개하는 통로
+    pub context: &'call EditorContext,
+    /// 활성 언어팩 — 미다운로드 언어에서는 None이며 합성 자체는 팩 없이도 동작해야 한다.
+    /// 필요한 섹션(lexicon, language_model)만 꺼내 쓴다 — LM 교체는 팩 배포로 끝난다.
+    pub pack: Option<&'call Pack<'call>>,
+    /// 온디바이스 개인화 — 기록 여부는 context.incognito를 반드시 확인한다
+    pub personalization: &'call mut PersonalizationStore,
+}
+
 pub trait Composer {
-    /// composing이 없을 때 커서 앞 확정 텍스트를 채택(adopt)해 합성을 재개할 수 있다 —
-    /// 채택분은 delete_before_commit으로 치환하고 composing으로 되가져온다.
-    /// (한국어 자모 분해 삭제·도깨비불 재개, 추후 텔렉스 성조 소급 수정 등 언어 공통 통로)
-    ///
-    /// pack은 활성 언어팩 핸들 — 미다운로드 언어에서는 None이며 Composer는
-    /// 팩 없이도 합성 자체는 동작해야 한다. Composer는 필요한 섹션(lexicon,
-    /// language_model)만 꺼내 쓴다 — LM 교체는 팩 섹션 교체로 끝나고 계약은 불변.
-    fn feed(
-        &mut self,
-        event: ComposerEvent,
-        context: &EditorContext,
-        pack: Option<&Pack<'_>>,
-    ) -> ComposerOutput;
+    fn feed(&mut self, event: ComposerEvent, environment: &mut ComposerEnvironment<'_>)
+    -> ComposerOutput;
 
     /// 커서 이동·포커스 이탈 시 진행 중 composing을 언어별 정책으로 강제 확정한다.
     fn finalize(&mut self) -> Option<CommittedText>;

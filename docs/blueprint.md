@@ -190,6 +190,9 @@ struct Candidate { text, kind /* 예측|변환|교정 */, commit_policy /* 후�
 - 온디바이스 개인화: 사용자 unigram 빈도 + 최근성 부스트. 코어 스냅샷에 포함,
   incognito 플래그 시 학습 중단. 원격 로그 수집은 하지 않음 — 개선 신호가 필요해지면
   온디바이스 집계 요약 + 명시 동의 방식으로 별도 설계.
+  **구현됨(PersonalizationStore + ComposerEnvironment)**: 논리 시계 기반 최근성,
+  용량 상한 축출, 학습 단어 자동교정 억제, 미등재 원문 후보(as-typed)를 통한 학습 경로,
+  개인화 접두 완성, 스냅샷 직렬화. EditorContext.incognito가 학습 게이트.
 
 ## 언어별 확장 기능 카탈로그와 아키텍처 훅 (v2.2)
 기능 자체는 추후 구현. 지금 확보할 것은 "이 기능이 나중에 와도 계약이 안 깨진다"는 훅이다.

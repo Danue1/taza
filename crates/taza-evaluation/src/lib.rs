@@ -53,6 +53,7 @@ impl Typist {
     fn send(&mut self, event: InputEvent, pack: &Pack<'_>) {
         let context = EditorContext {
             text_before_cursor: Some(self.committed.clone()),
+            incognito: false,
         };
         for effect in self.session.handle(event, &context, Some(pack)) {
             match effect {

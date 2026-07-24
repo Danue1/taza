@@ -1,6 +1,6 @@
 use super::{
-    CommittedText, Composer, ComposerEvent, ComposerOutput, ComposerState, ComposingText,
-    EditorContext, Pack,
+    CommittedText, Composer, ComposerEnvironment, ComposerEvent, ComposerOutput, ComposerState,
+    ComposingText, EditorContext,
 };
 
 const CHOSEONG: [char; 19] = [
@@ -323,9 +323,9 @@ impl Composer for HangulComposer {
     fn feed(
         &mut self,
         event: ComposerEvent,
-        context: &EditorContext,
-        _pack: Option<&Pack<'_>>,
+        environment: &mut ComposerEnvironment<'_>,
     ) -> ComposerOutput {
+        let context = environment.context;
         match event {
             ComposerEvent::Key(character) if is_jamo(character) => {
                 let adopted = self.try_adopt(context);

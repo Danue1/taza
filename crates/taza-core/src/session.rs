@@ -1,6 +1,8 @@
 use crate::composer::{
-    Candidate, Composer, ComposerEvent, ComposerOutput, ComposingText, EditorContext, Pack,
+    Candidate, Composer, ComposerEnvironment, ComposerEvent, ComposerOutput, ComposingText,
+    EditorContext, Pack,
 };
+use crate::personalization::{PersonalizationState, PersonalizationStore};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InputEvent {
@@ -28,6 +30,7 @@ pub enum Effect {
 pub struct Session {
     composer: Box<dyn Composer>,
     showing_candidates: bool,
+    personalization: PersonalizationStore,
 }
 
 impl Session {
@@ -35,7 +38,17 @@ impl Session {
         Session {
             composer,
             showing_candidates: false,
+            personalization: PersonalizationStore::new(),
         }
+    }
+
+    /// 익스텐션 kill 대비 — 개인화 상태를 스냅샷해 컨테이너 저장소에 보관한다.
+    pub fn personalization_snapshot(&self) -> PersonalizationState {
+        self.personalization.snapshot()
+    }
+
+    pub fn restore_personalization(&mut self, state: PersonalizationState) {
+        self.personalization = PersonalizationStore::restore(state);
     }
 
     pub fn handle(
@@ -80,7 +93,12 @@ impl Session {
         pack: Option<&Pack<'_>>,
     ) -> Vec<Effect> {
         let was_composing = self.composer.is_composing();
-        let output = self.composer.feed(event, context, pack);
+        let mut environment = ComposerEnvironment {
+            context,
+            pack,
+            personalization: &mut self.personalization,
+        };
+        let output = self.composer.feed(event, &mut environment);
         self.translate(output, was_composing)
     }
 

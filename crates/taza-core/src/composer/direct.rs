@@ -1,5 +1,5 @@
 use super::{
-    CommittedText, Composer, ComposerEvent, ComposerOutput, ComposerState, EditorContext, Pack,
+    CommittedText, Composer, ComposerEnvironment, ComposerEvent, ComposerOutput, ComposerState,
 };
 
 /// composing 없이 즉시 확정하는 골격 — 라틴 전반. 악센트는 레이아웃의 롱프레스 팝업이,
@@ -17,8 +17,7 @@ impl Composer for DirectComposer {
     fn feed(
         &mut self,
         event: ComposerEvent,
-        _context: &EditorContext,
-        _pack: Option<&Pack<'_>>,
+        _environment: &mut ComposerEnvironment<'_>,
     ) -> ComposerOutput {
         match event {
             ComposerEvent::Key(character) | ComposerEvent::Separator(character) => {

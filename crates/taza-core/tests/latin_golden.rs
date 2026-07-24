@@ -38,6 +38,7 @@ struct Harness<'bytes> {
     pack: Pack<'bytes>,
     committed: String,
     candidates: Vec<String>,
+    incognito: bool,
 }
 
 impl<'bytes> Harness<'bytes> {
@@ -47,12 +48,14 @@ impl<'bytes> Harness<'bytes> {
             pack: Pack::open(pack_bytes).unwrap(),
             committed: String::new(),
             candidates: Vec::new(),
+            incognito: false,
         }
     }
 
     fn send(&mut self, event: InputEvent) {
         let context = EditorContext {
             text_before_cursor: Some(self.committed.clone()),
+            incognito: self.incognito,
         };
         let pack = &self.pack;
         for effect in self.session.handle(event, &context, Some(pack)) {
@@ -94,7 +97,8 @@ fn typing_commits_immediately_and_suggests() {
     let mut harness = Harness::new(&bytes);
     harness.type_text("th");
     assert_eq!(harness.committed, "th");
-    assert_eq!(harness.candidates, vec!["the", "then", "they"]);
+    // 미등재 단어는 원문("th")이 끝에 붙는다 — 선택 시 학습 경로
+    assert_eq!(harness.candidates, vec!["the", "then", "they", "th"]);
 }
 
 #[test]
@@ -145,7 +149,7 @@ fn candidate_selection_replaces_word_and_starts_new_sequence() {
     // 띄어쓰기 없이 이어 타이핑해도 새 단어로 인지
     harness.type_text("he");
     assert_eq!(harness.committed, "the he");
-    assert_eq!(harness.candidates, vec!["hello", "help", "the"]);
+    assert_eq!(harness.candidates, vec!["hello", "help", "the", "he"]);
 }
 
 #[test]
@@ -199,18 +203,86 @@ fn works_without_lexicon() {
 
 #[test]
 fn suggestion_kinds_distinguish_completion_from_correction() {
+    use taza_core::composer::{Composer, ComposerEnvironment, ComposerEvent};
+    use taza_core::personalization::PersonalizationStore;
     let bytes = english_pack();
     let pack = Pack::open(&bytes).unwrap();
     let mut composer = LatinComposer::new();
     let context = EditorContext::unavailable();
-    use taza_core::composer::{Composer, ComposerEvent};
-    composer.feed(ComposerEvent::Key('t'), &context, Some(&pack));
-    composer.feed(ComposerEvent::Key('e'), &context, Some(&pack));
-    let output = composer.feed(ComposerEvent::Key('h'), &context, Some(&pack));
+    let mut personalization = PersonalizationStore::new();
+    let mut environment = ComposerEnvironment {
+        context: &context,
+        pack: Some(&pack),
+        personalization: &mut personalization,
+    };
+    composer.feed(ComposerEvent::Key('t'), &mut environment);
+    composer.feed(ComposerEvent::Key('e'), &mut environment);
+    let output = composer.feed(ComposerEvent::Key('h'), &mut environment);
     let correction = output
         .candidates
         .iter()
         .find(|candidate| candidate.text == "the")
         .unwrap();
     assert_eq!(correction.kind, CandidateKind::Correction);
+}
+
+#[test]
+fn learned_word_outranks_static_frequency() {
+    let bytes = english_pack();
+    let mut harness = Harness::new(&bytes);
+    // hello(80) > help(50)가 기본 — help를 두 번 확정해 학습시키면 역전
+    harness.type_text("help help ");
+    harness.type_text("he");
+    assert_eq!(harness.candidates[0], "help");
+}
+
+#[test]
+fn incognito_disables_learning() {
+    let bytes = english_pack();
+    let mut harness = Harness::new(&bytes);
+    harness.incognito = true;
+    harness.type_text("help help ");
+    harness.type_text("he");
+    assert_eq!(harness.candidates[0], "hello");
+}
+
+#[test]
+fn selecting_raw_word_learns_it_and_suppresses_autocorrection() {
+    let bytes = english_pack();
+    let mut harness = Harness::new(&bytes);
+
+    // "thw"는 자동교정 대상("the", 거리 1)이지만, 원문 후보를 두 번 선택해 학습시킨다
+    for _ in 0..2 {
+        harness.type_text("thw");
+        let raw_index = harness
+            .candidates
+            .iter()
+            .position(|candidate| candidate == "thw")
+            .unwrap();
+        harness.send(InputEvent::CandidateSelected(raw_index));
+    }
+    assert_eq!(harness.committed, "thw thw ");
+
+    // 학습 후에는 separator에서도 교정되지 않는다
+    harness.type_text("thw ");
+    assert_eq!(harness.committed, "thw thw thw ");
+
+    // 개인화 어휘가 접두 완성으로도 제안된다
+    harness.type_text("th");
+    assert_eq!(harness.candidates[0], "thw");
+}
+
+#[test]
+fn personalization_snapshot_persists_learning() {
+    use taza_core::composer::latin::LatinComposer;
+    let bytes = english_pack();
+    let mut harness = Harness::new(&bytes);
+    harness.type_text("help help ");
+    let state = harness.session.personalization_snapshot();
+
+    let mut restored = Harness::new(&bytes);
+    restored.session = Session::new(Box::new(LatinComposer::new()));
+    restored.session.restore_personalization(state);
+    restored.type_text("he");
+    assert_eq!(restored.candidates[0], "help");
 }

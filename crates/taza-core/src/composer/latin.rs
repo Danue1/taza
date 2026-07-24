@@ -1,6 +1,6 @@
 use super::{
-    Candidate, CandidateKind, CommittedText, Composer, ComposerEvent, ComposerOutput,
-    ComposerState, EditorContext, Pack,
+    Candidate, CandidateKind, CommittedText, Composer, ComposerEnvironment, ComposerEvent,
+    ComposerOutput, ComposerState, EditorContext,
 };
 
 const SUGGESTION_LIMIT: usize = 3;
@@ -14,7 +14,7 @@ fn is_word_character(character: char) -> bool {
 /// 라틴 골격: composing 없이 글자를 즉시 확정하고(플랫폼 관습 — 영어는 marked text를
 /// 쓰지 않는다), 현재 단어를 내부에서 추적해 제안 스트립과 자동교정을 만든다.
 /// 제안 채택·자동교정은 delete_before_commit으로 확정 텍스트를 치환한다.
-/// 단어 경계에서는 언어모델로 다음 단어를 예측해 후보 바를 채운다.
+/// 단어 경계에서는 언어모델 + 개인화로 다음 단어를 예측해 후보 바를 채운다.
 #[derive(Debug, Default)]
 pub struct LatinComposer {
     current_word: String,
@@ -42,31 +42,41 @@ impl LatinComposer {
         self.current_word = word.into_iter().rev().collect();
     }
 
-    fn suggest(&mut self, pack: Option<&Pack<'_>>) {
+    fn suggest(&mut self, environment: &ComposerEnvironment<'_>) {
         self.candidates.clear();
-        let Some(lexicon) = pack.and_then(Pack::lexicon) else {
-            return;
-        };
         if self.current_word.is_empty() {
             return;
         }
-        if lexicon.contains(&self.current_word) {
+        let personalization = &*environment.personalization;
+        let lexicon = environment.pack.and_then(|pack| pack.lexicon());
+        let in_lexicon = lexicon
+            .as_ref()
+            .is_some_and(|lexicon| lexicon.contains(&self.current_word));
+        if in_lexicon || personalization.is_learned(&self.current_word) {
             self.candidates.push(Candidate {
                 text: self.current_word.clone(),
                 kind: CandidateKind::Prediction,
             });
         }
+        // 효과 빈도 = 사전 빈도 + 개인화 가중치 — 랭킹 결합의 v1 형태
         let mut ranked: Vec<(u32, u32, String, CandidateKind)> = Vec::new();
-        for completion in lexicon.complete(&self.current_word, SUGGESTION_LIMIT + 1) {
-            ranked.push((0, completion.frequency, completion.word, CandidateKind::Prediction));
+        if let Some(lexicon) = &lexicon {
+            for completion in lexicon.complete(&self.current_word, SUGGESTION_LIMIT + 1) {
+                let weight = completion.frequency + personalization.weight(&completion.word);
+                ranked.push((0, weight, completion.word, CandidateKind::Prediction));
+            }
+            for correction in lexicon.corrections(&self.current_word, 1, SUGGESTION_LIMIT + 1) {
+                let weight = correction.frequency + personalization.weight(&correction.word);
+                ranked.push((
+                    correction.distance,
+                    weight,
+                    correction.word,
+                    CandidateKind::Correction,
+                ));
+            }
         }
-        for correction in lexicon.corrections(&self.current_word, 1, SUGGESTION_LIMIT + 1) {
-            ranked.push((
-                correction.distance,
-                correction.frequency,
-                correction.word,
-                CandidateKind::Correction,
-            ));
+        for (word, weight) in personalization.complete(&self.current_word, SUGGESTION_LIMIT) {
+            ranked.push((0, weight, word, CandidateKind::Prediction));
         }
         ranked.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| b.1.cmp(&a.1)).then_with(|| a.2.cmp(&b.2)));
         for (_, _, word, kind) in ranked {
@@ -78,19 +88,46 @@ impl LatinComposer {
             }
             self.candidates.push(Candidate { text: word, kind });
         }
+        // 미등재 단어는 원문 그대로도 선택할 수 있게 끝에 노출 — 자동교정을 피해
+        // 선택하는 것이 곧 학습 경로다. 자동교정이 없는 상황(사전 없음)에서는 불필요.
+        if lexicon.is_some()
+            && !in_lexicon
+            && !self
+                .candidates
+                .iter()
+                .any(|candidate| candidate.text == self.current_word)
+        {
+            self.candidates.push(Candidate {
+                text: self.current_word.clone(),
+                kind: CandidateKind::Prediction,
+            });
+        }
     }
 
-    /// 단어 확정 직후 — 후보 바를 다음 단어 예측으로 채운다.
-    fn predict_after(&mut self, committed_word: &str, pack: Option<&Pack<'_>>) {
+    /// 단어 확정 직후 — 후보 바를 다음 단어 예측(LM + 개인화)으로 채운다.
+    fn predict_after(&mut self, committed_word: &str, environment: &ComposerEnvironment<'_>) {
         self.candidates.clear();
-        let Some(language_model) = pack.and_then(Pack::language_model) else {
+        let Some(language_model) = environment.pack.and_then(|pack| pack.language_model()) else {
             return;
         };
-        for prediction in language_model.predict_next(committed_word, SUGGESTION_LIMIT) {
+        let personalization = &*environment.personalization;
+        let mut predictions = language_model.predict_next(committed_word, SUGGESTION_LIMIT);
+        predictions.sort_by(|a, b| {
+            let weight_a = a.weight + personalization.weight(&a.word);
+            let weight_b = b.weight + personalization.weight(&b.word);
+            weight_b.cmp(&weight_a).then_with(|| a.word.cmp(&b.word))
+        });
+        for prediction in predictions {
             self.candidates.push(Candidate {
                 text: prediction.word,
                 kind: CandidateKind::Prediction,
             });
+        }
+    }
+
+    fn record(&self, word: &str, environment: &mut ComposerEnvironment<'_>) {
+        if !environment.context.incognito {
+            environment.personalization.record(word);
         }
     }
 
@@ -103,8 +140,12 @@ impl LatinComposer {
         }
     }
 
-    fn autocorrection(&self, pack: Option<&Pack<'_>>) -> Option<String> {
-        let lexicon = pack.and_then(Pack::lexicon)?;
+    fn autocorrection(&self, environment: &ComposerEnvironment<'_>) -> Option<String> {
+        // 학습된 단어(사용자 어휘)는 사전에 없어도 교정하지 않는다
+        if environment.personalization.is_learned(&self.current_word) {
+            return None;
+        }
+        let lexicon = environment.pack.and_then(|pack| pack.lexicon())?;
         if self.current_word.chars().count() < AUTOCORRECT_MINIMUM_LENGTH
             || lexicon.contains(&self.current_word)
         {
@@ -122,14 +163,13 @@ impl Composer for LatinComposer {
     fn feed(
         &mut self,
         event: ComposerEvent,
-        context: &EditorContext,
-        pack: Option<&Pack<'_>>,
+        environment: &mut ComposerEnvironment<'_>,
     ) -> ComposerOutput {
         match event {
             ComposerEvent::Key(character) if is_word_character(character) => {
-                self.adopt_from_context(context);
+                self.adopt_from_context(environment.context);
                 self.current_word.push(character);
-                self.suggest(pack);
+                self.suggest(environment);
                 self.output(0, Some(CommittedText::plain(character.to_string())))
             }
             ComposerEvent::Key(character) => {
@@ -137,10 +177,11 @@ impl Composer for LatinComposer {
                 self.candidates.clear();
                 self.output(0, Some(CommittedText::plain(character.to_string())))
             }
-            ComposerEvent::Separator(character) => match self.autocorrection(pack) {
+            ComposerEvent::Separator(character) => match self.autocorrection(environment) {
                 Some(corrected) => {
                     let original = std::mem::take(&mut self.current_word);
-                    self.predict_after(&corrected, pack);
+                    self.record(&corrected, environment);
+                    self.predict_after(&corrected, environment);
                     self.output(
                         original.chars().count(),
                         Some(CommittedText {
@@ -152,14 +193,15 @@ impl Composer for LatinComposer {
                 }
                 None => {
                     let word = std::mem::take(&mut self.current_word);
-                    self.predict_after(&word, pack);
+                    self.record(&word, environment);
+                    self.predict_after(&word, environment);
                     self.output(0, Some(CommittedText::plain(character.to_string())))
                 }
             },
             ComposerEvent::Backspace => {
-                self.adopt_from_context(context);
+                self.adopt_from_context(environment.context);
                 if self.current_word.pop().is_some() {
-                    self.suggest(pack);
+                    self.suggest(environment);
                 } else {
                     self.candidates.clear();
                 }
@@ -170,7 +212,8 @@ impl Composer for LatinComposer {
                     return ComposerOutput::default();
                 };
                 let original = std::mem::take(&mut self.current_word);
-                self.predict_after(&candidate.text, pack);
+                self.record(&candidate.text, environment);
+                self.predict_after(&candidate.text, environment);
                 // 선택 확정 뒤의 타이핑은 새 입력 시퀀스 — 후행 공백이 그 경계다
                 self.output(
                     original.chars().count(),

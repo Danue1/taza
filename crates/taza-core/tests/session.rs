@@ -1,7 +1,7 @@
 use taza_core::composer::direct::DirectComposer;
 use taza_core::composer::{
-    Candidate, CandidateKind, CommittedText, Composer, ComposerEvent, ComposerOutput,
-    ComposerState, EditorContext, Pack,
+    Candidate, CandidateKind, CommittedText, Composer, ComposerEnvironment, ComposerEvent,
+    ComposerOutput, ComposerState, EditorContext,
 };
 use taza_core::session::{Effect, InputEvent, Session};
 
@@ -31,8 +31,7 @@ impl Composer for ReplacingComposer {
     fn feed(
         &mut self,
         event: ComposerEvent,
-        _context: &EditorContext,
-        _pack: Option<&Pack<'_>>,
+        _environment: &mut ComposerEnvironment<'_>,
     ) -> ComposerOutput {
         match event {
             ComposerEvent::Key(_) => ComposerOutput {

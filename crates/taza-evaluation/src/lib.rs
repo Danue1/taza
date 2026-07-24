@@ -6,10 +6,13 @@
 
 pub mod synthesis;
 
-use taza_core::composer::latin::LatinComposer;
-use taza_core::composer::{EditorContext, Pack};
+use taza_core::composer::{Composer, EditorContext, Pack};
 use taza_core::session::{Effect, InputEvent, Session};
 
+/// 언어별 Composer를 세션마다 새로 만드는 팩토리 — 평가는 항상 빈 상태에서 시작한다.
+pub type ComposerFactory<'call> = &'call dyn Fn() -> Box<dyn Composer>;
+
+/// typed는 실제 입력 시퀀스(한국어는 자모), intended는 화면 표시 형태의 의도 단어.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EvaluationCase {
     pub typed: String,
@@ -31,8 +34,15 @@ pub struct CorrectionReport {
 pub struct CompletionReport {
     pub word_count: usize,
     /// 1 - (사용한 입력 수 / 전체 타이핑 입력 수). 후보 선택 탭은 입력 1회로 계산하며
-    /// 선택 시 후행 공백이 따라오므로 기준선은 단어 길이 + 공백 1회다.
+    /// 선택 시 후행 공백이 따라오므로 기준선은 입력 시퀀스 길이 + 공백 1회다.
     pub keystroke_savings: f64,
+}
+
+/// 완성 평가 과제 — typed 시퀀스를 치는 동안 intended가 top-3에 오르면 선택한 것으로 본다.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompletionTask {
+    pub typed: String,
+    pub intended: String,
 }
 
 struct Typist {
@@ -42,9 +52,9 @@ struct Typist {
 }
 
 impl Typist {
-    fn new() -> Self {
+    fn new(composer_factory: ComposerFactory<'_>) -> Self {
         Typist {
-            session: Session::new(Box::new(LatinComposer::new())),
+            session: Session::new(composer_factory()),
             committed: String::new(),
             candidates: Vec::new(),
         }
@@ -81,13 +91,17 @@ impl Typist {
     }
 }
 
-pub fn evaluate_corrections(pack: &Pack<'_>, cases: &[EvaluationCase]) -> CorrectionReport {
+pub fn evaluate_corrections(
+    pack: &Pack<'_>,
+    cases: &[EvaluationCase],
+    composer_factory: ComposerFactory<'_>,
+) -> CorrectionReport {
     let mut top1 = 0usize;
     let mut top3 = 0usize;
     let mut reciprocal_rank_sum = 0.0f64;
     let mut autocorrected = 0usize;
     for case in cases {
-        let mut typist = Typist::new();
+        let mut typist = Typist::new(composer_factory);
         typist.type_word(&case.typed, pack);
         if let Some(rank) = typist
             .candidates
@@ -117,30 +131,34 @@ pub fn evaluate_corrections(pack: &Pack<'_>, cases: &[EvaluationCase]) -> Correc
     }
 }
 
-pub fn evaluate_completions(pack: &Pack<'_>, words: &[&str]) -> CompletionReport {
+pub fn evaluate_completions(
+    pack: &Pack<'_>,
+    tasks: &[CompletionTask],
+    composer_factory: ComposerFactory<'_>,
+) -> CompletionReport {
     let mut savings_sum = 0.0f64;
-    for &word in words {
-        let word_length = word.chars().count();
-        let baseline = (word_length + 1) as f64;
-        let mut typist = Typist::new();
+    for task in tasks {
+        let typed_length = task.typed.chars().count();
+        let baseline = (typed_length + 1) as f64;
+        let mut typist = Typist::new(composer_factory);
         let mut used: Option<usize> = None;
-        for (typed_count, character) in word.chars().enumerate() {
+        for (typed_count, character) in task.typed.chars().enumerate() {
             typist.send(InputEvent::Key(character), pack);
             let in_top3 = typist
                 .candidates
                 .iter()
                 .take(3)
-                .any(|candidate| candidate == word);
-            if in_top3 && typed_count + 1 < word_length {
+                .any(|candidate| candidate == &task.intended);
+            if in_top3 && typed_count + 1 < typed_length {
                 used = Some(typed_count + 1 + 1); // 입력한 글자 + 선택 탭
                 break;
             }
         }
-        let used = used.unwrap_or(word_length + 1) as f64;
+        let used = used.unwrap_or(typed_length + 1) as f64;
         savings_sum += 1.0 - used / baseline;
     }
     CompletionReport {
-        word_count: words.len(),
-        keystroke_savings: savings_sum / words.len().max(1) as f64,
+        word_count: tasks.len(),
+        keystroke_savings: savings_sum / tasks.len().max(1) as f64,
     }
 }

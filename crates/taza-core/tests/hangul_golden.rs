@@ -192,7 +192,8 @@ fn snapshot_roundtrip_preserves_composing() {
     assert_eq!(
         state,
         ComposerState::Hangul {
-            composing_jamo: vec!['ㄱ', 'ㅏ', 'ㅂ']
+            composing_jamo: vec!['ㄱ', 'ㅏ', 'ㅂ'],
+            word_jamo: vec!['ㄱ', 'ㅏ', 'ㅂ'],
         }
     );
 

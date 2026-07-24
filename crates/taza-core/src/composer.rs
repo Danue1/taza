@@ -82,8 +82,13 @@ pub struct ComposerOutput {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ComposerState {
     Direct,
-    Hangul { composing_jamo: Vec<char> },
-    Latin { current_word: String },
+    Hangul {
+        composing_jamo: Vec<char>,
+        word_jamo: Vec<char>,
+    },
+    Latin {
+        current_word: String,
+    },
 }
 
 /// Composer가 판단에 쓰는 주변 상태 묶음. 새 의존이 생겨도 trait 시그니처는 불변.

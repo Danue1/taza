@@ -100,11 +100,21 @@ fn compile_bigrams(tsv: &str) -> Result<Vec<u8>, String> {
     Ok(ngram.build())
 }
 
+/// 한국어 단어를 자모 분해 후 두벌식 ASCII로 인코딩 — trie의 바이트 편집거리가
+/// 자모 단위 편집거리가 되도록 하는 저장 형식 (`--hangul-jamo`)
+fn encode_hangul_word(word: &str, line_number: usize) -> Result<String, String> {
+    use taza_core::composer::hangul::{decompose_word, encode_jamo_ascii};
+    decompose_word(word)
+        .and_then(|jamo| encode_jamo_ascii(&jamo))
+        .ok_or_else(|| format!("{}행: 한글로 분해할 수 없는 단어: {word:?}", line_number + 1))
+}
+
 fn compile(
     language: &str,
     tsv: &str,
     bigram_tsv: Option<&str>,
     layout_text: Option<&str>,
+    hangul_jamo: bool,
 ) -> Result<Vec<u8>, String> {
     let mut lexicon = LexiconBuilder::new();
     let mut word_count = 0usize;
@@ -123,7 +133,11 @@ fn compile(
         if frequency == 0 {
             return Err(format!("{}행: 빈도는 1 이상이어야 함", line_number + 1));
         }
-        lexicon.insert(word, frequency);
+        if hangul_jamo {
+            lexicon.insert(&encode_hangul_word(word, line_number)?, frequency);
+        } else {
+            lexicon.insert(word, frequency);
+        }
         word_count += 1;
     }
     if word_count == 0 {
@@ -143,8 +157,8 @@ fn compile(
     Ok(writer.finish())
 }
 
-const USAGE: &str =
-    "사용법: taza-lexicon-compiler <언어태그> <단어.tsv> <출력.tazapack> [--bigrams <tsv>] [--layout <txt>]";
+const USAGE: &str = "사용법: taza-lexicon-compiler <언어태그> <단어.tsv> <출력.tazapack> \
+    [--bigrams <tsv>] [--layout <txt>] [--hangul-jamo]";
 
 fn main() -> ExitCode {
     let arguments: Vec<String> = std::env::args().collect();
@@ -154,12 +168,25 @@ fn main() -> ExitCode {
     };
     let mut bigram_path: Option<&String> = None;
     let mut layout_path: Option<&String> = None;
+    let mut hangul_jamo = false;
     let mut option_iterator = options.iter();
     while let Some(option) = option_iterator.next() {
-        let value = option_iterator.next();
-        match (option.as_str(), value) {
-            ("--bigrams", Some(path)) => bigram_path = Some(path),
-            ("--layout", Some(path)) => layout_path = Some(path),
+        match option.as_str() {
+            "--bigrams" => match option_iterator.next() {
+                Some(path) => bigram_path = Some(path),
+                None => {
+                    eprintln!("{USAGE}");
+                    return ExitCode::FAILURE;
+                }
+            },
+            "--layout" => match option_iterator.next() {
+                Some(path) => layout_path = Some(path),
+                None => {
+                    eprintln!("{USAGE}");
+                    return ExitCode::FAILURE;
+                }
+            },
+            "--hangul-jamo" => hangul_jamo = true,
             _ => {
                 eprintln!("{USAGE}");
                 return ExitCode::FAILURE;
@@ -184,7 +211,13 @@ fn main() -> ExitCode {
         Ok(content) => content,
         Err(code) => return code,
     };
-    let pack = match compile(language, &tsv, bigram_tsv.as_deref(), layout_text.as_deref()) {
+    let pack = match compile(
+        language,
+        &tsv,
+        bigram_tsv.as_deref(),
+        layout_text.as_deref(),
+        hangul_jamo,
+    ) {
         Ok(pack) => pack,
         Err(message) => {
             eprintln!("컴파일 실패: {message}");
@@ -207,7 +240,7 @@ mod tests {
     #[test]
     fn compiles_tsv_into_pack() {
         let tsv = "# 주석\nthe\t100\n\ntheme\t40\n";
-        let bytes = compile("en", tsv, None, None).unwrap();
+        let bytes = compile("en", tsv, None, None, false).unwrap();
         let pack = Pack::open(&bytes).unwrap();
         assert_eq!(pack.language(), "en");
         let lexicon = pack.lexicon().unwrap();
@@ -220,7 +253,7 @@ mod tests {
     #[test]
     fn compiles_bigrams_when_provided() {
         let bytes =
-            compile("en", "the\t100\nquick\t30\n", Some("the\tquick\t50\n"), None).unwrap();
+            compile("en", "the\t100\nquick\t30\n", Some("the\tquick\t50\n"), None, false).unwrap();
         let pack = Pack::open(&bytes).unwrap();
         let language_model = pack.language_model().unwrap();
         let predictions = language_model.predict_next("the", 3);
@@ -232,7 +265,7 @@ mod tests {
     fn compiles_layout_when_provided() {
         use taza_pack::layout::KeyAction;
         let layout_text = "ㅂ:ㅃ ㅈ:ㅉ\nshift*0.15 ㅋ backspace*0.15\nspace*0.7 enter*0.3\n";
-        let bytes = compile("ko", "안녕\t10\n", None, Some(layout_text)).unwrap();
+        let bytes = compile("ko", "안녕\t10\n", None, Some(layout_text), false).unwrap();
         let layout = Pack::open(&bytes).unwrap().layout().unwrap();
         assert_eq!(layout.rows.len(), 3);
         assert_eq!(
@@ -255,15 +288,26 @@ mod tests {
     }
 
     #[test]
+    fn hangul_jamo_mode_encodes_words() {
+        let bytes = compile("ko", "안녕\t90\n안내\t50\n", None, None, true).unwrap();
+        let pack = Pack::open(&bytes).unwrap();
+        let lexicon = pack.lexicon().unwrap();
+        // 안녕 = ㅇㅏㄴㄴㅕㅇ = dkssud
+        assert_eq!(lexicon.frequency("dkssud"), Some(90));
+        assert_eq!(lexicon.complete("dkss", 10).len(), 2);
+        assert!(compile("ko", "hello\t10\n", None, None, true).is_err());
+    }
+
+    #[test]
     fn rejects_malformed_rows() {
-        assert!(compile("en", "the 100", None, None).is_err());
-        assert!(compile("en", "the\tabc", None, None).is_err());
-        assert!(compile("en", "the\t0", None, None).is_err());
-        assert!(compile("en", "", None, None).is_err());
-        assert!(compile("en", "the\t100", Some("the quick 50"), None).is_err());
-        assert!(compile("en", "the\t100", Some(""), None).is_err());
-        assert!(compile("en", "the\t100", None, Some("")).is_err());
-        assert!(compile("en", "the\t100", None, Some("ab cd")).is_err());
-        assert!(compile("en", "the\t100", None, Some("a*x")).is_err());
+        assert!(compile("en", "the 100", None, None, false).is_err());
+        assert!(compile("en", "the\tabc", None, None, false).is_err());
+        assert!(compile("en", "the\t0", None, None, false).is_err());
+        assert!(compile("en", "", None, None, false).is_err());
+        assert!(compile("en", "the\t100", Some("the quick 50"), None, false).is_err());
+        assert!(compile("en", "the\t100", Some(""), None, false).is_err());
+        assert!(compile("en", "the\t100", None, Some(""), false).is_err());
+        assert!(compile("en", "the\t100", None, Some("ab cd"), false).is_err());
+        assert!(compile("en", "the\t100", None, Some("a*x"), false).is_err());
     }
 }

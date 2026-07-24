@@ -1,10 +1,23 @@
 //! CI 회귀 게이트 — 랭킹·사전·교정 로직 변경은 이 임계값을 통과해야 병합한다.
 
+use taza_core::composer::hangul::{HangulComposer, decompose_word, encode_jamo_ascii};
+use taza_core::composer::latin::LatinComposer;
+use taza_core::composer::Composer;
 use taza_core::keyboard::layouts;
 use taza_evaluation::synthesis::{TypoSynthesizer, synthesize_cases};
-use taza_evaluation::{evaluate_completions, evaluate_corrections};
+use taza_evaluation::{
+    CompletionTask, EvaluationCase, evaluate_completions, evaluate_corrections,
+};
 use taza_pack::lexicon::LexiconBuilder;
 use taza_pack::{Pack, PackWriter, SectionKind};
+
+fn latin_factory() -> Box<dyn Composer> {
+    Box::new(LatinComposer::new())
+}
+
+fn hangul_factory() -> Box<dyn Composer> {
+    Box::new(HangulComposer::new())
+}
 
 const WORDS: [(&str, u32); 12] = [
     ("the", 1000),
@@ -67,7 +80,7 @@ fn correction_quality_gate() {
     let bytes = english_pack_bytes();
     let pack = Pack::open(&bytes).unwrap();
     let cases = synthesize_cases(&layouts::qwerty(), &word_list(), 42, 5);
-    let report = evaluate_corrections(&pack, &cases);
+    let report = evaluate_corrections(&pack, &cases, &latin_factory);
 
     // 기준선 실측 (seed 42): top1 0.900, top3 0.983, MRR 0.936, autocorrect 0.917
     assert!(report.case_count >= 40, "평가 셋이 너무 작음: {}", report.case_count);
@@ -93,11 +106,90 @@ fn correction_quality_gate() {
 fn completion_quality_gate() {
     let bytes = english_pack_bytes();
     let pack = Pack::open(&bytes).unwrap();
-    let report = evaluate_completions(&pack, &word_list());
+    let tasks: Vec<CompletionTask> = word_list()
+        .iter()
+        .map(|word| CompletionTask {
+            typed: word.to_string(),
+            intended: word.to_string(),
+        })
+        .collect();
+    let report = evaluate_completions(&pack, &tasks, &latin_factory);
     // 기준선 실측: 0.622
     assert_eq!(report.word_count, 12);
     assert!(
         report.keystroke_savings >= 0.55,
         "keystroke savings 회귀: {report:?}"
+    );
+}
+
+const KOREAN_WORDS: [(&str, u32); 8] = [
+    ("안녕", 900),
+    ("안녕하세요", 800),
+    ("안내", 500),
+    ("감사합니다", 700),
+    ("사랑", 400),
+    ("사람", 600),
+    ("키보드", 300),
+    ("한국어", 350),
+];
+
+fn korean_pack_bytes() -> Vec<u8> {
+    let mut lexicon = LexiconBuilder::new();
+    for (word, frequency) in KOREAN_WORDS {
+        let encoded = encode_jamo_ascii(&decompose_word(word).unwrap()).unwrap();
+        lexicon.insert(&encoded, frequency);
+    }
+    let mut writer = PackWriter::new("ko");
+    writer.add_section(SectionKind::Lexicon, lexicon.build());
+    writer.finish()
+}
+
+#[test]
+fn korean_correction_quality_gate() {
+    let bytes = korean_pack_bytes();
+    let pack = Pack::open(&bytes).unwrap();
+
+    // 자모 시퀀스 위에서 두벌식 레이아웃 인접성으로 오타 합성
+    let layout = layouts::dubeolsik();
+    let mut synthesizer = TypoSynthesizer::new(&layout, 42);
+    let mut cases = Vec::new();
+    for (word, _) in KOREAN_WORDS {
+        let jamo: String = decompose_word(word).unwrap().into_iter().collect();
+        for _ in 0..5 {
+            if let Some(typed) = synthesizer.synthesize(&jamo) {
+                cases.push(EvaluationCase {
+                    typed,
+                    intended: word.to_string(),
+                });
+            }
+        }
+    }
+    let report = evaluate_corrections(&pack, &cases, &hangul_factory);
+
+    // 기준선 실측 (seed 42): top1 1.0, top3 1.0, MRR 1.0 (소규모 사전 기준.
+    // 한국어는 자동교정 없음 — autocorrect_accuracy는 검증하지 않는다)
+    assert!(report.case_count >= 30, "평가 셋이 너무 작음: {}", report.case_count);
+    assert!(report.top3_accuracy >= 0.95, "한국어 top-3 회귀: {report:?}");
+    assert!(report.top1_accuracy >= 0.90, "한국어 top-1 회귀: {report:?}");
+    assert!(report.mean_reciprocal_rank >= 0.95, "한국어 MRR 회귀: {report:?}");
+}
+
+#[test]
+fn korean_completion_quality_gate() {
+    let bytes = korean_pack_bytes();
+    let pack = Pack::open(&bytes).unwrap();
+    let tasks: Vec<CompletionTask> = KOREAN_WORDS
+        .iter()
+        .map(|(word, _)| CompletionTask {
+            typed: decompose_word(word).unwrap().into_iter().collect(),
+            intended: word.to_string(),
+        })
+        .collect();
+    let report = evaluate_completions(&pack, &tasks, &hangul_factory);
+    // 기준선 실측: 0.737
+    assert_eq!(report.word_count, 8);
+    assert!(
+        report.keystroke_savings >= 0.65,
+        "한국어 keystroke savings 회귀: {report:?}"
     );
 }

@@ -1,4 +1,4 @@
-use crate::layout::KeyboardLayout;
+use crate::layout::KeyboardLayoutSet;
 use crate::lexicon::Lexicon;
 use crate::ngram::NgramModel;
 use crate::{FORMAT_VERSION, MAGIC, SectionKind};
@@ -126,7 +126,7 @@ impl<'bytes> Pack<'bytes> {
         self.section(SectionKind::NgramModel).map(NgramModel::new)
     }
 
-    pub fn layout(&self) -> Option<KeyboardLayout> {
+    pub fn layout(&self) -> Option<KeyboardLayoutSet> {
         crate::layout::deserialize(self.section(SectionKind::Layout)?)
     }
 }

@@ -2,49 +2,70 @@
 //! 입력: `단어<TAB>빈도` TSV, 선택적 bigram TSV(`앞단어<TAB>뒷단어<TAB>가중치`),
 //! 선택적 레이아웃 텍스트 — 모두 빈 줄과 `#` 주석 허용 → 출력: 언어팩 바이너리.
 //!
-//! 레이아웃 문법: 한 줄 = 한 행, 공백 구분 토큰 `표기[:시프트표기][*폭비율]`.
-//! 제어 키는 이름으로: `shift`, `backspace`, `space`, `enter`. 기본 폭 0.1.
+//! 레이아웃 문법: 한 줄 = 한 행, `---` 줄 = 레이어 구분(0=문자, 1=심볼1, 2=심볼2).
+//! 공백 구분 토큰 `표기[:시프트표기][*폭비율]`. 제어 키는 이름으로:
+//! `shift`, `backspace`, `space`, `enter`, `layer0`/`layer1`/`layer2`(레이어 전환).
+//! 기본 폭 0.1.
 //! ```text
 //! ㅂ:ㅃ ㅈ:ㅉ ㄷ:ㄸ ㄱ:ㄲ ㅅ:ㅆ ㅛ ㅕ ㅑ ㅐ:ㅒ ㅔ:ㅖ
 //! shift*0.15 ㅋ ㅌ ㅊ ㅍ ㅠ ㅜ ㅡ backspace*0.15
-//! space*0.7 enter*0.3
+//! layer1*0.15 space*0.55 enter*0.3
+//! ---
+//! 1 2 3 4 5 6 7 8 9 0
+//! ...
 //! ```
 
 use std::process::ExitCode;
-use taza_pack::layout::{KeyAction, KeyboardLayout, LayoutKey, LayoutRow};
+use taza_pack::layout::{KeyAction, KeyboardLayout, KeyboardLayoutSet, LayoutKey, LayoutRow};
 use taza_pack::lexicon::LexiconBuilder;
 use taza_pack::ngram::NgramModelBuilder;
 use taza_pack::{PackWriter, SectionKind};
 
 const DEFAULT_KEY_WIDTH: f32 = 0.1;
 
-fn parse_layout(text: &str) -> Result<KeyboardLayout, String> {
+fn parse_layout(text: &str) -> Result<KeyboardLayoutSet, String> {
+    let mut layers = Vec::new();
     let mut rows = Vec::new();
     for (line_number, line) in text.lines().enumerate() {
         let line = line.trim();
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
+        if line == "---" {
+            if rows.is_empty() {
+                return Err(format!("{}행: 빈 레이어", line_number + 1));
+            }
+            layers.push(KeyboardLayout {
+                rows: std::mem::take(&mut rows),
+            });
+            continue;
+        }
         let mut keys = Vec::new();
         for token in line.split_whitespace() {
+            // `*`·`:`는 기호 키로도 쓰이므로, 양쪽이 온전할 때만 구분자로 해석한다
             let (specification, width_ratio) = match token.split_once('*') {
-                Some((specification, width)) => {
-                    let width: f32 = width.parse().map_err(|_| {
-                        format!("{}행: 폭 비율이 숫자가 아님: {width:?}", line_number + 1)
-                    })?;
-                    (specification, width)
+                Some((specification, width)) if !specification.is_empty() => {
+                    match width.parse::<f32>() {
+                        Ok(width) => (specification, width),
+                        Err(_) => (token, DEFAULT_KEY_WIDTH),
+                    }
                 }
-                None => (token, DEFAULT_KEY_WIDTH),
+                _ => (token, DEFAULT_KEY_WIDTH),
             };
             let action = match specification {
                 "shift" => KeyAction::Shift,
                 "backspace" => KeyAction::Backspace,
                 "space" => KeyAction::Space,
                 "enter" => KeyAction::Enter,
+                "layer0" => KeyAction::LayerSwitch { target: 0 },
+                "layer1" => KeyAction::LayerSwitch { target: 1 },
+                "layer2" => KeyAction::LayerSwitch { target: 2 },
                 characters => {
                     let (base, shifted) = match characters.split_once(':') {
-                        Some((base, shifted)) => (base, shifted),
-                        None => (characters, characters),
+                        Some((base, shifted)) if !base.is_empty() && !shifted.is_empty() => {
+                            (base, shifted)
+                        }
+                        _ => (characters, characters),
                     };
                     let single = |part: &str| -> Result<char, String> {
                         let mut iterator = part.chars();
@@ -69,10 +90,13 @@ fn parse_layout(text: &str) -> Result<KeyboardLayout, String> {
         }
         rows.push(LayoutRow { keys });
     }
-    if rows.is_empty() {
+    if !rows.is_empty() {
+        layers.push(KeyboardLayout { rows });
+    }
+    if layers.is_empty() {
         return Err("레이아웃에 행이 없음".to_string());
     }
-    Ok(KeyboardLayout { rows })
+    Ok(KeyboardLayoutSet { layers })
 }
 
 fn compile_bigrams(tsv: &str) -> Result<Vec<u8>, String> {
@@ -264,27 +288,32 @@ mod tests {
     #[test]
     fn compiles_layout_when_provided() {
         use taza_pack::layout::KeyAction;
-        let layout_text = "ㅂ:ㅃ ㅈ:ㅉ\nshift*0.15 ㅋ backspace*0.15\nspace*0.7 enter*0.3\n";
+        let layout_text = "ㅂ:ㅃ ㅈ:ㅉ\nshift*0.15 ㅋ backspace*0.15\nlayer1*0.15 space*0.55 enter*0.3\n---\n1 2 3\nlayer0*0.15 space*0.55 enter*0.3\n";
         let bytes = compile("ko", "안녕\t10\n", None, Some(layout_text), false).unwrap();
-        let layout = Pack::open(&bytes).unwrap().layout().unwrap();
-        assert_eq!(layout.rows.len(), 3);
+        let layout_set = Pack::open(&bytes).unwrap().layout().unwrap();
+        assert_eq!(layout_set.layers.len(), 2);
+
+        let letters = &layout_set.layers[0];
+        assert_eq!(letters.rows.len(), 3);
         assert_eq!(
-            layout.rows[0].keys[0].action,
+            letters.rows[0].keys[0].action,
             KeyAction::Character {
                 base: 'ㅂ',
                 shifted: 'ㅃ'
             }
         );
-        assert_eq!(layout.rows[1].keys[0].action, KeyAction::Shift);
-        assert!((layout.rows[1].keys[0].width_ratio - 0.15).abs() < 1e-6);
+        assert_eq!(letters.rows[1].keys[0].action, KeyAction::Shift);
+        assert!((letters.rows[1].keys[0].width_ratio - 0.15).abs() < 1e-6);
         assert_eq!(
-            layout.rows[1].keys[1].action,
-            KeyAction::Character {
-                base: 'ㅋ',
-                shifted: 'ㅋ'
-            }
+            letters.rows[2].keys[0].action,
+            KeyAction::LayerSwitch { target: 1 }
         );
-        assert!((layout.rows[2].keys[0].width_ratio - 0.7).abs() < 1e-6);
+
+        let symbols = &layout_set.layers[1];
+        assert_eq!(
+            symbols.rows[1].keys[0].action,
+            KeyAction::LayerSwitch { target: 0 }
+        );
     }
 
     #[test]

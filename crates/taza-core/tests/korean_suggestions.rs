@@ -42,6 +42,7 @@ impl<'bytes> Harness<'bytes> {
                 self.composing.as_deref().unwrap_or("")
             )),
             incognito: false,
+            field: taza_core::composer::FieldKind::Text,
         };
         let pack = &self.pack;
         for effect in self.session.handle(event, &context, Some(pack)) {

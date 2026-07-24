@@ -6,6 +6,26 @@ pub use taza_pack::Pack;
 
 use crate::personalization::PersonalizationStore;
 
+/// 입력 필드의 종류 — 플랫폼 inputmode/keyboardType/inputType을 셸이 매핑한다.
+/// Text 외 필드에서는 제안·자동교정·개인화 학습을 끈다 (순정 키보드 관습).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum FieldKind {
+    #[default]
+    Text,
+    Email,
+    Url,
+    Number,
+    Phone,
+    Password,
+}
+
+impl FieldKind {
+    /// 제안·자동교정·학습 같은 보조 기능을 제공할 필드인가
+    pub fn assistance_enabled(self) -> bool {
+        self == FieldKind::Text
+    }
+}
+
 /// 커서 주변 문맥. 플랫폼이 제공하지 못하면 None (iOS는 앱에 따라 0자·nil이 일상).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct EditorContext {
@@ -13,6 +33,7 @@ pub struct EditorContext {
     /// 시크릿 필드 등 학습 금지 신호 (Android IME_FLAG_NO_PERSONALIZED_LEARNING 등) —
     /// true면 개인화 기록을 하지 않는다
     pub incognito: bool,
+    pub field: FieldKind,
 }
 
 impl EditorContext {
@@ -102,7 +123,25 @@ pub struct ComposerEnvironment<'call> {
     pub personalization: &'call mut PersonalizationStore,
 }
 
-pub trait Composer {
+/// 더블 스페이스 → ". " 치환(순정 키보드 공통 관습). 직전이 "단어 문자 + 공백 1개"일
+/// 때만 성립한다. composing이 없는 상태에서 공백 Separator를 받았을 때 호출한다.
+pub(crate) fn double_space_period(context: &EditorContext) -> Option<ComposerOutput> {
+    let text = context.text_before_cursor.as_ref()?;
+    let mut characters = text.chars().rev();
+    if characters.next()? != ' ' {
+        return None;
+    }
+    if !characters.next()?.is_alphanumeric() {
+        return None;
+    }
+    Some(ComposerOutput {
+        delete_before_commit: 1,
+        commit: Some(CommittedText::plain(". ".to_string())),
+        ..ComposerOutput::default()
+    })
+}
+
+pub trait Composer: Send {
     fn feed(&mut self, event: ComposerEvent, environment: &mut ComposerEnvironment<'_>)
     -> ComposerOutput;
 

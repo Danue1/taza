@@ -44,7 +44,7 @@ impl LatinComposer {
 
     fn suggest(&mut self, environment: &ComposerEnvironment<'_>) {
         self.candidates.clear();
-        if self.current_word.is_empty() {
+        if self.current_word.is_empty() || !environment.context.field.assistance_enabled() {
             return;
         }
         let personalization = &*environment.personalization;
@@ -107,6 +107,9 @@ impl LatinComposer {
     /// 단어 확정 직후 — 후보 바를 다음 단어 예측(LM + 개인화)으로 채운다.
     fn predict_after(&mut self, committed_word: &str, environment: &ComposerEnvironment<'_>) {
         self.candidates.clear();
+        if !environment.context.field.assistance_enabled() {
+            return;
+        }
         let Some(language_model) = environment.pack.and_then(|pack| pack.language_model()) else {
             return;
         };
@@ -126,7 +129,7 @@ impl LatinComposer {
     }
 
     fn record(&self, word: &str, environment: &mut ComposerEnvironment<'_>) {
-        if !environment.context.incognito {
+        if !environment.context.incognito && environment.context.field.assistance_enabled() {
             environment.personalization.record(word);
         }
     }
@@ -141,6 +144,9 @@ impl LatinComposer {
     }
 
     fn autocorrection(&self, environment: &ComposerEnvironment<'_>) -> Option<String> {
+        if !environment.context.field.assistance_enabled() {
+            return None;
+        }
         // 학습된 단어(사용자 어휘)는 사전에 없어도 교정하지 않는다
         if environment.personalization.is_learned(&self.current_word) {
             return None;
@@ -176,6 +182,13 @@ impl Composer for LatinComposer {
                 self.current_word.clear();
                 self.candidates.clear();
                 self.output(0, Some(CommittedText::plain(character.to_string())))
+            }
+            ComposerEvent::Separator(' ') if self.current_word.is_empty() => {
+                self.candidates.clear();
+                match super::double_space_period(environment.context) {
+                    Some(output) => output,
+                    None => self.output(0, Some(CommittedText::plain(" ".to_string()))),
+                }
             }
             ComposerEvent::Separator(character) => match self.autocorrection(environment) {
                 Some(corrected) => {

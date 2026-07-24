@@ -141,6 +141,50 @@ fn dubeolsik_shift_produces_tense_consonants() {
 }
 
 #[test]
+fn layer_switch_cycles_symbol_layers() {
+    let mut keyboard = Keyboard::new(layouts::qwerty());
+    let frame = keyboard.frame();
+
+    // 문자면 하단의 123 → 심볼 1면
+    let (x, y) = key_center(&frame, "123");
+    let outcome = keyboard.press_at(x, y);
+    assert_eq!(outcome.event, None);
+    assert!(outcome.layout_changed);
+    let symbols = keyboard.frame();
+    let (one_x, one_y) = key_center(&symbols, "1");
+    assert_eq!(
+        keyboard.press_at(one_x, one_y).event,
+        Some(InputEvent::Key('1'))
+    );
+
+    // 심볼 1면의 #+= → 심볼 2면, ABC → 문자면 복귀
+    let (x, y) = key_center(&keyboard.frame(), "#+=");
+    keyboard.press_at(x, y);
+    let (bracket_x, bracket_y) = key_center(&keyboard.frame(), "[");
+    assert_eq!(
+        keyboard.press_at(bracket_x, bracket_y).event,
+        Some(InputEvent::Key('['))
+    );
+    let (x, y) = key_center(&keyboard.frame(), "ABC");
+    keyboard.press_at(x, y);
+    let (q_x, q_y) = key_center(&keyboard.frame(), "q");
+    assert_eq!(
+        keyboard.press_at(q_x, q_y).event,
+        Some(InputEvent::Key('q'))
+    );
+}
+
+#[test]
+fn korean_layer_switch_label_is_hangul() {
+    let mut keyboard = Keyboard::new(layouts::dubeolsik());
+    let frame = keyboard.frame();
+    let (x, y) = key_center(&frame, "123");
+    keyboard.press_at(x, y);
+    // 심볼면에서 문자면 복귀 키는 "한글"
+    key_center(&keyboard.frame(), "한글");
+}
+
+#[test]
 fn layout_from_pack_roundtrip_drives_keyboard() {
     use taza_pack::{Pack, PackWriter, SectionKind, layout};
     let mut writer = PackWriter::new("ko");

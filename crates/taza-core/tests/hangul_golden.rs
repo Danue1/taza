@@ -21,6 +21,7 @@ fn run(events: &str) -> (String, Option<String>) {
                 composing.as_deref().unwrap_or("")
             )),
             incognito: false,
+            field: taza_core::composer::FieldKind::Text,
         };
         for effect in session.handle(input, &context, None) {
             match effect {
@@ -123,6 +124,11 @@ fn jongseong_clusters() {
 #[test]
 fn separator_commits_window() {
     assert_text("ㄱㅏ_", "가 ", None);
+}
+
+#[test]
+fn double_space_inserts_period() {
+    assert_text("ㄱㅏ__", "가. ", None);
 }
 
 #[test]

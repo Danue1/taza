@@ -3,7 +3,7 @@
 
 use crate::EvaluationCase;
 use std::collections::BTreeMap;
-use taza_core::keyboard::{KeyAction, Keyboard, KeyboardLayout};
+use taza_core::keyboard::{KeyAction, Keyboard, KeyboardLayoutSet};
 
 /// 결정론 보장용 xorshift64 — 시드가 같으면 평가 셋이 같다.
 struct Random(u64);
@@ -27,14 +27,16 @@ impl Random {
     }
 }
 
-fn adjacency(layout: &KeyboardLayout) -> BTreeMap<char, Vec<char>> {
-    let keyboard = Keyboard::new(layout.clone());
+// 오타 인접성은 문자 레이어(0) 기준 — 프레임도 초기 상태(레이어 0)에서 얻는다
+fn adjacency(layout_set: &KeyboardLayoutSet) -> BTreeMap<char, Vec<char>> {
+    let keyboard = Keyboard::new(layout_set.clone());
     let frame = keyboard.frame();
+    let letters_layer = &layout_set.layers[0];
     let mut centers: Vec<(char, f32, f32)> = Vec::new();
     for row in &frame.rows {
         for key in row {
             if let KeyAction::Character { base, .. } =
-                layout.rows[key.position.row].keys[key.position.index].action
+                letters_layer.rows[key.position.row].keys[key.position.index].action
             {
                 centers.push((
                     base,
@@ -69,9 +71,9 @@ pub struct TypoSynthesizer {
 }
 
 impl TypoSynthesizer {
-    pub fn new(layout: &KeyboardLayout, seed: u64) -> Self {
+    pub fn new(layout_set: &KeyboardLayoutSet, seed: u64) -> Self {
         TypoSynthesizer {
-            adjacency: adjacency(layout),
+            adjacency: adjacency(layout_set),
             random: Random::new(seed),
         }
     }
@@ -146,12 +148,12 @@ fn delete(characters: &[char], random: &mut Random) -> Option<String> {
 
 /// 단어 목록에서 평가 셋을 합성한다. 단어마다 최대 per_word개.
 pub fn synthesize_cases(
-    layout: &KeyboardLayout,
+    layout_set: &KeyboardLayoutSet,
     words: &[&str],
     seed: u64,
     per_word: usize,
 ) -> Vec<EvaluationCase> {
-    let mut synthesizer = TypoSynthesizer::new(layout, seed);
+    let mut synthesizer = TypoSynthesizer::new(layout_set, seed);
     let mut cases = Vec::new();
     for &word in words {
         for _ in 0..per_word {

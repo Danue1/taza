@@ -21,6 +21,9 @@ pub enum Effect {
     /// (iOS insertText / Android commitText의 공통 의미론)
     CommitText(String),
     SetComposing(ComposingText),
+    /// composing 구간의 텍스트를 제거하고 composing 상태를 끝낸다.
+    /// 주의: iOS unmarkText / Android finishComposingText는 "확정"이므로 그대로 쓰면
+    /// 안 된다 — 빈 문자열로 치환 후 종료해야 한다 (셸 계약).
     ClearComposing,
     /// 코드포인트 수. iOS deleteBackward는 count 미보장이므로 셸은 적용 후 문맥 재동기화 필요
     DeleteBackward(usize),

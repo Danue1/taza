@@ -344,7 +344,7 @@ impl HangulComposer {
 
     fn suggest(&mut self, environment: &ComposerEnvironment<'_>) {
         self.candidates.clear();
-        if self.word_jamo.is_empty() {
+        if self.word_jamo.is_empty() || !environment.context.field.assistance_enabled() {
             return;
         }
         let Some(lexicon) = environment.pack.and_then(|pack| pack.lexicon()) else {
@@ -419,7 +419,7 @@ impl HangulComposer {
     }
 
     fn record_word(&self, environment: &mut ComposerEnvironment<'_>) {
-        if environment.context.incognito {
+        if environment.context.incognito || !environment.context.field.assistance_enabled() {
             return;
         }
         let display = compose_word(&self.word_jamo);
@@ -457,6 +457,16 @@ impl Composer for HangulComposer {
                 output.candidates = self.candidates.clone();
                 output.delete_before_commit = adopted;
                 output
+            }
+            ComposerEvent::Separator(' ') if self.composing_jamo.is_empty() => {
+                self.clear_word();
+                match super::double_space_period(environment.context) {
+                    Some(output) => output,
+                    None => ComposerOutput {
+                        commit: Some(CommittedText::plain(" ".to_string())),
+                        ..ComposerOutput::default()
+                    },
+                }
             }
             ComposerEvent::Key(character) | ComposerEvent::Separator(character) => {
                 self.record_word(environment);

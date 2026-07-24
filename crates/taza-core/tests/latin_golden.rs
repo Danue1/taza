@@ -1,5 +1,5 @@
 use taza_core::composer::latin::LatinComposer;
-use taza_core::composer::{CandidateKind, EditorContext};
+use taza_core::composer::{CandidateKind, EditorContext, FieldKind};
 use taza_core::session::{Effect, InputEvent, Session};
 use taza_pack::lexicon::LexiconBuilder;
 use taza_pack::ngram::NgramModelBuilder;
@@ -39,6 +39,7 @@ struct Harness<'bytes> {
     committed: String,
     candidates: Vec<String>,
     incognito: bool,
+    field: FieldKind,
 }
 
 impl<'bytes> Harness<'bytes> {
@@ -49,6 +50,7 @@ impl<'bytes> Harness<'bytes> {
             committed: String::new(),
             candidates: Vec::new(),
             incognito: false,
+            field: FieldKind::Text,
         }
     }
 
@@ -56,6 +58,7 @@ impl<'bytes> Harness<'bytes> {
         let context = EditorContext {
             text_before_cursor: Some(self.committed.clone()),
             incognito: self.incognito,
+            field: self.field,
         };
         let pack = &self.pack;
         for effect in self.session.handle(event, &context, Some(pack)) {
@@ -191,6 +194,41 @@ fn predicts_next_word_and_chains_selections() {
     harness.send(InputEvent::CandidateSelected(0));
     assert_eq!(harness.committed, "the quick help ");
     assert!(harness.candidates.is_empty());
+}
+
+#[test]
+fn double_space_inserts_period() {
+    let bytes = english_pack();
+    let mut harness = Harness::new(&bytes);
+    harness.type_text("the  ");
+    assert_eq!(harness.committed, "the. ");
+
+    // 공백 하나 더 → 마침표 뒤라 치환 없음
+    harness.send(InputEvent::Separator(' '));
+    assert_eq!(harness.committed, "the.  ");
+}
+
+#[test]
+fn email_field_disables_assistance() {
+    let bytes = english_pack();
+    let mut harness = Harness::new(&bytes);
+    harness.field = FieldKind::Email;
+    harness.type_text("teh ");
+    // 자동교정·제안 없음 — 주소를 건드리면 안 된다
+    assert_eq!(harness.committed, "teh ");
+    assert!(harness.candidates.is_empty());
+}
+
+#[test]
+fn password_field_disables_learning() {
+    let bytes = english_pack();
+    let mut harness = Harness::new(&bytes);
+    harness.field = FieldKind::Password;
+    harness.type_text("help help ");
+    harness.field = FieldKind::Text;
+    harness.type_text("he");
+    // 비밀번호 입력은 학습되지 않아 기본 순위(hello 우선) 유지
+    assert_eq!(harness.candidates[0], "hello");
 }
 
 #[test]

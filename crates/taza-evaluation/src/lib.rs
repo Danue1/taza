@@ -64,6 +64,7 @@ impl Typist {
         let context = EditorContext {
             text_before_cursor: Some(self.committed.clone()),
             incognito: false,
+            field: taza_core::composer::FieldKind::Text,
         };
         for effect in self.session.handle(event, &context, Some(pack)) {
             match effect {

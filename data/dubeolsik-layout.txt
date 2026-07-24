@@ -1,0 +1,14 @@
+ㅂ:ㅃ ㅈ:ㅉ ㄷ:ㄸ ㄱ:ㄲ ㅅ:ㅆ ㅛ ㅕ ㅑ ㅐ:ㅒ ㅔ:ㅖ
+ㅁ ㄴ ㅇ ㄹ ㅎ ㅗ ㅓ ㅏ ㅣ
+shift*0.15 ㅋ ㅌ ㅊ ㅍ ㅠ ㅜ ㅡ backspace*0.15
+layer1*0.15 space*0.55 enter*0.3
+---
+1 2 3 4 5 6 7 8 9 0
+- / : ; ( ) $ & @ "
+layer2*0.15 . , ? ! ' backspace*0.15
+layer0*0.15 space*0.55 enter*0.3
+---
+[ ] { } # % ^ * + =
+_ \ | ~ < > € £ ¥ ·
+layer1*0.15 . , ? ! ' backspace*0.15
+layer0*0.15 space*0.55 enter*0.3

@@ -1,0 +1,472 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		26A0513E4B66D6CE6DB73F41 /* TazaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED73162F9E8CB714176E666F /* TazaApp.swift */; };
+		3E0BC546CC1D731D0B6A3450 /* KeyboardViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E277A6F3562678279800454E /* KeyboardViewController.swift */; };
+		59D49C2340D7FE5D2D10FABA /* TazaFfi.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 574B66EBEC60DDBFD132D9FB /* TazaFfi.xcframework */; };
+		9A68A8DF12A9534D11183FEE /* taza_ffi.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09D758E33FF50C0D459ED005 /* taza_ffi.swift */; };
+		A4C42B0C343DF0FB1AC2133F /* TazaKeyboard.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D2F92E8CE1713F64464B2F31 /* TazaKeyboard.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		F59ACA26E53B0BA73848F8E9 /* korean.tazapack in Resources */ = {isa = PBXBuildFile; fileRef = 01E96B42EC4AB1EAD8B54BA1 /* korean.tazapack */; };
+		FA80F36305EBB2C36AD14416 /* english.tazapack in Resources */ = {isa = PBXBuildFile; fileRef = 967EC11F78904F1D768ACEFF /* english.tazapack */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		F454E01A6111A8593AF9AB76 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FC2558B2212EBAD8707B3E9B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6143C13B36D0457B5647FC5C;
+			remoteInfo = TazaKeyboard;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		088B39EADA8099DBA84AA490 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				A4C42B0C343DF0FB1AC2133F /* TazaKeyboard.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		01E96B42EC4AB1EAD8B54BA1 /* korean.tazapack */ = {isa = PBXFileReference; path = korean.tazapack; sourceTree = "<group>"; };
+		09D758E33FF50C0D459ED005 /* taza_ffi.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = taza_ffi.swift; sourceTree = "<group>"; };
+		173F7EA0753F967D5CFD3655 /* taza_ffiFFI.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = taza_ffiFFI.h; sourceTree = "<group>"; };
+		574B66EBEC60DDBFD132D9FB /* TazaFfi.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = TazaFfi.xcframework; sourceTree = "<group>"; };
+		967EC11F78904F1D768ACEFF /* english.tazapack */ = {isa = PBXFileReference; path = english.tazapack; sourceTree = "<group>"; };
+		B2D44F944B1A5EDD1842A418 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		B58086723E62EFD160475AC0 /* taza_ffiFFI.modulemap */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.module-map"; path = taza_ffiFFI.modulemap; sourceTree = "<group>"; };
+		D2F92E8CE1713F64464B2F31 /* TazaKeyboard.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = TazaKeyboard.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		DCB46D787A274326D1E6E049 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		E277A6F3562678279800454E /* KeyboardViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardViewController.swift; sourceTree = "<group>"; };
+		EC8A29F7A6126AC96406242C /* TazaApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TazaApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		ED73162F9E8CB714176E666F /* TazaApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TazaApp.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		5582D688BEFA0333DC483AF0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				59D49C2340D7FE5D2D10FABA /* TazaFfi.xcframework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		59973978AA06E686130F3C5C /* Generated */ = {
+			isa = PBXGroup;
+			children = (
+				09D758E33FF50C0D459ED005 /* taza_ffi.swift */,
+				173F7EA0753F967D5CFD3655 /* taza_ffiFFI.h */,
+				B58086723E62EFD160475AC0 /* taza_ffiFFI.modulemap */,
+			);
+			path = Generated;
+			sourceTree = "<group>";
+		};
+		9C5ED62067042AFC3E057D86 /* TazaApp */ = {
+			isa = PBXGroup;
+			children = (
+				B2D44F944B1A5EDD1842A418 /* Info.plist */,
+				ED73162F9E8CB714176E666F /* TazaApp.swift */,
+			);
+			path = TazaApp;
+			sourceTree = "<group>";
+		};
+		B14A7D11CF177ADF0A3B9514 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				574B66EBEC60DDBFD132D9FB /* TazaFfi.xcframework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		BA040973AB30D1953EF06239 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				EC8A29F7A6126AC96406242C /* TazaApp.app */,
+				D2F92E8CE1713F64464B2F31 /* TazaKeyboard.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		C1A98C305B918F916778E615 /* TazaKeyboard */ = {
+			isa = PBXGroup;
+			children = (
+				DCB46D787A274326D1E6E049 /* Info.plist */,
+				E277A6F3562678279800454E /* KeyboardViewController.swift */,
+			);
+			path = TazaKeyboard;
+			sourceTree = "<group>";
+		};
+		D607D669459A0C40B203368C = {
+			isa = PBXGroup;
+			children = (
+				59973978AA06E686130F3C5C /* Generated */,
+				E2B506EE41D55AC9C1F048D8 /* packs */,
+				9C5ED62067042AFC3E057D86 /* TazaApp */,
+				C1A98C305B918F916778E615 /* TazaKeyboard */,
+				B14A7D11CF177ADF0A3B9514 /* Frameworks */,
+				BA040973AB30D1953EF06239 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		E2B506EE41D55AC9C1F048D8 /* packs */ = {
+			isa = PBXGroup;
+			children = (
+				967EC11F78904F1D768ACEFF /* english.tazapack */,
+				01E96B42EC4AB1EAD8B54BA1 /* korean.tazapack */,
+			);
+			name = packs;
+			path = ../../data/packs;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		6143C13B36D0457B5647FC5C /* TazaKeyboard */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 809A81F11C93CC2C58AFA39D /* Build configuration list for PBXNativeTarget "TazaKeyboard" */;
+			buildPhases = (
+				2ADEAF1F30CCBC368D9AA2AE /* Sources */,
+				CA3008E5A57CAB3E61CF272D /* Resources */,
+				5582D688BEFA0333DC483AF0 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = TazaKeyboard;
+			packageProductDependencies = (
+			);
+			productName = TazaKeyboard;
+			productReference = D2F92E8CE1713F64464B2F31 /* TazaKeyboard.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		681575DCA25D06EF9948EC2B /* TazaApp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = FF6F6D367477BEE9B6971297 /* Build configuration list for PBXNativeTarget "TazaApp" */;
+			buildPhases = (
+				E392EC30A448E0734B689918 /* Sources */,
+				088B39EADA8099DBA84AA490 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				C31A9F83AFEF6EB18E53141E /* PBXTargetDependency */,
+			);
+			name = TazaApp;
+			packageProductDependencies = (
+			);
+			productName = TazaApp;
+			productReference = EC8A29F7A6126AC96406242C /* TazaApp.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		FC2558B2212EBAD8707B3E9B /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+				};
+			};
+			buildConfigurationList = 36CFDD778A993F861BA7E193 /* Build configuration list for PBXProject "Taza" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = D607D669459A0C40B203368C;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = BA040973AB30D1953EF06239 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				681575DCA25D06EF9948EC2B /* TazaApp */,
+				6143C13B36D0457B5647FC5C /* TazaKeyboard */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		CA3008E5A57CAB3E61CF272D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FA80F36305EBB2C36AD14416 /* english.tazapack in Resources */,
+				F59ACA26E53B0BA73848F8E9 /* korean.tazapack in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		2ADEAF1F30CCBC368D9AA2AE /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3E0BC546CC1D731D0B6A3450 /* KeyboardViewController.swift in Sources */,
+				9A68A8DF12A9534D11183FEE /* taza_ffi.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E392EC30A448E0734B689918 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				26A0513E4B66D6CE6DB73F41 /* TazaApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		C31A9F83AFEF6EB18E53141E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 6143C13B36D0457B5647FC5C /* TazaKeyboard */;
+			targetProxy = F454E01A6111A8593AF9AB76 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		006DA97AB8D61713B6938B41 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\".\"",
+				);
+				INFOPLIST_FILE = TazaKeyboard/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = io.danuel.taza.TazaApp.keyboard;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		09486F20A782C4AF3704B525 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\".\"",
+				);
+				INFOPLIST_FILE = TazaKeyboard/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = io.danuel.taza.TazaApp.keyboard;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		61A92C1BF6E7FB05FB8DB1A7 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Release;
+		};
+		BF48F21B19F059FFB5C8F8AF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = TazaApp/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = io.danuel.taza.TazaApp;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		C09559B3A1452CE1643937DF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Debug;
+		};
+		CA4C2F79149E523689BCECD4 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = TazaApp/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = io.danuel.taza.TazaApp;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		36CFDD778A993F861BA7E193 /* Build configuration list for PBXProject "Taza" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C09559B3A1452CE1643937DF /* Debug */,
+				61A92C1BF6E7FB05FB8DB1A7 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		809A81F11C93CC2C58AFA39D /* Build configuration list for PBXNativeTarget "TazaKeyboard" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				006DA97AB8D61713B6938B41 /* Debug */,
+				09486F20A782C4AF3704B525 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		FF6F6D367477BEE9B6971297 /* Build configuration list for PBXNativeTarget "TazaApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CA4C2F79149E523689BCECD4 /* Debug */,
+				BF48F21B19F059FFB5C8F8AF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = FC2558B2212EBAD8707B3E9B /* Project object */;
+}

@@ -150,6 +150,16 @@ struct Candidate { text, kind /* 예측|변환|교정 */, commit_policy /* 후�
 
 ## 착수 전 스파이크 목록 (v2 신설)
 1. 익스텐션 내 UniFFI: 콜드 스타트·왕복 p99·바이너리 크기 실측 (48MB 예산 기기에서)
+   — **부분 진행**: taza-ffi(uniffi proc-macro, staticlib/cdylib) 구현, Swift/Kotlin
+   바인딩 생성 검증 완료. 데스크톱 기준선: 소형 팩 p99 3.8µs, 실데이터 47k팩 p50 90µs /
+   p99 ~0.55ms (짧은 접두의 완성·교정 전수 탐색이 지배 — top-k 가지치기 최적화 여지).
+   실기기 콜드 스타트·메모리 실측은 잔여.
+   — **iOS 셸 스파이크 진행(platforms/ios)**: xcodegen 프로젝트(컨테이너 앱 + 키보드
+   익스텐션), XCFramework(기기+시뮬레이터 arm64), 시뮬레이터 빌드·설치·서드파티 키보드
+   등록·전환까지 검증 — **Taza 키보드가 시뮬레이터에서 코어 KeyboardFrame대로 렌더링됨**.
+   익스텐션 바이너리(디버그) ~2.2MB + 내장 영어팩 1.2MB. 잔여: 원격 터치 주입의 키보드
+   윈도 좌표 불일치로 키 탭 자동 검증 미완(수동 확인 필요), 시뮬레이터 RSS는 jetsam
+   footprint와 달라 메모리 실측은 실기기 필요.
 2. librime + 자체 코어 동시 탑재 메모리 실측
 3. AzooKeyKanaKanjiConverter의 Android 경로 검증 (LOUDS 리더 자체 구현 vs Swift-for-Android)
 4. commit+delete 전략(한국어 iOS 안전 모드)의 주요 앱 호환성 매트릭스
@@ -193,6 +203,28 @@ struct Candidate { text, kind /* 예측|변환|교정 */, commit_policy /* 후�
   **구현됨(PersonalizationStore + ComposerEnvironment)**: 논리 시계 기반 최근성,
   용량 상한 축출, 학습 단어 자동교정 억제, 미등재 원문 후보(as-typed)를 통한 학습 경로,
   개인화 접두 완성, 스냅샷 직렬화. EditorContext.incognito가 학습 게이트.
+
+## 빌트인 UX 계승 원칙 (v2.3 — 제품 방향)
+플랫폼 순정 키보드의 익숙한 동작을 기준선으로 삼는다. 의도적으로 다르게 갈 때만 근거를
+문서화한다.
+
+구현됨: 한국어 iOS는 순정 관행대로 **밑줄 없는 commit+delete 전략**(셸이 SetComposing을
+diff 삭제+삽입으로 번역, marked text 미사용 — 비협조 앱 호환 문제도 함께 해소),
+더블 스페이스 → ". "(코어, 영·한 공통), 키 프레스 하이라이트(셸),
+ClearComposing 셸 계약(unmarkText/finishComposingText는 "확정"이므로 빈 문자열 치환 후
+종료), textDidChange 기반 composing 불일치 감지 → finalize(재동기화 셸 구현).
+
+추가 구현됨(v2.4): **심볼 레이어** — KeyboardLayoutSet(레이어 0=문자, 1=심볼1, 2=심볼2,
+iOS 순정 배열) + KeyAction::LayerSwitch, 레이어 전환 라벨 관례(ABC/한글·123·#+=),
+컴파일러 DSL `---` 레이어 구분 + `layer0..2` 토큰. **inputmode 대응** —
+EditorContext.field(FieldKind: Text/Email/Url/Number/Phone/Password), Text 외 필드에서
+제안·자동교정·개인화 학습 차단, iOS 셸이 keyboardType·isSecureTextEntry 매핑.
+
+백로그(우선순위순): 숫자 전용 필드의 숫자 패드 레이아웃(현재는 심볼면 수동 진입) /
+이모지 레이어 / shift 더블탭 캡스락 — press 이벤트에 타임스탬프 필요 /
+문장 첫 글자 자동 대문자화 / 키 프레스 문자 팝업(확대 미리보기) /
+키 사운드·햅틱(Effect::Feedback) / 스페이스바 길게 눌러 커서 이동 + 스와이프 언어 전환 /
+리턴 키 문맥 라벨(UIReturnKeyType 매핑) / 지구본 길게 눌러 언어 목록(자체 다국어 확장 시).
 
 ## 언어별 확장 기능 카탈로그와 아키텍처 훅 (v2.2)
 기능 자체는 추후 구현. 지금 확보할 것은 "이 기능이 나중에 와도 계약이 안 깨진다"는 훅이다.

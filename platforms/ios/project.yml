@@ -1,0 +1,49 @@
+name: Taza
+options:
+  bundleIdPrefix: io.danuel.taza
+  deploymentTarget:
+    iOS: "16.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+targets:
+  TazaApp:
+    type: application
+    platform: iOS
+    sources: [TazaApp]
+    info:
+      path: TazaApp/Info.plist
+      properties:
+        UILaunchScreen: {}
+        CFBundleDisplayName: Taza
+    dependencies:
+      - target: TazaKeyboard
+        embed: true
+  TazaKeyboard:
+    type: app-extension
+    platform: iOS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.danuel.taza.TazaApp.keyboard
+    sources:
+      - TazaKeyboard
+      - Generated
+      - path: ../../data/packs/english.tazapack
+        buildPhase: resources
+      - path: ../../data/packs/korean.tazapack
+        buildPhase: resources
+    info:
+      path: TazaKeyboard/Info.plist
+      properties:
+        CFBundleDisplayName: Taza Keyboard
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.keyboard-service
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).KeyboardViewController
+          NSExtensionAttributes:
+            IsASCIICapable: false
+            PrefersRightToLeft: false
+            PrimaryLanguage: en-US
+            RequestsOpenAccess: false
+    dependencies:
+      - framework: TazaFfi.xcframework
+        embed: false

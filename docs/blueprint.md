@@ -67,6 +67,11 @@ Core (Rust, sans-io)
   초과 시 핫패스만 수동 C ABI로 하강.
 
 ## 렌더링 (v1 결론 유지 — 검토 통과)
+- **구현 현황**: KeyboardFrame(정규화 좌표 기하·접근성 라벨 포함), QWERTY·두벌식 내장
+  레이아웃, 일회성 shift 상태 기계, 좌표→InputEvent 히트 테스트(v1 기하: 포함 → 같은 행
+  최근접 스냅)가 taza-core::keyboard에 구현됨. 확률(공간) 모델은 히트 테스트 지점 교체로
+  들어온다. **레이아웃 데이터화 구현됨**: 레이아웃 섹션(태그 3) + 컴파일러 텍스트 DSL —
+  배열 추가는 팩 배포로 끝난다. 내장 QWERTY·두벌식은 영어 기본팩 대응 및 폴백.
 - Flutter/Compose Multiplatform 기각(익스텐션 메모리·재생성 초기화 지연).
 - 코어가 KeyboardFrame 소유, 셸은 네이티브 렌더러.
 - **접근성은 비통일 영역이 아니라 계약의 일부** (v2): KeyboardFrame에 키별 접근성

@@ -1,3 +1,4 @@
+use crate::layout::KeyboardLayout;
 use crate::lexicon::Lexicon;
 use crate::ngram::NgramModel;
 use crate::{FORMAT_VERSION, MAGIC, SectionKind};
@@ -123,5 +124,9 @@ impl<'bytes> Pack<'bytes> {
     /// 여기서 태그로 디스패치한다 (소비자는 이 메서드만 보므로 교체가 팩 배포로 끝난다).
     pub fn language_model(&self) -> Option<NgramModel<'bytes>> {
         self.section(SectionKind::NgramModel).map(NgramModel::new)
+    }
+
+    pub fn layout(&self) -> Option<KeyboardLayout> {
+        crate::layout::deserialize(self.section(SectionKind::Layout)?)
     }
 }

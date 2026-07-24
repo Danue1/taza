@@ -4,6 +4,7 @@
 //! 슬라이스 위에서 그대로 조회한다. 쓰기(컴파일)는 오프라인 파이프라인 전용.
 //! 섹션 태그 레지스트리로 확장한다: 미지 태그는 무시되므로 구버전 앱도 신버전 팩을 읽는다.
 
+pub mod layout;
 pub mod lexicon;
 pub mod ngram;
 mod reader;
@@ -20,6 +21,7 @@ pub(crate) const MAGIC: &[u8; 4] = b"TAZA";
 pub enum SectionKind {
     Lexicon,
     NgramModel,
+    Layout,
 }
 
 impl SectionKind {
@@ -27,6 +29,7 @@ impl SectionKind {
         match self {
             SectionKind::Lexicon => 1,
             SectionKind::NgramModel => 2,
+            SectionKind::Layout => 3,
         }
     }
 
@@ -34,6 +37,7 @@ impl SectionKind {
         match tag {
             1 => Some(SectionKind::Lexicon),
             2 => Some(SectionKind::NgramModel),
+            3 => Some(SectionKind::Layout),
             _ => None,
         }
     }

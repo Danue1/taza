@@ -5,3 +5,14 @@ version = 4
 [[package]]
 name = "taza-core"
 version = "0.1.0"
+
+[[package]]
+name = "taza-lexicon-compiler"
+version = "0.1.0"
+dependencies = [
+ "taza-pack",
+]
+
+[[package]]
+name = "taza-pack"
+version = "0.1.0"

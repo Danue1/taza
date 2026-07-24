@@ -157,7 +157,7 @@ struct Candidate { text, kind /* 예측|변환|교정 */, commit_policy /* 후�
   데이터 소스를 꽂는 작업이 되도록.
 - 원천별 라이선스·출처·버전을 팩 메타데이터에 기록 (라이선스 지뢰 대비 감사 추적).
 
-### 언어팩 바이너리 포맷 (공용, mmap 조회 전용)
+### 언어팩 바이너리 포맷 (공용, mmap 조회 전용) — 컨테이너·lexicon 섹션 구현됨 (taza-pack, taza-lexicon-compiler)
 - 헤더(포맷 버전·언어·서명) + 섹션 테이블. 섹션 타입은 확장 예약:
   lexicon(FST/DAWG) / n-gram LM(양자화 trie) / 오타 confusion 데이터 /
   이모지 어노테이션(CLDR) / 언어별 부가 섹션(가나-한자 매핑, 병음 테이블 등)

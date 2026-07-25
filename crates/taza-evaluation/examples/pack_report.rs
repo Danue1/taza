@@ -6,6 +6,8 @@
 //! cargo run --release -p taza-evaluation --example pack_report -- \
 //!     data/packs/english.tazapack data/build/english-words.tsv en [표본수]
 //! ```
+//! 같은 자리에 `<이름>-absent.tsv`가 있으면 오교정률도 함께 잰다 — 예산에 밀려 팩에서
+//! 빠진 실제 낱말들을 제대로 쳤을 때 자동교정이 건드리는 비율이다.
 //! 표본은 점수표 상위 N개 — 실제로 자주 쓰는 어휘에서 재는 것이 목적이다.
 
 use std::sync::Arc;
@@ -15,7 +17,10 @@ use taza_engine::keyboard::layouts;
 use taza_engine::lang::LanguageDescriptor;
 use taza_engine::lang::jamo::decompose_word;
 use taza_evaluation::synthesis::{TypedSequence, TypoSynthesizer};
-use taza_evaluation::{CompletionTask, EvaluationCase, evaluate_completions, evaluate_corrections};
+use taza_evaluation::{
+    CompletionTask, EvaluationCase, evaluate_completions, evaluate_corrections,
+    evaluate_false_corrections,
+};
 
 const TYPOS_PER_WORD: usize = 5;
 const DEFAULT_SAMPLE: usize = 500;
@@ -115,4 +120,33 @@ fn main() {
         corrections.autocorrect_accuracy
     );
     println!("  keystroke savings {:.3}", completions.keystroke_savings);
+
+    // 사전에 없지만 올바른 낱말 — 이것을 건드리면 사용자가 친 것을 망친 것이다
+    let absent_path = std::path::Path::new(table_path).with_file_name(format!(
+        "{}-absent.tsv",
+        std::path::Path::new(table_path)
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .and_then(|stem| stem.strip_suffix("-words"))
+            .unwrap_or("")
+    ));
+    if let Ok(text) = std::fs::read_to_string(&absent_path) {
+        let absent: Vec<TypedSequence> = text
+            .lines()
+            .filter_map(typed_form)
+            .filter_map(|typed| {
+                synthesizer.touches_for(&typed).map(|touches| TypedSequence {
+                    text: typed,
+                    touches,
+                })
+            })
+            .take(sample_size)
+            .collect();
+        let report = evaluate_false_corrections(&pack, &evaluated_language, &absent);
+        println!(
+            "미등재 낱말 {} 개 (예산에 밀려 빠진 실제 낱말)",
+            report.word_count
+        );
+        println!("  오교정률 {:.3}", report.false_correction_rate);
+    }
 }

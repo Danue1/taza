@@ -32,6 +32,15 @@ pub struct CorrectionReport {
     pub autocorrect_accuracy: f64,
 }
 
+/// 오교정 평가 결과 — 제대로 친 미등재 낱말을 자동교정이 얼마나 건드리는가.
+/// 교정 정확도만 재면 "무엇이든 교정할수록 좋다"는 잘못된 방향으로 튜닝하게 된다.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FalseCorrectionReport {
+    pub word_count: usize,
+    /// 원문 그대로 확정되지 않고 다른 낱말로 갈아치워진 비율
+    pub false_correction_rate: f64,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct CompletionReport {
     pub word_count: usize,
@@ -151,6 +160,28 @@ pub fn evaluate_corrections(
         top3_accuracy: top3 as f64 / count,
         mean_reciprocal_rank: reciprocal_rank_sum / count,
         autocorrect_accuracy: autocorrected as f64 / count,
+    }
+}
+
+/// 사전에 없지만 올바른 낱말들을 **오타 없이** 친 뒤 어절을 끝냈을 때, 자동교정이
+/// 원문을 갈아치우는 비율. 낮을수록 좋다.
+pub fn evaluate_false_corrections(
+    pack: &Arc<dyn PackBytes>,
+    language: &LanguageDescriptor,
+    words: &[TypedSequence],
+) -> FalseCorrectionReport {
+    let mut changed = 0usize;
+    for word in words {
+        let mut typist = Typist::new(language, pack);
+        typist.type_sequence(word);
+        typist.send(InputEvent::Separator(' '));
+        if typist.committed != format!("{} ", word.text) {
+            changed += 1;
+        }
+    }
+    FalseCorrectionReport {
+        word_count: words.len(),
+        false_correction_rate: changed as f64 / words.len().max(1) as f64,
     }
 }
 

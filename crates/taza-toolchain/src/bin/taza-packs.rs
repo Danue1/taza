@@ -139,6 +139,16 @@ fn build(recipe_path: &Path, options: &Options) -> Result<CatalogEntry, String> 
     std::fs::write(&table_path, table)
         .map_err(|error| format!("{} 쓰기 실패: {error}", table_path.display()))?;
 
+    // 예산에 밀려 빠진 낱말 — 오교정률 평가가 "사전에 없지만 올바른 말"로 쓴다
+    let absent_path = build_directory.join(format!("{}-absent.tsv", recipe.name));
+    let absent: String = report
+        .absent_words
+        .iter()
+        .map(|word| format!("{word}\n"))
+        .collect();
+    std::fs::write(&absent_path, absent)
+        .map_err(|error| format!("{} 쓰기 실패: {error}", absent_path.display()))?;
+
     let layout_text = recipe
         .layout
         .as_ref()

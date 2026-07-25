@@ -26,6 +26,11 @@ pub struct SourceSignal<'call> {
     pub bigrams: &'call [(String, String, u64)],
 }
 
+/// 예산에 밀려 팩에서 빠진 낱말 중 남겨 둘 표본 수. 오교정률 평가의 코퍼스가 된다 —
+/// 잘린 낱말은 "사전에 없지만 사람이 실제로 쓰는 말"이므로, 이것을 제대로 쳤을 때
+/// 자동교정이 건드리는지가 곧 오교정률이다.
+const ABSENT_SAMPLE: usize = 2000;
+
 #[derive(Debug)]
 pub struct NormalizeReport {
     pub inventory_size: usize,
@@ -33,6 +38,8 @@ pub struct NormalizeReport {
     pub observed_in_corpus: usize,
     pub dropped_by_filter: usize,
     pub dropped_by_budget: usize,
+    /// 예산 바로 아래에서 잘린 낱말들 — 점수가 높을수록 실제로 쳐질 법한 말이다
+    pub absent_words: Vec<String>,
 }
 
 /// 반환값은 (표제어, 정규화 점수)를 점수 내림차순·사전순으로 정렬한 목록이다.
@@ -87,6 +94,12 @@ pub fn normalize(
             .then_with(|| left.0.cmp(right.0))
     });
     let dropped_by_budget = filtered.len().saturating_sub(rules.max_words);
+    let absent_words: Vec<String> = filtered
+        .iter()
+        .skip(rules.max_words)
+        .take(ABSENT_SAMPLE)
+        .map(|(word, _)| word.to_string())
+        .collect();
     filtered.truncate(rules.max_words);
 
     let highest = filtered.first().map(|(_, score)| *score).unwrap_or(1.0);
@@ -101,6 +114,7 @@ pub fn normalize(
             observed_in_corpus,
             dropped_by_filter,
             dropped_by_budget,
+            absent_words,
         },
     )
 }

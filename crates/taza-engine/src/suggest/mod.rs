@@ -235,7 +235,7 @@ impl Suggester {
             best.cost,
         );
         let typed = score::combine(0, sources.personalization.weight(key), 0, 0);
-        if corrected <= typed {
+        if corrected - typed <= score::AUTOCORRECT_MARGIN {
             return None;
         }
         let text = self.policy.encoding.decode(&best.key)?;

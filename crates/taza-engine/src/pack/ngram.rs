@@ -1,4 +1,13 @@
-//! bigram 언어모델 섹션 (`ngram-v1`). 레이아웃 (섹션 시작 기준 offset, little-endian):
+//! bigram 언어모델 섹션 (`ngram-v1`).
+//!
+//! 가중치는 뒷말의 절대 빈도가 아니라 **문맥이 주는 이득**(앞말과의 상호정보량)이다.
+//! lexicon 빈도와 같은 [1, `MAX_FREQUENCY`] 공간으로 정규화되므로, 소비자는 둘을 그대로
+//! 더해 "문맥을 감안한 점수"를 얻는다 — 다음 단어 예측과 현재 단어 재랭킹이 같은 식을
+//! 쓰게 되는 것이 이 표현을 고른 이유다.
+//!
+//! 토큰은 표시 형태가 아니라 lexicon과 같은 **조회 키 공간**에 있다.
+//!
+//! 레이아웃 (섹션 시작 기준 offset, little-endian):
 //! ```text
 //! token_count u32 | entry_count u32
 //! group_start u32 × (token_count + 1)      // 토큰별 bigram 슬라이스의 엔트리 인덱스

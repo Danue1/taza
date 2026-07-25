@@ -2,6 +2,7 @@
 
 use crate::lexicon::LexiconBuilder;
 use crate::metadata::MetadataBuilder;
+use crate::ngram::NgramModelBuilder;
 use crate::recipe::{LexiconEncoding, Recipe};
 use crate::{PackWriter, layout};
 use taza_engine::pack::SectionKind;
@@ -11,6 +12,8 @@ pub struct AssembledPack {
     pub bytes: Vec<u8>,
     pub word_count: usize,
     pub lexicon_bytes: usize,
+    pub bigram_count: usize,
+    pub language_model_bytes: usize,
 }
 
 /// 표제어를 팩의 저장 인코딩으로 옮긴다. 한글 자모 인코딩에서 분해할 수 없는 표제어는
@@ -28,6 +31,7 @@ fn encode(word: &str, encoding: LexiconEncoding) -> Option<String> {
 pub fn assemble(
     recipe: &Recipe,
     words: &[(String, u32)],
+    bigrams: &[(String, String, u32)],
     layout_text: Option<&str>,
 ) -> Result<AssembledPack, String> {
     let mut lexicon = LexiconBuilder::new();
@@ -43,10 +47,27 @@ pub fn assemble(
     let lexicon_section = lexicon.build();
     let lexicon_bytes = lexicon_section.len();
 
+    // 언어모델 토큰도 lexicon과 같은 조회 키 공간에 있어야 한다
+    let mut language_model = NgramModelBuilder::new();
+    let mut bigram_count = 0usize;
+    for (left, right, weight) in bigrams {
+        let (Some(left), Some(right)) = (
+            encode(left, recipe.lexicon.encoding),
+            encode(right, recipe.lexicon.encoding),
+        ) else {
+            continue;
+        };
+        language_model.insert_bigram(&left, &right, *weight);
+        bigram_count += 1;
+    }
+    let language_model_section = (bigram_count > 0).then(|| language_model.build());
+    let language_model_bytes = language_model_section.as_ref().map_or(0, Vec::len);
+
     let mut metadata = MetadataBuilder::new();
     metadata.set(keys::PACK_VERSION, recipe.pack_version.to_string());
     metadata.set(keys::RECIPE, &recipe.name);
     metadata.set(keys::WORD_COUNT, word_count.to_string());
+    metadata.set(keys::BIGRAM_COUNT, bigram_count.to_string());
     metadata.set(keys::LEXICON_ENCODING, recipe.lexicon.encoding.tag());
     metadata.set(
         keys::WORD_SEPARATED,
@@ -58,6 +79,9 @@ pub fn assemble(
 
     let mut writer = PackWriter::new(&recipe.language);
     writer.add_section(SectionKind::Lexicon, lexicon_section);
+    if let Some(section) = language_model_section {
+        writer.add_section(SectionKind::NgramModel, section);
+    }
     if let Some(layout_text) = layout_text {
         writer.add_section(
             SectionKind::Layout,
@@ -69,6 +93,8 @@ pub fn assemble(
         bytes: writer.finish(),
         word_count,
         lexicon_bytes,
+        bigram_count,
+        language_model_bytes,
     })
 }
 

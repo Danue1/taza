@@ -15,7 +15,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use taza_toolchain::distribute::{self, CatalogEntry};
 use taza_toolchain::fetch::hex_digest;
-use taza_toolchain::normalize::{SourceSignal, normalize};
+use taza_toolchain::normalize::{SourceSignal, normalize, normalize_bigrams};
 use taza_toolchain::recipe::Recipe;
 use taza_toolchain::{assemble, extract, fetch};
 
@@ -89,22 +89,24 @@ fn build(recipe_path: &Path, options: &Options) -> Result<CatalogEntry, String> 
     let mut extracted = Vec::new();
     for source in &recipe.sources {
         let path = fetch::fetch(&source.url, &source.sha256, &cache)?;
-        let entries = extract::extract(&source.extraction, &path, &recipe.language)?;
+        let signal = extract::extract(&source.extraction, &path, &recipe.language)?;
         println!(
-            "  {} ({}): 항목 {}",
+            "  {} ({}): 낱말 {} / 이웃 짝 {}",
             source.name,
             source.license,
-            entries.len()
+            signal.words.len(),
+            signal.bigrams.len()
         );
-        extracted.push((source, entries));
+        extracted.push((source, signal));
     }
 
     let signals: Vec<SourceSignal<'_>> = extracted
         .iter()
-        .map(|(source, entries)| SourceSignal {
+        .map(|(source, signal)| SourceSignal {
             role: source.role,
             weight: source.weight,
-            entries,
+            entries: &signal.words,
+            bigrams: &signal.bigrams,
         })
         .collect();
     let (words, report) = normalize(&signals, &recipe.lexicon);
@@ -115,6 +117,15 @@ fn build(recipe_path: &Path, options: &Options) -> Result<CatalogEntry, String> 
         report.dropped_by_filter,
         report.dropped_by_budget,
         words.len()
+    );
+    let (bigrams, bigram_report) = normalize_bigrams(&signals, &words, &recipe.language_model);
+    println!(
+        "  언어모델: 관측 {} / 표제어 밖 {} / 이득 없음 {} / 예산 제외 {} → bigram {}",
+        bigram_report.observed,
+        bigram_report.dropped_outside_lexicon,
+        bigram_report.dropped_without_lift,
+        bigram_report.dropped_by_budget,
+        bigrams.len()
     );
 
     let build_directory = options.data_directory.join("build");
@@ -136,7 +147,7 @@ fn build(recipe_path: &Path, options: &Options) -> Result<CatalogEntry, String> 
                 .map_err(|error| format!("{} 읽기 실패: {error}", path.display()))
         })
         .transpose()?;
-    let assembled = assemble::assemble(&recipe, &words, layout_text.as_deref())?;
+    let assembled = assemble::assemble(&recipe, &words, &bigrams, layout_text.as_deref())?;
     let packs_directory = options.data_directory.join("packs");
     std::fs::create_dir_all(&packs_directory)
         .map_err(|error| format!("{} 만들기 실패: {error}", packs_directory.display()))?;
@@ -144,9 +155,10 @@ fn build(recipe_path: &Path, options: &Options) -> Result<CatalogEntry, String> 
     std::fs::write(&pack_path, &assembled.bytes)
         .map_err(|error| format!("{} 쓰기 실패: {error}", pack_path.display()))?;
     println!(
-        "  팩: 표제어 {} / lexicon {} KB / 전체 {} KB → {}",
+        "  팩: 표제어 {} / lexicon {} KB / 언어모델 {} KB / 전체 {} KB → {}",
         assembled.word_count,
         assembled.lexicon_bytes / 1024,
+        assembled.language_model_bytes / 1024,
         assembled.bytes.len() / 1024,
         pack_path.display()
     );

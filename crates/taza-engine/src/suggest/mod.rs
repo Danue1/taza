@@ -18,6 +18,11 @@ const AUTOCORRECT_MINIMUM_LENGTH: usize = 2;
 /// 한 번의 조회에서 허용하는 편집 거리.
 const MAX_DISTANCE: u32 = 1;
 
+/// 언어모델에서 끌어와 재랭킹할 후보 수. 팩의 문맥 그룹은 이득 순으로 정렬돼 있는데
+/// 최종 순위는 거기에 낱말 빈도를 더한 값이라, 그룹 앞에서 limit개만 꺼내면 결합력만
+/// 강한 희귀어가 자리를 다 차지한다.
+const LANGUAGE_MODEL_POOL: usize = 32;
+
 /// 언어별로 달라지는 랭킹 정책. 합성기가 자기 골격에 맞는 값을 선언한다.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SuggestionPolicy {
@@ -159,12 +164,19 @@ impl Suggester {
         ) else {
             return Vec::new();
         };
+        let lexicon = sources.pack.and_then(|pack| pack.lexicon());
         let mut ranked: Vec<(i64, Suggestion)> = Vec::new();
-        for prediction in language_model.predict_next(previous_word, self.policy.limit) {
+        for prediction in language_model.predict_next(previous_word, LANGUAGE_MODEL_POOL) {
+            // 저장된 가중치는 문맥이 주는 이득이므로 뒷말 자체의 빈도를 더해야
+            // "문맥을 감안한 점수"가 된다 — 현재 단어 재랭킹과 같은 식이다
+            let frequency = lexicon
+                .as_ref()
+                .and_then(|lexicon| lexicon.frequency(&prediction.word))
+                .unwrap_or(0);
             let score = score::combine(
-                prediction.weight,
+                frequency,
                 sources.personalization.weight(&prediction.word),
-                0,
+                prediction.weight,
                 0,
             );
             self.push_ranked(
@@ -224,7 +236,7 @@ impl Suggester {
             return 0;
         };
         language_model
-            .predict_next(previous_word, self.policy.limit)
+            .predict_next(previous_word, LANGUAGE_MODEL_POOL)
             .into_iter()
             .find(|prediction| prediction.word == key)
             .map(|prediction| prediction.weight)

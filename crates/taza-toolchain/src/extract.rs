@@ -9,23 +9,38 @@ use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
 
-pub fn extract(
-    extraction: &Extraction,
-    path: &Path,
-    language: &str,
-) -> Result<Vec<(String, f64)>, String> {
+/// 한 원천에서 뽑은 신호. 낱말 목록 원천은 문맥을 주지 못하므로 bigram이 비어 있다.
+#[derive(Debug, Default)]
+pub struct Extracted {
+    /// (표제어, 신호)
+    pub words: Vec<(String, f64)>,
+    /// (앞말, 뒷말, 관측 횟수) — 문장 코퍼스만 낸다
+    pub bigrams: Vec<(String, String, u64)>,
+}
+
+impl Extracted {
+    fn words_only(words: Vec<(String, f64)>) -> Self {
+        Extracted {
+            words,
+            bigrams: Vec::new(),
+        }
+    }
+}
+
+pub fn extract(extraction: &Extraction, path: &Path, language: &str) -> Result<Extracted, String> {
     match extraction {
         Extraction::Scowl {
             dialects,
             categories,
             maximum_size,
-        } => scowl(path, dialects, categories, *maximum_size),
+        } => scowl(path, dialects, categories, *maximum_size).map(Extracted::words_only),
         Extraction::Tatoeba { minimum_count } => tatoeba(path, language, *minimum_count),
         Extraction::MecabKoDic {
             files,
             verb_stem_files,
             particle_expansion_nouns,
-        } => mecab_ko_dic(path, files, verb_stem_files, *particle_expansion_nouns),
+        } => mecab_ko_dic(path, files, verb_stem_files, *particle_expansion_nouns)
+            .map(Extracted::words_only),
     }
 }
 
@@ -107,40 +122,57 @@ fn scowl(
     Ok(ranked.into_iter().collect())
 }
 
-/// Tatoeba 문장 익스포트(bzip2 TSV `식별자<TAB>언어<TAB>문장`)에서 낱말 빈도를 센다.
+/// Tatoeba 문장 익스포트(bzip2 TSV `식별자<TAB>언어<TAB>문장`)에서 낱말 빈도와 이웃한
+/// 낱말 짝을 센다.
 /// 대소문자가 있는 스크립트에서는 소문자로 나타난 출현만 센다 — Tatoeba는 예문 인물
 /// 이름("Tom")이 극단적으로 흔해서 대문자 출현을 함께 세면 이름이 흔한 낱말을 밀어내고
 /// 상위권을 차지한다. 문장 첫머리 출현을 잃는 대신(흔한 낱말은 문장 중간에도 충분히
-/// 나타난다) 고유명사 편향이 사라진다.
-fn tatoeba(path: &Path, language: &str, minimum_count: u64) -> Result<Vec<(String, f64)>, String> {
+/// 나타난다) 고유명사 편향이 사라진다. 걸러진 낱말은 짝의 사슬도 끊는다 — 건너뛰어
+/// 이으면 실제로 이웃하지 않은 낱말이 문맥으로 둔갑한다.
+fn tatoeba(path: &Path, language: &str, minimum_count: u64) -> Result<Extracted, String> {
     let file = std::fs::File::open(path)
         .map_err(|error| format!("{} 열기 실패: {error}", path.display()))?;
     let reader = BufReader::new(BzDecoder::new(file));
     let cased = language == "en";
 
     let mut counts: HashMap<String, u64> = HashMap::new();
+    let mut pairs: HashMap<(String, String), u64> = HashMap::new();
     for line in reader.lines() {
         let line = line.map_err(|error| format!("{} 읽기 실패: {error}", path.display()))?;
         let Some(sentence) = line.split('\t').nth(2) else {
             continue;
         };
+        let mut previous: Option<&str> = None;
         for token in
             sentence.split(|character: char| !(character.is_alphabetic() || character == '\''))
         {
             if token.is_empty() || (cased && token.chars().next().is_some_and(char::is_uppercase)) {
+                previous = None;
                 continue;
             }
             *counts.entry(token.to_string()).or_insert(0) += 1;
+            if let Some(left) = previous {
+                *pairs
+                    .entry((left.to_string(), token.to_string()))
+                    .or_insert(0) += 1;
+            }
+            previous = Some(token);
         }
     }
     if counts.is_empty() {
         return Err(format!("{}: 문장을 읽지 못했음", path.display()));
     }
-    Ok(counts
-        .into_iter()
-        .filter(|(_, count)| *count >= minimum_count)
-        .map(|(word, count)| (word, count as f64))
-        .collect())
+    Ok(Extracted {
+        words: counts
+            .into_iter()
+            .filter(|(_, count)| *count >= minimum_count)
+            .map(|(word, count)| (word, count as f64))
+            .collect(),
+        bigrams: pairs
+            .into_iter()
+            .map(|((left, right), count)| (left, right, count))
+            .collect(),
+    })
 }
 
 /// 체언에 붙는 조사 — 앞말의 종성 유무로 이형태가 갈리는 것은 (종성 있음, 없음) 짝으로

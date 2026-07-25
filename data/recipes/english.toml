@@ -15,6 +15,11 @@ character_set = "latin-lowercase"
 max_words = 80000
 minimum_word_length = 2
 
+# 내장 팩이라 문맥 신호도 크기 예산 안에서 고른다 — 이득 상위만 담는다.
+[language_model]
+max_bigrams = 25000
+minimum_count = 5
+
 [script]
 word_separated = true
 right_to_left = false

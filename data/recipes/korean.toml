@@ -18,6 +18,11 @@ character_set = "hangul-syllables"
 max_words = 120000
 minimum_word_length = 1
 
+# 한국어 Tatoeba 익스포트가 작아 문맥 신호도 얇다 — 임계를 낮추되 상한을 보수적으로.
+[language_model]
+max_bigrams = 15000
+minimum_count = 2
+
 [script]
 word_separated = true
 right_to_left = false

@@ -91,7 +91,13 @@ fn main() {
     let metadata = opened.metadata();
     println!("팩: {pack_path} ({} 언어)", opened.language());
     if let Some(metadata) = &metadata {
-        for key in ["pack_version", "word_count", "lexicon_encoding", "sources"] {
+        for key in [
+            "pack_version",
+            "word_count",
+            "bigram_count",
+            "lexicon_encoding",
+            "sources",
+        ] {
             if let Some(value) = metadata.get(key) {
                 println!("  {key}: {}", value.replace('\n', "; "));
             }

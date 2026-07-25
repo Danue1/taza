@@ -16,6 +16,8 @@ pub struct Recipe {
     #[serde(default)]
     pub lexicon: LexiconRules,
     #[serde(default)]
+    pub language_model: LanguageModelRules,
+    #[serde(default)]
     pub script: ScriptTraits,
     /// 레이아웃 DSL 파일 경로 (레시피 파일 기준 상대 경로)
     pub layout: Option<PathBuf>,
@@ -50,6 +52,30 @@ impl Default for LexiconRules {
 
 fn default_minimum_word_length() -> usize {
     2
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LanguageModelRules {
+    /// 팩에 담을 bigram 상한 (이득 내림차순으로 자른다) — 크기 예산의 손잡이
+    pub max_bigrams: usize,
+    /// 이 횟수 미만으로 관측된 짝은 잡음으로 본다. 문맥 신호는 낱말보다 희소하므로
+    /// 표제어 임계와 따로 잡는다.
+    #[serde(default = "default_minimum_bigram_count")]
+    pub minimum_count: u64,
+}
+
+impl Default for LanguageModelRules {
+    fn default() -> Self {
+        LanguageModelRules {
+            max_bigrams: 50_000,
+            minimum_count: default_minimum_bigram_count(),
+        }
+    }
+}
+
+fn default_minimum_bigram_count() -> u64 {
+    3
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]

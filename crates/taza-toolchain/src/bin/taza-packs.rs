@@ -107,13 +107,15 @@ fn build(recipe_path: &Path, options: &Options) -> Result<CatalogEntry, String> 
             weight: source.weight,
             entries: &signal.words,
             bigrams: &signal.bigrams,
+            stems: &signal.stems,
         })
         .collect();
     let (words, report) = normalize(&signals, &recipe.lexicon);
     println!(
-        "  정규화: 후보 {} / 코퍼스 관측 {} / 필터 제외 {} / 예산 제외 {} → 표제어 {}",
+        "  정규화: 후보 {} / 코퍼스 관측 {} / 활용형 수용 {} / 필터 제외 {} / 예산 제외 {} → 표제어 {}",
         report.inventory_size,
         report.observed_in_corpus,
+        report.accepted_inflections,
         report.dropped_by_filter,
         report.dropped_by_budget,
         words.len()

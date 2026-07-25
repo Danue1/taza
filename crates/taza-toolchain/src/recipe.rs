@@ -46,6 +46,14 @@ pub struct LexiconRules {
     pub max_words: usize,
     #[serde(default = "default_minimum_word_length")]
     pub minimum_word_length: usize,
+    /// 인벤토리에 없더라도 코퍼스에서 관측된 활용형을 표제어로 받아들일지.
+    ///
+    /// 교착어에서는 사전에 기본형("있다")만 있고 사람이 실제로 치는 것은 활용형
+    /// ("있어", "있는", "있을")이다. 활용 규칙을 코드로 생성하려면 불규칙까지 다뤄야
+    /// 하지만, 무엇이 실제로 쓰이는지는 코퍼스가 이미 알고 있다. 인벤토리가 준 어간으로
+    /// 시작하는 것만 받아 고유명사·오타가 섞이는 길을 막는다.
+    #[serde(default)]
+    pub accept_inflections: bool,
 }
 
 impl Default for LexiconRules {
@@ -55,6 +63,7 @@ impl Default for LexiconRules {
             character_set: CharacterSet::default(),
             max_words: 100_000,
             minimum_word_length: default_minimum_word_length(),
+            accept_inflections: false,
         }
     }
 }

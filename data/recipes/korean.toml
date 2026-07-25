@@ -22,6 +22,10 @@ encoding = "hangul-jamo-dubeolsik"
 character_set = "hangul-syllables"
 max_words = 120000
 minimum_word_length = 1
+# 사전에는 기본형("있다")만 있고 사람이 실제로 치는 것은 활용형("있어", "있는")이다.
+# 활용 규칙을 코드로 생성하려면 불규칙까지 다뤄야 하지만, 무엇이 실제로 쓰이는지는
+# 코퍼스가 이미 알고 있다 — 어간 조건으로 고유명사·오타가 섞이는 길만 막는다.
+accept_inflections = true
 
 # 한국어 Tatoeba 익스포트가 작아 문맥 신호도 얇다 — 임계를 낮추되 상한을 보수적으로.
 [language_model]

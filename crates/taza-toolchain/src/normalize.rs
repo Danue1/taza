@@ -24,6 +24,8 @@ pub struct SourceSignal<'call> {
     pub entries: &'call [(String, f64)],
     /// (앞말, 뒷말, 관측 횟수) — 문장 코퍼스만 채운다
     pub bigrams: &'call [(String, String, u64)],
+    /// 활용형이 뻗어 나오는 어간 — 형태소 사전만 채운다
+    pub stems: &'call [String],
 }
 
 /// 예산에 밀려 팩에서 빠진 낱말 중 남겨 둘 표본 수. 오교정률 평가의 코퍼스가 된다 —
@@ -38,6 +40,8 @@ pub struct NormalizeReport {
     pub observed_in_corpus: usize,
     pub dropped_by_filter: usize,
     pub dropped_by_budget: usize,
+    /// 인벤토리에 없지만 알려진 어간에서 뻗어 나와 받아들인 활용형 수
+    pub accepted_inflections: usize,
     /// 예산 바로 아래에서 잘린 낱말들 — 점수가 높을수록 실제로 쳐질 법한 말이다
     pub absent_words: Vec<String>,
 }
@@ -48,7 +52,12 @@ pub fn normalize(
     rules: &LexiconRules,
 ) -> (Vec<(String, u32)>, NormalizeReport) {
     let has_inventory = signals.iter().any(|signal| signal.role == Role::Inventory);
+    let stems: Vec<&str> = signals
+        .iter()
+        .flat_map(|signal| signal.stems.iter().map(String::as_str))
+        .collect();
     let mut accumulated: HashMap<&str, Accumulated> = HashMap::new();
+    let mut accepted_inflections = 0usize;
     for signal in signals {
         for (word, value) in signal.entries {
             match signal.role {
@@ -59,11 +68,16 @@ pub fn normalize(
                 }
                 Role::Frequency => {
                     // 인벤토리가 있으면 그 밖의 낱말은 받지 않는다 — 코퍼스 잡음(오타·
-                    // 고유명사·외국어)이 사전에 스며드는 경로를 막는다.
+                    // 고유명사·외국어)이 사전에 스며드는 경로를 막는다. 다만 알려진
+                    // 어간에서 뻗어 나온 활용형은 예외다(accept_inflections).
                     let entry = match accumulated.get_mut(word.as_str()) {
                         Some(entry) => entry,
-                        None if has_inventory => continue,
-                        None => accumulated.entry(word).or_default(),
+                        None if !has_inventory => accumulated.entry(word).or_default(),
+                        None if rules.accept_inflections && grows_from_stem(word, &stems) => {
+                            accepted_inflections += 1;
+                            accumulated.entry(word).or_default()
+                        }
+                        None => continue,
                     };
                     entry.count += value * signal.weight;
                 }
@@ -114,6 +128,7 @@ pub fn normalize(
             observed_in_corpus,
             dropped_by_filter,
             dropped_by_budget,
+            accepted_inflections,
             absent_words,
         },
     )
@@ -248,6 +263,16 @@ pub fn normalize_bigrams(
     )
 }
 
+/// 알려진 어간으로 시작하고 그보다 긴 낱말인가 — 활용형으로 볼 수 있는 최소 조건이다.
+/// 한국어 용언 어간은 대개 한 음절(있·하·같)이라 길이로 더 조이면 정작 흔한 활용형이
+/// 다 걸러진다. 어간 집합이 용언 파일에서만 오므로(고유명사는 애초에 빠져 있다)
+/// 이 조건만으로도 잡음이 새는 길은 좁다.
+fn grows_from_stem(word: &str, stems: &[&str]) -> bool {
+    stems
+        .iter()
+        .any(|stem| word.len() > stem.len() && word.starts_with(stem))
+}
+
 /// 실사용 횟수는 로그로 눌러 담는다 — 상위 몇 낱말이 점수 공간을 독점하지 않게.
 fn logarithmic(count: f64) -> f64 {
     if count <= 0.0 {
@@ -277,6 +302,7 @@ mod tests {
             character_set: CharacterSet::LatinLowercase,
             max_words,
             minimum_word_length: 2,
+            accept_inflections: false,
         }
     }
 
@@ -294,12 +320,14 @@ mod tests {
                     weight: 1.0,
                     entries: &inventory,
                     bigrams: &[],
+                    stems: &[],
                 },
                 SourceSignal {
                     role: Role::Frequency,
                     weight: 1.0,
                     entries: &corpus,
                     bigrams: &[],
+                    stems: &[],
                 },
             ],
             &rules(10),
@@ -342,6 +370,7 @@ mod tests {
                 weight: 1.0,
                 entries: &counts,
                 bigrams: &bigrams,
+                stems: &[],
             }],
             &lexicon,
             &LanguageModelRules {
@@ -379,6 +408,7 @@ mod tests {
                 weight: 1.0,
                 entries: &inventory,
                 bigrams: &[],
+                stems: &[],
             }],
             &rules(1),
         );

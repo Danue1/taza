@@ -131,13 +131,17 @@ fn main() {
             .unwrap_or("")
     ));
     if let Ok(text) = std::fs::read_to_string(&absent_path) {
-        let absent: Vec<TypedSequence> = text
+        let absent: Vec<EvaluationCase> = text
             .lines()
-            .filter_map(typed_form)
-            .filter_map(|typed| {
-                synthesizer.touches_for(&typed).map(|touches| TypedSequence {
-                    text: typed,
-                    touches,
+            .filter_map(|word| {
+                let typed = typed_form(word)?;
+                let touches = synthesizer.touches_for(&typed)?;
+                Some(EvaluationCase {
+                    typed: TypedSequence {
+                        text: typed,
+                        touches,
+                    },
+                    intended: word.to_string(),
                 })
             })
             .take(sample_size)

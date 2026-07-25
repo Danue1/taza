@@ -165,23 +165,25 @@ pub fn evaluate_corrections(
 
 /// 사전에 없지만 올바른 낱말들을 **오타 없이** 친 뒤 어절을 끝냈을 때, 자동교정이
 /// 원문을 갈아치우는 비율. 낮을수록 좋다.
+/// 평가 사례의 `typed`는 오타 없이 친 입력이고 `intended`는 화면에 나와야 할 형태다 —
+/// 한국어는 입력이 자모열이고 표시가 한글이라 둘을 따로 두어야 한다.
 pub fn evaluate_false_corrections(
     pack: &Arc<dyn PackBytes>,
     language: &LanguageDescriptor,
-    words: &[TypedSequence],
+    cases: &[EvaluationCase],
 ) -> FalseCorrectionReport {
     let mut changed = 0usize;
-    for word in words {
+    for case in cases {
         let mut typist = Typist::new(language, pack);
-        typist.type_sequence(word);
+        typist.type_sequence(&case.typed);
         typist.send(InputEvent::Separator(' '));
-        if typist.committed != format!("{} ", word.text) {
+        if typist.committed != format!("{} ", case.intended) {
             changed += 1;
         }
     }
     FalseCorrectionReport {
-        word_count: words.len(),
-        false_correction_rate: changed as f64 / words.len().max(1) as f64,
+        word_count: cases.len(),
+        false_correction_rate: changed as f64 / cases.len().max(1) as f64,
     }
 }
 

@@ -16,13 +16,16 @@ pub struct Extracted {
     pub words: Vec<(String, f64)>,
     /// (앞말, 뒷말, 관측 횟수) — 문장 코퍼스만 낸다
     pub bigrams: Vec<(String, String, u64)>,
+    /// 활용형이 뻗어 나오는 어간 — 형태소 사전만 낸다. 코퍼스에서 관측된 활용형을
+    /// 표제어로 받아들일지 가리는 조건이 된다.
+    pub stems: Vec<String>,
 }
 
 impl Extracted {
     fn words_only(words: Vec<(String, f64)>) -> Self {
         Extracted {
             words,
-            bigrams: Vec::new(),
+            ..Extracted::default()
         }
     }
 }
@@ -39,8 +42,7 @@ pub fn extract(extraction: &Extraction, path: &Path, language: &str) -> Result<E
             files,
             verb_stem_files,
             particle_expansion_nouns,
-        } => mecab_ko_dic(path, files, verb_stem_files, *particle_expansion_nouns)
-            .map(Extracted::words_only),
+        } => mecab_ko_dic(path, files, verb_stem_files, *particle_expansion_nouns),
     }
 }
 
@@ -172,6 +174,7 @@ fn tatoeba(path: &Path, language: &str, minimum_count: u64) -> Result<Extracted,
             .into_iter()
             .map(|((left, right), count)| (left, right, count))
             .collect(),
+        stems: Vec::new(),
     })
 }
 
@@ -224,8 +227,9 @@ fn mecab_ko_dic(
     files: &[String],
     verb_stem_files: &[String],
     particle_expansion_nouns: usize,
-) -> Result<Vec<(String, f64)>, String> {
+) -> Result<Extracted, String> {
     let mut costs: HashMap<String, i64> = HashMap::new();
+    let mut stems: Vec<String> = Vec::new();
     // 조사를 붙일 후보 체언 — (표층형, 비용)
     let mut nouns: Vec<(String, i64)> = Vec::new();
     let mut archive = open_tar_gz(path)?;
@@ -256,6 +260,7 @@ fn mecab_ko_dic(
                 continue;
             };
             let word = if is_verb_stem {
+                stems.push(surface.to_string());
                 format!("{surface}다")
             } else {
                 surface.to_string()
@@ -301,12 +306,18 @@ fn mecab_ko_dic(
     let minimum = costs.values().copied().min().unwrap();
     let maximum = costs.values().copied().max().unwrap();
     let span = (maximum - minimum).max(1) as f64;
-    Ok(costs
-        .into_iter()
-        .map(|(word, cost)| {
-            let rank = 1.0 - (cost - minimum) as f64 / span;
-            // 최소 등급이 0이 되면 인벤토리에서 사라지므로 바닥을 남긴다
-            (word, rank.max(0.01))
-        })
-        .collect())
+    stems.sort_unstable();
+    stems.dedup();
+    Ok(Extracted {
+        words: costs
+            .into_iter()
+            .map(|(word, cost)| {
+                let rank = 1.0 - (cost - minimum) as f64 / span;
+                // 최소 등급이 0이 되면 인벤토리에서 사라지므로 바닥을 남긴다
+                (word, rank.max(0.01))
+            })
+            .collect(),
+        bigrams: Vec::new(),
+        stems,
+    })
 }

@@ -101,12 +101,7 @@ impl Composer for LatinComposer {
                 // 선택 확정 뒤의 타이핑은 새 입력 시퀀스 — 후행 공백이 그 경계다
                 ComposerOutput {
                     delete_before_commit: original.chars().count(),
-                    commit: Some(CommittedText {
-                        surface: format!("{text} "),
-                        reading: None,
-                        corrected_from: (!original.is_empty() && text != original)
-                            .then_some(original),
-                    }),
+                    commit: Some(CommittedText::plain(format!("{text} "))),
                     ..ComposerOutput::default()
                 }
             }

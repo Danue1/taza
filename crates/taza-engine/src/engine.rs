@@ -56,6 +56,18 @@ pub struct Engine {
     /// 지금 어절에 대해 눌린 키 신호들. 조회 키의 **끝에서부터** 맞춰 쓴다 — 커서 이동
     /// 뒤 문맥에서 되가져온 앞부분에는 신호가 없으므로 조회 키보다 짧을 수 있다.
     touches: Vec<KeySignal>,
+    /// 방금 자동교정으로 갈아치운 것 — 바로 뒤에 오는 Backspace는 이것을 되돌린다.
+    /// 다음 입력이 하나라도 지나가면 사라진다(순정 키보드 관습).
+    reverted_correction: Option<Correction>,
+}
+
+/// 자동교정이 갈아치운 내용. 되돌리기는 확정 텍스트를 원문으로 되돌려 놓기만 하고,
+/// 이어지는 합성은 문맥 채택(adopt)이 알아서 잇는다.
+struct Correction {
+    /// 사용자가 실제로 친 형태
+    original: String,
+    /// 그 자리에 들어간 교정 결과와 경계 문자를 합친 확정 텍스트
+    committed: String,
 }
 
 impl Engine {
@@ -79,6 +91,7 @@ impl Engine {
             suggestions: Vec::new(),
             previous_word: None,
             touches: Vec::new(),
+            reverted_correction: None,
         }
     }
 
@@ -201,6 +214,9 @@ impl Engine {
                 self.feed(ComposerEvent::Key(character), context, None)
             }
             InputEvent::Backspace => {
+                if let Some(correction) = self.reverted_correction.take() {
+                    return self.revert(correction);
+                }
                 self.touches.pop();
                 self.feed(ComposerEvent::Backspace, context, None)
             }
@@ -255,6 +271,9 @@ impl Engine {
         } = output;
         let mut commit_text = commit.map(|text| text.surface).unwrap_or_default();
 
+        // 되돌릴 교정은 바로 다음 입력까지만 유효하다 (순정 키보드 관습)
+        self.reverted_correction = None;
+
         // 어절이 끝났는가 — 경계 문자를 쳤거나 후보를 골랐거나
         let confirmed = match boundary {
             Some(boundary) => {
@@ -268,6 +287,10 @@ impl Engine {
                     Some(correction) => {
                         delete_before_commit += boundary.surface.chars().count();
                         commit_text.push_str(&correction.text);
+                        self.reverted_correction = Some(Correction {
+                            original: boundary.surface,
+                            committed: format!("{}{}", correction.text, boundary.separator),
+                        });
                         correction.key
                     }
                     None => boundary.key,
@@ -280,6 +303,8 @@ impl Engine {
 
         let suggestions = match &confirmed {
             Some(key) => {
+                // 어절이 끝났으므로 다음 어절은 새 터치 신호로 시작한다
+                self.touches.clear();
                 if assistance && !context.incognito && !key.is_empty() {
                     self.personalization.record(key);
                 }
@@ -311,6 +336,18 @@ impl Engine {
             None => {}
         }
         self.replace_suggestions(suggestions, &mut effects);
+        effects
+    }
+
+    /// 자동교정 직후의 Backspace — 교정 결과를 지우고 사용자가 친 원문을 되살린다.
+    /// 이어지는 타이핑은 문맥 채택(adopt)이 알아서 그 어절을 잇는다.
+    fn revert(&mut self, correction: Correction) -> Vec<Effect> {
+        self.previous_word = None;
+        let mut effects = vec![
+            Effect::DeleteBackward(correction.committed.chars().count()),
+            Effect::CommitText(correction.original),
+        ];
+        self.replace_suggestions(Vec::new(), &mut effects);
         effects
     }
 

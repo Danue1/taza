@@ -91,8 +91,6 @@ pub struct CommittedText {
     pub surface: String,
     /// 재변환·학습·확정 취소에 필요한 원 입력 (일본어 reading, 병음 등)
     pub reading: Option<String>,
-    /// 자동교정으로 치환된 경우의 교정 전 원문
-    pub corrected_from: Option<String>,
 }
 
 impl CommittedText {
@@ -100,7 +98,6 @@ impl CommittedText {
         CommittedText {
             surface: surface.into(),
             reading: None,
-            corrected_from: None,
         }
     }
 }

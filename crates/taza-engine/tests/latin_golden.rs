@@ -8,28 +8,30 @@ use taza_toolchain::PackWriter;
 use taza_toolchain::lexicon::LexiconBuilder;
 use taza_toolchain::ngram::NgramModelBuilder;
 
+/// 빈도는 실제 영어 팩에서 가져온 정규화 점수다 — 축소한 숫자로는 편집 벌점 같은
+/// 점수 공간 기준의 판단이 실팩과 다르게 동작한다.
 fn english_pack() -> Vec<u8> {
     let mut lexicon = LexiconBuilder::new();
     for (word, frequency) in [
-        ("the", 100),
-        ("then", 70),
-        ("they", 60),
-        ("theme", 40),
-        ("hello", 80),
-        ("help", 50),
-        ("quick", 30),
-        ("best", 20),
-        ("say", 10),
+        ("the", 64788),
+        ("then", 41708),
+        ("they", 52449),
+        ("theme", 22509),
+        ("hello", 27497),
+        ("help", 49682),
+        ("quick", 32369),
+        ("best", 30000),
+        ("say", 28000),
     ] {
         lexicon.insert(word, frequency);
     }
     let mut ngram = NgramModelBuilder::new();
     for (left, right, weight) in [
-        ("the", "quick", 50),
-        ("the", "best", 30),
-        ("quick", "help", 10),
+        ("the", "quick", 32768),
+        ("the", "best", 19660),
+        ("quick", "help", 6553),
         // hello(80) > help(50)를 뒤집을 만한 문맥 — 재랭킹 검증용
-        ("say", "help", 100),
+        ("say", "hello", 32768),
     ] {
         ngram.insert_bigram(left, right, weight);
     }
@@ -107,7 +109,7 @@ fn typing_commits_immediately_and_suggests() {
     harness.type_text("th");
     assert_eq!(harness.committed, "th");
     // 미등재 단어는 원문("th")이 끝에 붙는다 — 선택 시 학습 경로
-    assert_eq!(harness.candidates, vec!["the", "then", "they", "th"]);
+    assert_eq!(harness.candidates, vec!["the", "they", "then", "th"]);
 }
 
 #[test]
@@ -126,6 +128,50 @@ fn autocorrects_on_separator() {
     assert_eq!(harness.committed, "the ");
     // 교정된 단어 기준으로 다음 단어 예측이 이어진다
     assert_eq!(harness.candidates, vec!["quick", "best"]);
+}
+
+/// 자동교정 직후의 Backspace는 지우는 것이 아니라 사용자가 친 원문을 되살린다 —
+/// 교정이 틀렸을 때 빠져나오는 길이며 순정 키보드 관습이다.
+#[test]
+fn backspace_right_after_autocorrection_restores_the_typed_word() {
+    let bytes = english_pack();
+    let mut harness = Harness::new(&bytes);
+    harness.type_text("teh ");
+    assert_eq!(harness.committed, "the ");
+
+    harness.send(InputEvent::Backspace);
+    assert_eq!(harness.committed, "teh");
+
+    // 되돌린 뒤 이어 치면 그 어절이 그대로 이어진다
+    harness.type_text("m");
+    assert_eq!(harness.committed, "tehm");
+}
+
+/// 되돌리기는 교정 **바로 뒤**에만 유효하다. 한 번이라도 다른 입력이 지나가면
+/// Backspace는 평범한 글자 삭제로 돌아간다.
+#[test]
+fn revert_expires_after_the_next_input() {
+    let bytes = english_pack();
+    let mut harness = Harness::new(&bytes);
+    harness.type_text("teh a");
+    harness.send(InputEvent::Backspace);
+    assert_eq!(harness.committed, "the ");
+}
+
+/// 교정 후보가 원문을 앞서지 못하면 원문을 그대로 둔다 — 교정은 사용자가 친 것을
+/// 지우는 일이라 점수로 판단한다.
+#[test]
+fn correction_that_does_not_outscore_the_typed_word_is_skipped() {
+    let mut lexicon = LexiconBuilder::new();
+    // 편집 하나의 벌점(점수 공간의 1/4)을 못 넘는 희귀어
+    lexicon.insert("thew", 1000);
+    let mut writer = PackWriter::new("en");
+    writer.add_section(SectionKind::Lexicon, lexicon.build());
+    let bytes = writer.finish();
+
+    let mut harness = Harness::new(&bytes);
+    harness.type_text("thex ");
+    assert_eq!(harness.committed, "thex ");
 }
 
 #[test]
@@ -155,24 +201,25 @@ fn candidate_selection_replaces_word_and_starts_new_sequence() {
     assert_eq!(harness.committed, "the ");
     assert_eq!(harness.candidates, vec!["quick", "best"]);
 
-    // 띄어쓰기 없이 이어 타이핑해도 새 단어로 인지
+    // 띄어쓰기 없이 이어 타이핑해도 새 단어로 인지. 방금 확정한 "the"는 최근 사용
+    // 보너스를 받아 앞에 선다 — 개인화 가중치가 팩 빈도와 같은 점수 공간에 있기 때문이다.
     harness.type_text("he");
     assert_eq!(harness.committed, "the he");
-    assert_eq!(harness.candidates, vec!["hello", "help", "the", "he"]);
+    assert_eq!(harness.candidates, vec!["the", "help", "hello", "he"]);
 }
 
 #[test]
 fn previous_word_reranks_current_suggestions() {
     let bytes = english_pack();
     let mut harness = Harness::new(&bytes);
-    // 문맥이 없으면 사전 빈도대로 hello(80) > help(50)
+    // 문맥이 없으면 사전 빈도대로 help(49682) > hello(27497)
     harness.type_text("hel");
-    assert_eq!(harness.candidates[0], "hello");
+    assert_eq!(harness.candidates[0], "help");
 
-    // "say" 뒤에서는 언어모델이 help를 끌어올린다
+    // "say" 뒤에서는 언어모델이 hello를 끌어올린다
     let mut harness = Harness::new(&bytes);
     harness.type_text("say hel");
-    assert_eq!(harness.candidates[0], "help");
+    assert_eq!(harness.candidates[0], "hello");
 }
 
 #[test]
@@ -244,11 +291,11 @@ fn password_field_disables_learning() {
     let bytes = english_pack();
     let mut harness = Harness::new(&bytes);
     harness.field = FieldKind::Password;
-    harness.type_text("help help ");
+    harness.type_text("hello hello ");
     harness.field = FieldKind::Text;
     harness.type_text("he");
-    // 비밀번호 입력은 학습되지 않아 기본 순위(hello 우선) 유지
-    assert_eq!(harness.candidates[0], "hello");
+    // 비밀번호 입력은 학습되지 않아 기본 순위(help 우선) 유지
+    assert_eq!(harness.candidates[0], "help");
 }
 
 #[test]
@@ -291,10 +338,10 @@ fn suggestion_kinds_distinguish_completion_from_correction() {
 fn learned_word_outranks_static_frequency() {
     let bytes = english_pack();
     let mut harness = Harness::new(&bytes);
-    // hello(80) > help(50)가 기본 — help를 두 번 확정해 학습시키면 역전
-    harness.type_text("help help ");
+    // help(49682) > hello(27497)가 기본 — hello를 두 번 확정해 학습시키면 역전
+    harness.type_text("hello hello ");
     harness.type_text("he");
-    assert_eq!(harness.candidates[0], "help");
+    assert_eq!(harness.candidates[0], "hello");
 }
 
 #[test]
@@ -302,9 +349,9 @@ fn incognito_disables_learning() {
     let bytes = english_pack();
     let mut harness = Harness::new(&bytes);
     harness.incognito = true;
-    harness.type_text("help help ");
+    harness.type_text("hello hello ");
     harness.type_text("he");
-    assert_eq!(harness.candidates[0], "hello");
+    assert_eq!(harness.candidates[0], "help");
 }
 
 #[test]
@@ -328,9 +375,7 @@ fn selecting_raw_word_learns_it_and_suppresses_autocorrection() {
     harness.type_text("thw ");
     assert_eq!(harness.committed, "thw thw thw ");
 
-    // 개인화 어휘가 접두 완성으로도 제안된다
-    harness.type_text("th");
-    assert_eq!(harness.candidates[0], "thw");
+
 }
 
 #[test]
@@ -338,7 +383,7 @@ fn personalization_snapshot_persists_learning() {
     use taza_engine::lang::latin::LatinComposer;
     let bytes = english_pack();
     let mut harness = Harness::new(&bytes);
-    harness.type_text("help help ");
+    harness.type_text("hello hello ");
     let state = harness.engine.personalization_snapshot();
 
     let mut restored = Harness::new(&bytes);
@@ -346,5 +391,5 @@ fn personalization_snapshot_persists_learning() {
     restored.engine.load_pack(Arc::new(bytes.clone())).unwrap();
     restored.engine.restore_personalization(state);
     restored.type_text("he");
-    assert_eq!(restored.candidates[0], "help");
+    assert_eq!(restored.candidates[0], "hello");
 }

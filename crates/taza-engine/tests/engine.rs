@@ -45,11 +45,7 @@ impl Composer for ReplacingComposer {
             },
             ComposerEvent::CandidateSelected(text) => ComposerOutput {
                 delete_before_commit: 3,
-                commit: Some(CommittedText {
-                    surface: text,
-                    reading: None,
-                    corrected_from: Some("teh".to_string()),
-                }),
+                commit: Some(CommittedText::plain(text)),
                 ..ComposerOutput::default()
             },
             _ => ComposerOutput::default(),
@@ -74,7 +70,7 @@ impl Composer for ReplacingComposer {
 #[test]
 fn candidate_replacement_translates_to_delete_then_commit() {
     let mut lexicon = LexiconBuilder::new();
-    lexicon.insert("the", 100);
+    lexicon.insert("the", 65535);
     let mut writer = PackWriter::new("en");
     writer.add_section(SectionKind::Lexicon, lexicon.build());
 

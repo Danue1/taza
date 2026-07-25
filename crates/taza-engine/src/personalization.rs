@@ -8,10 +8,15 @@
 
 use std::collections::BTreeMap;
 
+use crate::pack::lexicon::MAX_FREQUENCY;
+
 const CAPACITY: usize = 1000;
-const COUNT_WEIGHT: u32 = 100;
+/// 가중치는 팩 빈도와 **같은 점수 공간**의 값이어야 한다 — 상수로 못 박으면 어휘가 큰
+/// 실팩에서 학습이 랭킹에 닿지 못한다(빈도 65535 옆의 250은 없는 것과 같다).
+/// 그래서 점수 공간의 비율로 잡는다: 한 번 확정에 1/10, 최근 사용에 1/4.
+const COUNT_WEIGHT: u32 = MAX_FREQUENCY / 10;
 const RECENCY_WINDOW: u64 = 10;
-const RECENCY_BONUS: u32 = 250;
+const RECENCY_BONUS: u32 = MAX_FREQUENCY / 4;
 /// 이 횟수 이상 확정된 단어는 "학습됨" — 자동교정을 억제한다
 const LEARNED_THRESHOLD: u32 = 2;
 

@@ -226,6 +226,18 @@ impl Suggester {
             .search(&query, 1)
             .into_iter()
             .find(|entry| entry.cost > 0)?;
+        // 원문을 갈아치울 만큼 앞서는가. 원문은 사전에 없으므로(위에서 걸렀다) 그 점수는
+        // 개인화 가중치뿐이며, 교정 후보는 편집 비용을 치르고도 그만큼을 넘어야 한다.
+        let corrected = score::combine(
+            best.frequency,
+            sources.personalization.weight(&best.key),
+            self.language_model_weight(&best.key, sources),
+            best.cost,
+        );
+        let typed = score::combine(0, sources.personalization.weight(key), 0, 0);
+        if corrected <= typed {
+            return None;
+        }
         let text = self.policy.encoding.decode(&best.key)?;
         Some(Suggestion {
             key: best.key,

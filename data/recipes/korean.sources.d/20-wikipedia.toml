@@ -1,0 +1,17 @@
+# 위키백과는 어휘 폭과 문맥 신호를 대는 큰 원천이지만 문어체로 기울어 있다 — 구어체인
+# Tatoeba보다 낮은 weight를 주어, 어휘는 넓히되 순위의 결은 구어체가 잡게 한다.
+#
+# 규모가 크므로 승격의 증거를 사실상 혼자 대고 있다. weight는 점수에만 걸리고 승격
+# 판정은 가중치 없는 관측 횟수로 하므로, 낮은 weight가 새 낱말을 막지는 않는다.
+
+[[sources]]
+name = "Korean Wikipedia"
+version = "20260701"
+license = "CC BY-SA 4.0"
+attribution = "Word frequencies derived from the Korean Wikipedia article dump of 2026-07-01 (https://ko.wikipedia.org), licensed CC BY-SA 4.0."
+url = "https://dumps.wikimedia.org/kowiki/20260701/kowiki-20260701-pages-articles.xml.bz2"
+sha256 = "bd3f21c078672aebd537d81a889cce82cb46fa403a417f4b43625c80fbf74813"
+role = "discovery"
+weight = 0.01
+format = "wikipedia"
+minimum_count = 5

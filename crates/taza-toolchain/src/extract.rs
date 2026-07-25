@@ -47,6 +47,51 @@ pub fn extract(extraction: &Extraction, path: &Path, language: &str) -> Result<E
             verb_stem_files,
             particle_expansion_nouns,
         } => mecab_ko_dic(path, files, verb_stem_files, *particle_expansion_nouns),
+        Extraction::NiklCorpus { minimum_count } => nikl_corpus(path, *minimum_count),
+        Extraction::WordList {
+            rank,
+            minimum_count,
+        } => word_list(path, *rank, *minimum_count).map(Extracted::words_only),
+    }
+}
+
+/// 원천 묶음 안의 파일들을 하나씩 넘긴다. 배포 형태가 zip 한 덩이든(모두의 말뭉치),
+/// gzip 한 장이든, 손으로 뽑은 평문 목록이든 추출기가 같은 코드를 쓰도록 여기서 흡수한다.
+fn for_each_member(
+    path: &Path,
+    mut visit: impl FnMut(&str, &mut dyn BufRead) -> Result<(), String>,
+) -> Result<(), String> {
+    let file = std::fs::File::open(path)
+        .map_err(|error| format!("{} 열기 실패: {error}", path.display()))?;
+    let name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("source");
+    match path.extension().and_then(|extension| extension.to_str()) {
+        Some("zip") => {
+            let mut archive = zip::ZipArchive::new(file)
+                .map_err(|error| format!("{} 열기 실패: {error}", path.display()))?;
+            for index in 0..archive.len() {
+                let entry = archive
+                    .by_index(index)
+                    .map_err(|error| format!("{} 항목 읽기 실패: {error}", path.display()))?;
+                if !entry.is_file() {
+                    continue;
+                }
+                let entry_name = entry.name().to_string();
+                visit(&entry_name, &mut BufReader::new(entry))?;
+            }
+            Ok(())
+        }
+        Some("gz") => visit(
+            name.trim_end_matches(".gz"),
+            &mut BufReader::new(GzDecoder::new(file)),
+        ),
+        Some("bz2") => visit(
+            name.trim_end_matches(".bz2"),
+            &mut BufReader::new(BzDecoder::new(file)),
+        ),
+        _ => visit(name, &mut BufReader::new(file)),
     }
 }
 
@@ -131,6 +176,23 @@ fn scowl(
 /// 집계 표 하나가 이 항목 수를 넘으면 한 번짜리를 쳐낸다.
 const PRUNE_THRESHOLD: usize = 8_000_000;
 
+/// 공백으로 끊은 조각에서 낱말을 꺼낸다. 양끝의 구두점·괄호는 떼어 내지만, 안쪽에
+/// 글자가 아닌 것이 남아 있으면 그 어절을 통째로 버린다.
+///
+/// 안쪽에서 잘라 이으면 없던 낱말이 생긴다 — "2026년에"를 숫자에서 자르면 "년에"가,
+/// "Windows는"을 라틴에서 자르면 "는"이 낱말로 둔갑한다. 한국어처럼 조사가 어절에
+/// 붙는 언어에서는 이 파편이 어떤 실제 낱말보다도 흔해져 상위 어휘를 통째로 차지한다.
+fn word_of(chunk: &str) -> Option<&str> {
+    let is_letter = |character: char| character.is_alphabetic() || character == '\'';
+    // 숫자와 버림 표지는 다듬지 않는다 — 떼어 내면 "2026년에"가 "년에"로, 버려진
+    // 마크업에 붙어 있던 조사가 "라고"로 남는다. 어절 안에 그런 것이 섞여 있다는
+    // 것은 그 어절이 통째로 낱말이 아니라는 뜻이다.
+    let trimmed = chunk.trim_matches(|character: char| {
+        !(is_letter(character) || character.is_numeric() || character == DISCARDED_MARK)
+    });
+    (!trimmed.is_empty() && trimmed.chars().all(is_letter)).then_some(trimmed)
+}
+
 /// 문장 코퍼스의 집계 — 낱말 빈도와 이웃한 낱말 짝. 원천이 문장을 어떻게 담고
 /// 있든(TSV 한 줄, XML 안의 wikitext) 세는 방식은 같으므로 여기 모은다.
 #[derive(Default)]
@@ -146,11 +208,21 @@ impl CorpusCounts {
     /// 고유명사 편향이 사라진다. 걸러진 낱말은 짝의 사슬도 끊는다 — 건너뛰어 이으면
     /// 실제로 이웃하지 않은 낱말이 문맥으로 둔갑한다.
     fn read_sentence(&mut self, sentence: &str, cased: bool) {
+        // 줄바꿈은 그 자체로 사슬을 끊는다 — 원천에서 버린 구간이 남긴 자리이거나
+        // 문단 경계이지, 이웃한 낱말 사이가 아니다.
+        for line in sentence.split('\n') {
+            self.read_line(line, cased);
+        }
+    }
+
+    fn read_line(&mut self, line: &str, cased: bool) {
         let mut previous: Option<&str> = None;
-        for token in
-            sentence.split(|character: char| !(character.is_alphabetic() || character == '\''))
-        {
-            if token.is_empty() || (cased && token.chars().next().is_some_and(char::is_uppercase)) {
+        for token in line.split_whitespace().map(word_of) {
+            let Some(token) = token else {
+                previous = None;
+                continue;
+            };
+            if cased && token.chars().next().is_some_and(char::is_uppercase) {
                 previous = None;
                 continue;
             }
@@ -221,8 +293,10 @@ fn tatoeba(path: &Path, language: &str, minimum_count: u64) -> Result<Extracted,
 /// 체언에 붙는 조사 — 앞말의 종성 유무로 이형태가 갈리는 것은 (종성 있음, 없음) 짝으로
 /// 적는다. 교착어의 어절은 사전에 통째로 담으면 폭발하므로, 흔한 체언에만 이 목록을
 /// 붙여 예산 안에서 실제로 타이핑되는 어절을 덮는다.
-const PARTICLES: [(&str, &str); 22] = [
+const PARTICLES: [(&str, &str); 24] = [
     ("은", "는"),
+    ("이라고", "라고"),
+    ("이라는", "라는"),
     ("이", "가"),
     ("을", "를"),
     ("과", "와"),
@@ -328,8 +402,16 @@ const DISCARDED_MARKUP: [(&str, &str); 6] = [
     ("[[Image:", "]]"),
 ];
 
+/// 버린 마크업 자리에 남기는 표지. 글자도 숫자도 아니므로 이 표지가 닿은 어절은
+/// 토큰화에서 통째로 버려진다.
+///
+/// 줄바꿈으로 표시하면 어절에 붙어 있던 마크업이 조사만 홀로 남긴다 — `{{일본어|…}}라고`가
+/// "라고"라는 낱말을 만든다. 교착어에서 이 파편은 어떤 실제 낱말보다도 흔하다. 어절
+/// 사이에 있던 마크업은 앞뒤 어절을 그대로 두고 사슬만 끊는다.
+const DISCARDED_MARK: char = char::REPLACEMENT_CHARACTER;
+
 /// wikitext에서 본문 글만 남긴다. 마크업 구간은 통째로 버리고 링크는 표시 문자열만
-/// 남긴다. 버린 자리에는 줄바꿈을 넣어 낱말 사슬을 끊는다 — 마크업을 사이에 두고
+/// 남긴다. 버린 자리에는 표지를 넣어 낱말 사슬을 끊는다 — 마크업을 사이에 두고
 /// 떨어져 있던 낱말이 이웃으로 둔갑하지 않게.
 fn strip_wikitext(text: &str) -> String {
     let bytes = text.as_bytes();
@@ -350,20 +432,23 @@ fn strip_wikitext(text: &str) -> String {
                     .iter()
                     .find_map(|&(open, close)| skip_nested(rest, open, close))
             })
-            .or_else(|| skip_until(rest, "<ref", "</ref>").or_else(|| skip_until(rest, "<ref", "/>")))
+            .or_else(|| {
+                skip_until(rest, "<ref", "</ref>").or_else(|| skip_until(rest, "<ref", "/>"))
+            })
             .or_else(|| skip_until(rest, "<!--", "-->"))
         {
-            // 구분자 둘 — 하나로는 빈 토큰이 생기지 않아 사슬이 끊기지 않는다
-            stripped.push_str("\n\n");
+            stripped.push(DISCARDED_MARK);
             index += skipped;
             continue;
         }
-        // `[[대상|표시]]` — 대상은 문서 이름이라 본문 흐름의 낱말이 아니다
+        // `[[대상|표시]]`에서 대상은 문서 이름이라 본문 흐름의 낱말이 아니다. 세로줄이
+        // 없으면 대상이 곧 화면에 보이는 글이므로 그대로 남긴다 — 대괄호를 남겨 두면
+        // 뒤에 붙은 조사까지 딸린 어절이 통째로 버려진다.
         if rest.starts_with("[[")
             && let Some(close) = rest.find("]]")
-            && let Some(bar) = rest[..close].rfind('|')
         {
-            stripped.push_str(&rest[bar + 1..close]);
+            let inner = &rest[2..close];
+            stripped.push_str(inner.rsplit_once('|').map_or(inner, |(_, shown)| shown));
             index += close + 2;
             continue;
         }
@@ -407,6 +492,95 @@ fn skip_until(text: &str, open: &str, close: &str) -> Option<usize> {
         text.find(close)
             .map_or(text.len(), |offset| offset + close.len()),
     )
+}
+
+/// 모두의 말뭉치에서 문장이 들어 있는 배열의 이름. 말뭉치 종류마다 스키마가 조금씩
+/// 다르지만(신문은 `paragraph`, 구어는 `utterance`, 분석 말뭉치는 `sentence`) 문장이
+/// `form`에 담긴다는 점은 같다. 이 목록에 없는 배열 안의 `form`은 문장이 아니라 형태소·
+/// 어절 조각이므로 세지 않는다 — 세면 낱말이 두 번 계산되고 이웃 짝이 무너진다.
+const NIKL_SENTENCE_CONTAINERS: [&str; 3] = ["paragraph", "sentence", "utterance"];
+
+/// 국립국어원 모두의 말뭉치(JSON). 이용 신청을 거쳐 손으로 내려받는 원천이라 로컬
+/// 조달을 전제하며, 말뭉치 종류가 늘어도 레시피 조각만 더하면 같은 추출기로 들어온다.
+fn nikl_corpus(path: &Path, minimum_count: u64) -> Result<Extracted, String> {
+    let mut corpus = CorpusCounts::default();
+    for_each_member(path, |name, reader| {
+        if !name.ends_with(".json") {
+            return Ok(());
+        }
+        let document: serde_json::Value = serde_json::from_reader(reader)
+            .map_err(|error| format!("{name} 해석 실패: {error}"))?;
+        read_nikl_value(&document, false, &mut corpus);
+        corpus.prune_if_large();
+        Ok(())
+    })?;
+    if corpus.counts.is_empty() {
+        return Err(format!("{}: 문장을 읽지 못했음", path.display()));
+    }
+    Ok(corpus.finish(minimum_count))
+}
+
+fn read_nikl_value(value: &serde_json::Value, in_sentences: bool, corpus: &mut CorpusCounts) {
+    match value {
+        serde_json::Value::Object(fields) => {
+            if in_sentences && let Some(serde_json::Value::String(form)) = fields.get("form") {
+                // 한 문장 안에서도 문장 부호에서 끊는다 — 통째로 세면 마침표를 건너뛴
+                // 짝이 문맥으로 둔갑한다
+                for sentence in form.split(['.', '!', '?', '\n']) {
+                    corpus.read_sentence(sentence, false);
+                }
+            }
+            for (key, child) in fields {
+                read_nikl_value(
+                    child,
+                    NIKL_SENTENCE_CONTAINERS.contains(&key.as_str()),
+                    corpus,
+                );
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for item in items {
+                read_nikl_value(item, in_sentences, corpus);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// 줄 단위 낱말 목록 (`낱말` 또는 `낱말<TAB>빈도`).
+///
+/// 사전·용어집·신어 자료는 배포 형식이 저마다 다르고 상당수가 손으로 받아야 한다.
+/// 원천마다 파서를 늘리는 대신 사람이 한 번 이 꼴로 뽑아 두게 하면, 새 어휘를 들이는
+/// 일이 파일 하나를 떨구는 일이 된다.
+fn word_list(path: &Path, rank: f64, minimum_count: u64) -> Result<Vec<(String, f64)>, String> {
+    let mut words: HashMap<String, f64> = HashMap::new();
+    for_each_member(path, |name, reader| {
+        for line in reader.lines() {
+            let line = line.map_err(|error| format!("{name} 읽기 실패: {error}"))?;
+            let line = line.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            let (word, signal) = match line.split_once('\t') {
+                Some((word, count)) => match count.trim().parse::<u64>() {
+                    Ok(count) if count < minimum_count => continue,
+                    Ok(count) => (word.trim(), count as f64),
+                    Err(_) => (word.trim(), rank),
+                },
+                None => (line, rank),
+            };
+            if word.is_empty() {
+                continue;
+            }
+            let slot = words.entry(word.to_string()).or_insert(0.0);
+            *slot = slot.max(signal);
+        }
+        Ok(())
+    })?;
+    if words.is_empty() {
+        return Err(format!("{}: 낱말이 없음", path.display()));
+    }
+    Ok(words.into_iter().collect())
 }
 
 /// 체언에 붙어 용언을 만드는 접미사. 사전은 이것을 명사와 따로 싣기 때문에
@@ -554,6 +728,75 @@ fn mecab_ko_dic(
 mod tests {
     use super::*;
 
+    /// 말뭉치 종류마다 문장이 담기는 배열 이름이 다르지만 같은 추출기로 들어와야 한다.
+    /// 형태소·어절 조각도 `form`을 쓰므로, 그것까지 세면 낱말이 두 번 계산된다.
+    #[test]
+    fn nikl_counts_sentences_but_not_morpheme_fragments() {
+        let document = serde_json::json!({
+            "document": [{
+                "paragraph": [{ "form": "밈이 유행한다" }],
+                "sentence": [{
+                    "form": "유행한다",
+                    "morpheme": [{ "form": "유행" }, { "form": "하" }]
+                }]
+            }],
+            "utterance": [{ "form": "밈 좋아" }]
+        });
+        let mut corpus = CorpusCounts::default();
+        read_nikl_value(&document, false, &mut corpus);
+        assert_eq!(corpus.counts.get("밈"), Some(&1));
+        assert_eq!(corpus.counts.get("밈이"), Some(&1));
+        assert_eq!(corpus.counts.get("유행한다"), Some(&2));
+        // 형태소 조각은 문장이 아니다
+        assert_eq!(corpus.counts.get("유행"), None);
+    }
+
+    /// 문서 하나를 통째로 넣으면 마침표를 건너뛴 짝이 문맥으로 둔갑한다.
+    #[test]
+    fn nikl_breaks_the_neighbour_chain_at_sentence_ends() {
+        let document = serde_json::json!({ "paragraph": [{ "form": "앞말이다. 뒷말이다" }] });
+        let mut corpus = CorpusCounts::default();
+        read_nikl_value(&document, false, &mut corpus);
+        assert!(corpus.pairs.is_empty());
+    }
+
+    /// 어절 안쪽에서 자르면 조사·의존명사 파편이 낱말로 둔갑한다 — 교착어에서 이 파편은
+    /// 어떤 실제 낱말보다도 흔해서 상위 어휘를 통째로 차지한다.
+    #[test]
+    fn words_are_whole_eojeol_not_fragments() {
+        let mut corpus = CorpusCounts::default();
+        corpus.read_sentence("2026년에 Windows는 나왔다.", false);
+        assert_eq!(corpus.counts.get("나왔다"), Some(&1));
+        // 숫자가 섞인 어절은 통째로 버린다. 스크립트가 섞인 어절은 온전히 남으므로
+        // ("Windows는") 표제어 문자 집합 필터가 뒤에서 걸러 낸다 — 어느 쪽이든 조사
+        // 파편은 생기지 않는다.
+        for fragment in ["년에", "는", "2026년에"] {
+            assert_eq!(corpus.counts.get(fragment), None, "파편이 남음: {fragment}");
+        }
+        // 버린 어절은 사슬을 끊는다
+        assert_eq!(corpus.pairs.len(), 1);
+        assert!(
+            corpus
+                .pairs
+                .contains_key(&("Windows는".to_string(), "나왔다".to_string()))
+        );
+    }
+
+    #[test]
+    fn word_list_reads_bare_and_counted_lines() {
+        let directory = std::env::temp_dir().join("taza-word-list-test");
+        std::fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("words.tsv");
+        std::fs::write(&path, "# 주석\n밈\n\n브이로그\t40\n오탈자\t1\n").unwrap();
+        let mut words = word_list(&path, 0.5, 10).unwrap();
+        words.sort_by(|left, right| left.0.cmp(&right.0));
+        assert_eq!(
+            words,
+            vec![("밈".to_string(), 0.5), ("브이로그".to_string(), 40.0)]
+        );
+        std::fs::remove_file(&path).unwrap();
+    }
+
     #[test]
     fn strips_templates_references_and_link_targets() {
         let wikitext = "{{인용|웹인용|확인날짜=2026}}한국은 {{나라}}동아시아에 있다.\
@@ -571,24 +814,42 @@ mod tests {
     #[test]
     fn nested_templates_are_skipped_whole() {
         let stripped = strip_wikitext("{{바깥{{안쪽}}더}}남는다");
-        assert_eq!(stripped.trim(), "남는다");
+        assert_eq!(stripped.trim_start_matches(DISCARDED_MARK), "남는다");
     }
 
     /// 마크업을 사이에 두고 떨어져 있던 낱말은 이웃이 아니다 — 버린 자리가 사슬을 끊는다.
     #[test]
     fn discarded_markup_breaks_the_neighbour_chain() {
-        let stripped = strip_wikitext("앞말{{틀}}뒷말");
         let mut corpus = CorpusCounts::default();
-        corpus.read_sentence(&stripped, false);
+        corpus.read_sentence(&strip_wikitext("앞말 {{틀}} 뒷말"), false);
         assert_eq!(corpus.counts.get("앞말"), Some(&1));
         assert_eq!(corpus.counts.get("뒷말"), Some(&1));
         assert!(corpus.pairs.is_empty());
     }
 
+    /// 어절에 딱 붙은 마크업은 그 어절을 통째로 버린다 — 남기면 조사만 홀로 살아남아
+    /// 낱말로 둔갑한다.
+    #[test]
+    fn markup_inside_an_eojeol_discards_it() {
+        let mut corpus = CorpusCounts::default();
+        corpus.read_sentence(&strip_wikitext("{{일본어|平和}}라고 불렀다"), false);
+        assert_eq!(corpus.counts.get("라고"), None);
+        assert_eq!(corpus.counts.get("불렀다"), Some(&1));
+    }
+
+    /// 세로줄 없는 링크는 대상이 곧 화면에 보이는 글이다. 대괄호를 남기면 뒤에 붙은
+    /// 조사까지 딸린 어절이 통째로 버려진다.
+    #[test]
+    fn bare_links_keep_their_text() {
+        let mut corpus = CorpusCounts::default();
+        corpus.read_sentence(&strip_wikitext("[[한국어]]는 아름답다"), false);
+        assert_eq!(corpus.counts.get("한국어는"), Some(&1));
+    }
+
     #[test]
     fn file_links_are_dropped_whole() {
         let stripped = strip_wikitext("[[파일:서울.jpg|섬네일|설명 글]]본문");
-        assert_eq!(stripped.trim(), "본문");
+        assert_eq!(stripped.trim_start_matches(DISCARDED_MARK), "본문");
     }
 
     /// 절 제목과 분류 링크는 문서마다 똑같이 되풀이돼 흔한 낱말 자리를 빼앗는다.

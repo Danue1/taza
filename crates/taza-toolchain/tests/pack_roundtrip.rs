@@ -1,5 +1,5 @@
-use taza_engine::suggest::{Dictionary, Entry, Query};
 use taza_engine::pack::{Pack, PackError, SectionKind};
+use taza_engine::suggest::{Dictionary, Entry, Query};
 use taza_toolchain::PackWriter;
 use taza_toolchain::lexicon::LexiconBuilder;
 

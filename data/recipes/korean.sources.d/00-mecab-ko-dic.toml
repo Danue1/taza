@@ -1,0 +1,33 @@
+# 형태소 사전 — 표제어의 골격. 인벤토리 원천이 이것 하나이므로 코퍼스 낱말은
+# 여기 있거나, 여기서 뻗어 나온 활용형이거나, 승격 문턱을 넘어야 표제어가 된다.
+
+[[sources]]
+name = "mecab-ko-dic"
+version = "2.1.1-20180720"
+license = "Apache-2.0"
+attribution = "Korean morpheme dictionary from mecab-ko-dic 2.1.1-20180720 (https://bitbucket.org/eunjeon/mecab-ko-dic), licensed under Apache License 2.0."
+url = "https://bitbucket.org/eunjeon/mecab-ko-dic/downloads/mecab-ko-dic-2.1.1-20180720.tar.gz"
+sha256 = "fd62d3d6d8fa85145528065fabad4d7cb20f6b2201e71be4081a4e9701a5b330"
+role = "inventory"
+weight = 1.0
+format = "mecab-ko-dic"
+# 홀로 쓰이는 품사만 — 조사(J)·어미(E)·한자(Hanja)·인명(Person)은 표제어로 두면
+# 제안 잡음이 된다. 인명·지명은 개인화 스토어가 학습으로 메운다.
+files = [
+    "NNG.csv",
+    "NNP.csv",
+    "NNB.csv",
+    "NR.csv",
+    "NP.csv",
+    "MM.csv",
+    "MAG.csv",
+    "MAJ.csv",
+    "IC.csv",
+    "CoinedWord.csv",
+    "Wikipedia.csv",
+]
+# 용언 어간에 종결어미 `다`를 붙여 기본형으로 만든다
+verb_stem_files = ["VV.csv", "VA.csv"]
+# 흔한 체언에만 조사를 붙여 어절을 만든다 — 형태소만 담으면 실제로 치는 "우리가",
+# "학교에서" 같은 어절이 사전에 없어 제안이 비게 된다.
+particle_expansion_nouns = 15000

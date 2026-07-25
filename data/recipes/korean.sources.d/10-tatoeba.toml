@@ -1,0 +1,14 @@
+# 구어체 문장 코퍼스. 한국어 익스포트는 작아서 빈도 신호로는 얇지만, 순서의 결을
+# 구어체 쪽으로 당기는 몫을 한다. 규모가 작은 만큼 승격의 증거로는 거의 서지 못한다.
+
+[[sources]]
+name = "Tatoeba sentences (kor)"
+version = "2026-07-25"
+license = "CC-BY 2.0 FR"
+attribution = "Word frequencies derived from the Tatoeba Project Korean sentence export (https://tatoeba.org), licensed CC-BY 2.0 FR."
+url = "https://downloads.tatoeba.org/exports/per_language/kor/kor_sentences.tsv.bz2"
+sha256 = "1e75b53722411690b92f1780fe6d81cf152d0ca0db95e66748ae96f057306fe0"
+role = "discovery"
+weight = 0.5
+format = "tatoeba"
+minimum_count = 2

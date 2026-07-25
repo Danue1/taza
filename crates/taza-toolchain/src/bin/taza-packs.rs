@@ -88,7 +88,9 @@ fn build(recipe_path: &Path, options: &Options) -> Result<CatalogEntry, String> 
     let cache = options.data_directory.join("cache");
     let mut extracted = Vec::new();
     for source in &recipe.sources {
-        let path = fetch::fetch(&source.url, &source.sha256, &cache)?;
+        let Some(path) = fetch::locate(source, &cache)? else {
+            continue;
+        };
         let signal = extract::extract(&source.extraction, &path, &recipe.language)?;
         println!(
             "  {} ({}): 낱말 {} / 이웃 짝 {}",
@@ -108,6 +110,7 @@ fn build(recipe_path: &Path, options: &Options) -> Result<CatalogEntry, String> 
             entries: &signal.words,
             bigrams: &signal.bigrams,
             stems: &signal.stems,
+            affixes: &signal.affixes,
         })
         .collect();
     // 원천이 밝힌 접사는 팩에 실려 코어가 학습 어휘의 결합형을 제안하는 데 쓰인다
@@ -119,10 +122,12 @@ fn build(recipe_path: &Path, options: &Options) -> Result<CatalogEntry, String> 
     affixes.dedup();
     let (words, report) = normalize(&signals, &recipe.lexicon);
     println!(
-        "  정규화: 후보 {} / 코퍼스 관측 {} / 활용형 수용 {} / 필터 제외 {} / 예산 제외 {} → 표제어 {}",
+        "  정규화: 인벤토리 {} / 코퍼스 관측 {} / 활용형 수용 {} / 승격 {} (기각 {}) / 필터 제외 {} / 예산 제외 {} → 표제어 {}",
         report.inventory_size,
         report.observed_in_corpus,
         report.accepted_inflections,
+        report.promoted_words.len(),
+        report.rejected_candidates,
         report.dropped_by_filter,
         report.dropped_by_budget,
         words.len()
@@ -158,6 +163,17 @@ fn build(recipe_path: &Path, options: &Options) -> Result<CatalogEntry, String> 
     std::fs::write(&absent_path, absent)
         .map_err(|error| format!("{} 쓰기 실패: {error}", absent_path.display()))?;
 
+    // 사전에 없다가 코퍼스 증거로 들어온 낱말 — 문턱이 느슨한지 빡빡한지는 이 목록을
+    // 눈으로 훑어야 안다(외래어·신어가 들어왔는가, 인명·오타가 섞였는가).
+    let promoted_path = build_directory.join(format!("{}-promoted.tsv", recipe.name));
+    let promoted: String = report
+        .promoted_words
+        .iter()
+        .map(|word| format!("{word}\n"))
+        .collect();
+    std::fs::write(&promoted_path, promoted)
+        .map_err(|error| format!("{} 쓰기 실패: {error}", promoted_path.display()))?;
+
     let layout_text = recipe
         .layout
         .as_ref()
@@ -166,7 +182,16 @@ fn build(recipe_path: &Path, options: &Options) -> Result<CatalogEntry, String> 
                 .map_err(|error| format!("{} 읽기 실패: {error}", path.display()))
         })
         .transpose()?;
-    let assembled = assemble::assemble(&recipe, &words, &bigrams, &affixes, layout_text.as_deref())?;
+    let used: Vec<&taza_toolchain::recipe::Source> =
+        extracted.iter().map(|(source, _)| *source).collect();
+    let assembled = assemble::assemble(
+        &recipe,
+        &used,
+        &words,
+        &bigrams,
+        &affixes,
+        layout_text.as_deref(),
+    )?;
     let packs_directory = options.data_directory.join("packs");
     std::fs::create_dir_all(&packs_directory)
         .map_err(|error| format!("{} 만들기 실패: {error}", packs_directory.display()))?;
@@ -212,8 +237,8 @@ fn build(recipe_path: &Path, options: &Options) -> Result<CatalogEntry, String> 
         archive_sha256,
         pack_size: assembled.bytes.len() as u64,
         pack_sha256: hex_digest(&assembled.bytes),
-        sources: assemble::source_lines(&recipe),
-        attribution: assemble::attribution(&recipe),
+        sources: assemble::source_lines(&used),
+        attribution: assemble::attribution(&used),
     })
 }
 

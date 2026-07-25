@@ -1,7 +1,11 @@
-//! 원천 다운로드와 캐시. 같은 sha256이 이미 캐시에 있으면 네트워크를 타지 않으므로
+//! 원천 조달과 캐시. 같은 sha256이 이미 캐시에 있으면 네트워크를 타지 않으므로
 //! 파이프라인 재실행이 값싸다. 해시가 어긋나면 실패로 끝낸다 — 원천이 조용히 바뀌는
 //! 것을 빌드 실패로 드러내는 것이 재현성의 최소 조건이다.
+//!
+//! 모든 원천을 URL로 받을 수 있는 것은 아니다. 이용 신청과 승인을 거쳐야 하는 말뭉치는
+//! 사람이 손으로 갖다 놓고, 파이프라인은 그것을 있으면 쓰고 없으면 건너뛴다.
 
+use crate::recipe::{Origin, Source};
 use sha2::{Digest, Sha256};
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -29,7 +33,45 @@ fn file_digest(path: &Path) -> Result<String, String> {
         }
         hasher.update(&buffer[..read]);
     }
-    Ok(hasher.finalize().iter().map(|b| format!("{b:02x}")).collect())
+    Ok(hasher
+        .finalize()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect())
+}
+
+/// 원천 파일의 자리를 마련한다. 자리에 없고 선택 원천이면 `None`이다 — 손으로 받아야
+/// 하는 말뭉치가 아직 없어도 나머지 원천만으로 팩이 나와야 한다.
+pub fn locate(source: &Source, cache_directory: &Path) -> Result<Option<PathBuf>, String> {
+    match &source.origin {
+        Origin::Remote { url, sha256 } => match fetch(url, sha256, cache_directory) {
+            Ok(path) => Ok(Some(path)),
+            Err(error) if source.is_optional() => {
+                println!("  건너뜀 {} — {error}", source.name);
+                Ok(None)
+            }
+            Err(error) => Err(error),
+        },
+        Origin::Local { file, sha256 } => {
+            if !file.exists() {
+                if source.is_optional() {
+                    println!("  건너뜀 {} — {} 없음", source.name, file.display());
+                    return Ok(None);
+                }
+                return Err(format!("{}: {} 없음", source.name, file.display()));
+            }
+            if let Some(expected) = sha256
+                && &file_digest(file)? != expected
+            {
+                return Err(format!(
+                    "{}: sha256 불일치 — {}",
+                    source.name,
+                    file.display()
+                ));
+            }
+            Ok(Some(file.clone()))
+        }
+    }
 }
 
 /// 캐시에 있으면 그대로, 없으면 내려받아 검증한 뒤 캐시에 넣고 경로를 돌려준다.

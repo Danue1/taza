@@ -3,11 +3,11 @@
 use crate::lexicon::LexiconBuilder;
 use crate::metadata::MetadataBuilder;
 use crate::ngram::NgramModelBuilder;
-use crate::recipe::{LexiconEncoding, Recipe};
-use taza_engine::suggest::KeyEncoding;
+use crate::recipe::{LexiconEncoding, Recipe, Source};
 use crate::{PackWriter, layout};
 use taza_engine::pack::SectionKind;
 use taza_engine::pack::metadata::keys;
+use taza_engine::suggest::KeyEncoding;
 
 pub struct AssembledPack {
     pub bytes: Vec<u8>,
@@ -25,6 +25,7 @@ fn encode(word: &str, encoding: LexiconEncoding) -> Option<String> {
 
 pub fn assemble(
     recipe: &Recipe,
+    sources: &[&Source],
     words: &[(String, u32)],
     bigrams: &[(String, String, u32)],
     affixes: &[String],
@@ -80,8 +81,8 @@ pub fn assemble(
     if !affixes.is_empty() {
         metadata.set(keys::AFFIXES, affixes.join("\n"));
     }
-    metadata.set(keys::SOURCES, source_lines(recipe));
-    metadata.set(keys::ATTRIBUTION, attribution(recipe));
+    metadata.set(keys::SOURCES, source_lines(sources));
+    metadata.set(keys::ATTRIBUTION, attribution(sources));
 
     let mut writer = PackWriter::new(&recipe.language);
     writer.add_section(SectionKind::Lexicon, lexicon_section);
@@ -104,18 +105,18 @@ pub fn assemble(
     })
 }
 
-pub fn source_lines(recipe: &Recipe) -> String {
-    recipe
-        .sources
+/// 고지는 실제로 팩에 들어간 원천만 적는다 — 선언해 두었지만 자리에 없어 건너뛴
+/// 원천까지 적으면 쓰지도 않은 데이터를 출처로 밝히는 셈이 된다.
+pub fn source_lines(sources: &[&Source]) -> String {
+    sources
         .iter()
         .map(|source| format!("{} {} ({})", source.name, source.version, source.license))
         .collect::<Vec<_>>()
         .join("\n")
 }
 
-pub fn attribution(recipe: &Recipe) -> String {
-    recipe
-        .sources
+pub fn attribution(sources: &[&Source]) -> String {
+    sources
         .iter()
         .map(|source| source.attribution.clone())
         .collect::<Vec<_>>()

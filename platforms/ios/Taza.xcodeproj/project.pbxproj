@@ -68,6 +68,7 @@
 		41F6BF764826351F53195B38 /* TazaTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TazaTheme.swift; sourceTree = "<group>"; };
 		4957B682B5A359C74E1326BE /* PackLibraryModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackLibraryModel.swift; sourceTree = "<group>"; };
 		574B66EBEC60DDBFD132D9FB /* TazaFfi.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = TazaFfi.xcframework; sourceTree = "<group>"; };
+		61D84CF1C4F727E80DCDCC41 /* Packs.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Packs.xcconfig; sourceTree = "<group>"; };
 		6DD6CA34EFC067B2496D6396 /* TazaKeyboard.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TazaKeyboard.entitlements; sourceTree = "<group>"; };
 		884F7F9DE893001ADF7495D9 /* PackDistribution.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackDistribution.swift; sourceTree = "<group>"; };
 		967EC11F78904F1D768ACEFF /* english.tazapack */ = {isa = PBXFileReference; path = english.tazapack; sourceTree = "<group>"; };
@@ -110,6 +111,15 @@
 				09D758E33FF50C0D459ED005 /* taza_ffi.swift */,
 			);
 			path = Generated;
+			sourceTree = "<group>";
+		};
+		700482EEC87E8AFB9AB61FF0 /* ios */ = {
+			isa = PBXGroup;
+			children = (
+				61D84CF1C4F727E80DCDCC41 /* Packs.xcconfig */,
+			);
+			name = ios;
+			path = .;
 			sourceTree = "<group>";
 		};
 		9C5ED62067042AFC3E057D86 /* TazaApp */ = {
@@ -177,6 +187,7 @@
 			isa = PBXGroup;
 			children = (
 				59973978AA06E686130F3C5C /* Generated */,
+				700482EEC87E8AFB9AB61FF0 /* ios */,
 				E2B506EE41D55AC9C1F048D8 /* packs */,
 				9C5ED62067042AFC3E057D86 /* TazaApp */,
 				A207D19956AA7DCF483A7B09 /* TazaDesignSystem */,
@@ -371,6 +382,7 @@
 		};
 		61A92C1BF6E7FB05FB8DB1A7 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 61D84CF1C4F727E80DCDCC41 /* Packs.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -422,7 +434,6 @@
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.9;
-				TAZA_PACK_CATALOG_URL = "https://github.com/Danue1/taza/releases/download/packs/catalog.json";
 			};
 			name = Release;
 		};
@@ -449,6 +460,7 @@
 		};
 		C09559B3A1452CE1643937DF /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 61D84CF1C4F727E80DCDCC41 /* Packs.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -507,7 +519,6 @@
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.9;
-				TAZA_PACK_CATALOG_URL = "https://github.com/Danue1/taza/releases/download/packs/catalog.json";
 			};
 			name = Debug;
 		};

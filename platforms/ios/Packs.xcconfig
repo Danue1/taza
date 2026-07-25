@@ -1,0 +1,18 @@
+// 언어팩 배포처. 앱은 이 URL 하나만 알고 아카이브는 카탈로그 기준 상대 경로로 찾으므로,
+// 배포처를 옮기려면 여기만 바꾸면 된다.
+//
+// xcconfig는 `//`를 주석 시작으로 읽어 URL을 `https:`에서 잘라 버린다. 슬래시를 변수로
+// 우회하는 것이 이 형식의 알려진 관례다.
+TAZA_SLASH = /
+
+TAZA_PACK_CATALOG_URL = https:$(TAZA_SLASH)$(TAZA_SLASH)github.com/Danue1/taza/releases/download/packs/catalog.json
+
+// 로컬 개발용 덮어쓰기. `Packs.local.xcconfig`를 만들어 두면 Xcode에서 실행하든
+// xcodebuild로 빌드하든 그 값이 쓰인다 (이 파일보다 뒤에 오므로 이긴다).
+// 이 파일은 git이 무시하므로 실수로 커밋되지 않는다. 보기:
+//
+//   TAZA_PACK_CATALOG_URL = file:$(TAZA_SLASH)$(TAZA_SLASH)$(TAZA_SLASH)Users/…/taza/data/packs/catalog.json
+//
+// 한 번만 쓰고 말 것이면 파일을 만들지 말고 명령행에 넘겨도 된다 — 그쪽이 더 세다:
+//   xcodebuild … TAZA_PACK_CATALOG_URL="file:///…/catalog.json"
+#include? "Packs.local.xcconfig"

@@ -3,14 +3,14 @@ options:
   bundleIdPrefix: io.danuel.taza
   deploymentTarget:
     iOS: "16.0"
+# 언어팩 배포처는 Packs.xcconfig가 정한다 — 여기(프로젝트 설정)에 두면 xcconfig보다
+# 우선순위가 높아 로컬 덮어쓰기가 먹지 않는다.
+configFiles:
+  Debug: Packs.xcconfig
+  Release: Packs.xcconfig
 settings:
   base:
     SWIFT_VERSION: "5.9"
-    # 언어팩 배포처 — GitHub Release의 고정 태그에 catalog.json과 아카이브가 나란히
-    # 올라간다 (data/publish-packs.sh). 앱은 이 URL 하나만 알고 아카이브는 카탈로그
-    # 기준 상대 경로로 찾으므로, 배포처를 옮기려면 이 한 줄만 바꾸면 된다.
-    # 로컬 확인은 `xcodebuild TAZA_PACK_CATALOG_URL=file:///…/data/packs/catalog.json`.
-    TAZA_PACK_CATALOG_URL: "https://github.com/Danue1/taza/releases/download/packs/catalog.json"
 targets:
   TazaApp:
     type: application

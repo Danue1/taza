@@ -22,6 +22,14 @@ pub mod keys {
     pub const BIGRAM_COUNT: &str = "bigram_count";
     /// lexicon 표제어의 저장 인코딩 — `utf8` 또는 `hangul-jamo-dubeolsik`
     pub const LEXICON_ENCODING: &str = "lexicon_encoding";
+    /// 언어가 자기를 부르는 이름 — 스페이스바와 언어 목록에 그대로 나간다
+    pub const DISPLAY_NAME: &str = "display_name";
+    /// 언어 키에 찍히는 짧은 표기
+    pub const KEYCAP_LABEL: &str = "keycap_label";
+    /// 조합 골격 — `direct` / `latin` / `hangul`
+    pub const COMPOSER_SKELETON: &str = "composer_skeleton";
+    /// 이 팩이 싣고 있는 배열의 이름 (`QWERTY`, `두벌식`) — 설정 화면에 그대로 나간다
+    pub const LAYOUT_NAME: &str = "layout_name";
     /// 어절을 공백으로 나누는 스크립트인지 — `true`/`false`
     pub const WORD_SEPARATED: &str = "word_separated";
     /// 오른쪽에서 왼쪽으로 쓰는 스크립트인지 — `true`/`false`

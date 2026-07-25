@@ -1,7 +1,7 @@
 pub mod layouts;
 
 use crate::contract::InputEvent;
-use crate::lang::Language;
+use crate::lang::LanguageDescriptor;
 
 /// 커서를 한 칸 옮기는 데 필요한 가로 이동 거리(pt). 순정 스페이스바 길게 눌러
 /// 커서 이동과 비슷한 감도다. 정규화 좌표가 아니라 물리 거리로 잡아야 화면이
@@ -224,7 +224,7 @@ pub struct PressOutcome {
 /// 이 지점을 교체하는 방식으로 들어온다.
 pub struct Keyboard {
     layout_set: KeyboardLayoutSet,
-    language: Language,
+    language: LanguageDescriptor,
     metrics: KeyboardMetrics,
     active_layer: usize,
     shift: ShiftState,
@@ -239,7 +239,7 @@ struct CursorDrag {
 }
 
 impl Keyboard {
-    pub fn new(layout_set: KeyboardLayoutSet, language: Language) -> Self {
+    pub fn new(layout_set: KeyboardLayoutSet, language: LanguageDescriptor) -> Self {
         assert!(!layout_set.layers.is_empty(), "레이어가 최소 1개 필요");
         Keyboard {
             layout_set,
@@ -317,10 +317,10 @@ impl Keyboard {
             KeyAction::Character { .. } => self.key_character(action).unwrap().to_string(),
             KeyAction::Shift => "⇧".to_string(),
             KeyAction::Backspace => "⌫".to_string(),
-            KeyAction::Space => self.language.display_name().to_string(),
+            KeyAction::Space => self.language.display_name.clone(),
             KeyAction::Enter => "⏎".to_string(),
             KeyAction::LayerSwitch { target } => self.layer_switch_label(target),
-            KeyAction::LanguageSwitch => self.language.keycap_label().to_string(),
+            KeyAction::LanguageSwitch => self.language.keycap_label.clone(),
         }
     }
 
@@ -337,7 +337,7 @@ impl Keyboard {
                 _ => "symbols".to_string(),
             },
             KeyAction::LanguageSwitch => {
-                format!("language, {}", self.language.display_name())
+                format!("language, {}", self.language.display_name)
             }
         }
     }

@@ -4,6 +4,7 @@ use crate::lexicon::LexiconBuilder;
 use crate::metadata::MetadataBuilder;
 use crate::ngram::NgramModelBuilder;
 use crate::recipe::{LexiconEncoding, Recipe};
+use taza_engine::suggest::KeyEncoding;
 use crate::{PackWriter, layout};
 use taza_engine::pack::SectionKind;
 use taza_engine::pack::metadata::keys;
@@ -19,13 +20,7 @@ pub struct AssembledPack {
 /// 표제어를 팩의 저장 인코딩으로 옮긴다. 한글 자모 인코딩에서 분해할 수 없는 표제어는
 /// 원천 잡음이므로 버린다 — 몇 개가 빠졌는지는 호출자가 보고한다.
 fn encode(word: &str, encoding: LexiconEncoding) -> Option<String> {
-    match encoding {
-        LexiconEncoding::Utf8 => Some(word.to_string()),
-        LexiconEncoding::HangulJamoDubeolsik => {
-            use taza_engine::lang::jamo::{decompose_word, encode_jamo_ascii};
-            decompose_word(word).and_then(|jamo| encode_jamo_ascii(&jamo))
-        }
-    }
+    KeyEncoding::from(encoding).encode(word)
 }
 
 pub fn assemble(
@@ -68,7 +63,14 @@ pub fn assemble(
     metadata.set(keys::RECIPE, &recipe.name);
     metadata.set(keys::WORD_COUNT, word_count.to_string());
     metadata.set(keys::BIGRAM_COUNT, bigram_count.to_string());
-    metadata.set(keys::LEXICON_ENCODING, recipe.lexicon.encoding.tag());
+    metadata.set(
+        keys::LEXICON_ENCODING,
+        KeyEncoding::from(recipe.lexicon.encoding).tag(),
+    );
+    metadata.set(keys::DISPLAY_NAME, &recipe.display_name);
+    metadata.set(keys::KEYCAP_LABEL, &recipe.keycap_label);
+    metadata.set(keys::COMPOSER_SKELETON, &recipe.composer_skeleton);
+    metadata.set(keys::LAYOUT_NAME, &recipe.layout_name);
     metadata.set(
         keys::WORD_SEPARATED,
         recipe.script.word_separated.to_string(),

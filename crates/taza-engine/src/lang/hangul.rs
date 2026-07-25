@@ -4,11 +4,11 @@ use crate::contract::{
     EditorContext, SuggestionRequest, WordBoundary,
 };
 use crate::policy::double_space_period;
-use crate::suggest::{KeyEncoding, SuggestionPolicy};
 
 use super::jamo::decompose;
 
-const SUGGESTION_LIMIT: usize = 3;
+/// 스냅샷에서 composing 창과 어절 자모를 가르는 글자
+const STATE_SEPARATOR: char = '\t';
 
 /// 두벌식 자모 오토마타. composing 창은 최대 2음절(직전 + 현재) — 도깨비불 발생 후에도
 /// Backspace로 이전 상태("가바" → "갑")로 복귀할 수 있게 marked text 안에 유지하고,
@@ -181,30 +181,19 @@ impl Composer for HangulComposer {
         !self.composing_jamo.is_empty()
     }
 
-    fn suggestion_policy(&self) -> SuggestionPolicy {
-        SuggestionPolicy {
-            encoding: KeyEncoding::HangulJamoDubeolsik,
-            // 조합 자체가 표시 단위라 경계 교정 대신 후보 선택으로 고친다 (순정 관습)
-            autocorrect: false,
-            limit: SUGGESTION_LIMIT,
-        }
-    }
-
+    /// composing 창과 어절 자모를 구분자로 이어 담는다 — 자모에는 없는 글자다.
     fn snapshot(&self) -> ComposerState {
-        ComposerState::Hangul {
-            composing_jamo: self.composing_jamo.clone(),
-            word_jamo: self.word_jamo.clone(),
-        }
+        let composing: String = self.composing_jamo.iter().collect();
+        let word: String = self.word_jamo.iter().collect();
+        ComposerState::from_text(&format!("{composing}{STATE_SEPARATOR}{word}"))
     }
 
     fn restore(&mut self, state: ComposerState) {
-        if let ComposerState::Hangul {
-            composing_jamo,
-            word_jamo,
-        } = state
-        {
-            self.composing_jamo = composing_jamo;
-            self.word_jamo = word_jamo;
-        }
+        let Some((composing, word)) = state.text().and_then(|text| text.split_once(STATE_SEPARATOR))
+        else {
+            return;
+        };
+        self.composing_jamo = composing.chars().collect();
+        self.word_jamo = word.chars().collect();
     }
 }

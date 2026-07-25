@@ -3,7 +3,7 @@
 use std::sync::Arc;
 use taza_engine::engine::PackBytes;
 use taza_engine::keyboard::layouts;
-use taza_engine::lang::Language;
+use taza_engine::lang::LanguageDescriptor;
 use taza_engine::lang::jamo::{decompose_word, encode_jamo_ascii};
 use taza_engine::pack::SectionKind;
 use taza_evaluation::synthesis::{TypoSynthesizer, synthesize_cases};
@@ -75,7 +75,7 @@ fn adjacent_substitution_uses_layout_neighbors() {
 fn correction_quality_gate() {
     let pack: Arc<dyn PackBytes> = Arc::new(english_pack_bytes());
     let cases = synthesize_cases(&layouts::qwerty(), &word_list(), 42, 5);
-    let report = evaluate_corrections(&pack, Language::English, &cases);
+    let report = evaluate_corrections(&pack, &LanguageDescriptor::builtin("en").unwrap(), &cases);
     println!("[gate] english correction {report:?}");
 
     // 기준선 실측 (seed 42): top1 0.900, top3 0.983, MRR 0.936, autocorrect 0.917
@@ -103,7 +103,7 @@ fn completion_quality_gate() {
             intended: word.to_string(),
         })
         .collect();
-    let report = evaluate_completions(&pack, Language::English, &tasks);
+    let report = evaluate_completions(&pack, &LanguageDescriptor::builtin("en").unwrap(), &tasks);
     println!("[gate] english completion {report:?}");
     // 기준선 실측: 0.622
     assert_eq!(report.word_count, 12);
@@ -154,7 +154,7 @@ fn korean_correction_quality_gate() {
             }
         }
     }
-    let report = evaluate_corrections(&pack, Language::Korean, &cases);
+    let report = evaluate_corrections(&pack, &LanguageDescriptor::builtin("ko").unwrap(), &cases);
     println!("[gate] korean correction {report:?}");
 
     // 기준선 실측 (seed 42): top1 1.0, top3 1.0, MRR 1.0 (소규모 사전 기준.
@@ -188,7 +188,7 @@ fn korean_completion_quality_gate() {
             intended: word.to_string(),
         })
         .collect();
-    let report = evaluate_completions(&pack, Language::Korean, &tasks);
+    let report = evaluate_completions(&pack, &LanguageDescriptor::builtin("ko").unwrap(), &tasks);
     println!("[gate] korean completion {report:?}");
     // 기준선 실측: 0.737
     assert_eq!(report.word_count, 8);

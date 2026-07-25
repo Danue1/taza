@@ -27,7 +27,7 @@ final class PackLibraryModel: ObservableObject {
     }
 
     func refresh() async {
-        for language in TazaLanguage.allCases {
+        for language in TazaLanguage.all {
             states[language] = resolveLocalState(language)
         }
         collectAttributions()
@@ -39,7 +39,7 @@ final class PackLibraryModel: ObservableObject {
         do {
             let catalog = try await installer.loadCatalog()
             self.catalog = catalog
-            for language in TazaLanguage.allCases {
+            for language in TazaLanguage.all {
                 states[language] = resolveState(language, catalog: catalog)
             }
         } catch {
@@ -112,7 +112,7 @@ final class PackLibraryModel: ObservableObject {
     }
 
     private func markMissingAsUnavailable(_ error: Error) {
-        for language in TazaLanguage.allCases {
+        for language in TazaLanguage.all {
             if case .notInstalled = states[language] {
                 states[language] = .unavailable(error.localizedDescription)
             }
@@ -121,7 +121,7 @@ final class PackLibraryModel: ObservableObject {
 
     /// 고지 문구는 팩 자체에서 읽는다 — 원천이 바뀌면 표시도 함께 바뀐다.
     private func collectAttributions() {
-        attributions = TazaLanguage.allCases
+        attributions = TazaLanguage.all
             .compactMap { store.packURL(for: $0) }
             .compactMap { try? readInstalledPack(path: $0.path) }
             .map(\.attribution)

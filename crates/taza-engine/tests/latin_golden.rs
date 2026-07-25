@@ -1,8 +1,7 @@
 use std::sync::Arc;
 use taza_engine::contract::{CandidateKind, EditorContext, Effect, FieldKind, InputEvent};
 use taza_engine::engine::Engine;
-use taza_engine::lang::Language;
-use taza_engine::lang::latin::LatinComposer;
+use taza_engine::lang::LanguageDescriptor;
 use taza_engine::pack::{Pack, SectionKind};
 use taza_toolchain::PackWriter;
 use taza_toolchain::lexicon::LexiconBuilder;
@@ -49,7 +48,7 @@ struct Harness {
 
 impl Harness {
     fn new(pack_bytes: &[u8]) -> Self {
-        let mut engine = Engine::new(Language::English).unwrap();
+        let mut engine = Engine::new(LanguageDescriptor::builtin("en").unwrap()).unwrap();
         engine.load_pack(Arc::new(pack_bytes.to_vec())).unwrap();
         Harness {
             engine,
@@ -253,7 +252,7 @@ fn password_field_disables_learning() {
 
 #[test]
 fn works_without_lexicon() {
-    let mut engine = Engine::new(Language::English).unwrap();
+    let mut engine = Engine::new(LanguageDescriptor::builtin("en").unwrap()).unwrap();
     let context = EditorContext::unavailable();
     let effects = engine.handle(InputEvent::Key('h'), &context);
     assert_eq!(effects, vec![Effect::CommitText("h".to_string())]);
@@ -261,12 +260,15 @@ fn works_without_lexicon() {
 
 #[test]
 fn suggestion_kinds_distinguish_completion_from_correction() {
-    use taza_engine::contract::Composer;
     use taza_engine::personalization::PersonalizationStore;
     use taza_engine::suggest::{Suggester, SuggestionSources};
     let bytes = english_pack();
     let pack = Pack::open(&bytes).unwrap();
-    let suggester = Suggester::new(LatinComposer::new().suggestion_policy());
+    let suggester = Suggester::new(
+        LanguageDescriptor::builtin("en")
+            .unwrap()
+            .suggestion_policy(),
+    );
     let personalization = PersonalizationStore::new();
     let suggestions = suggester.suggest(
         "teh",
@@ -338,7 +340,7 @@ fn personalization_snapshot_persists_learning() {
     let state = harness.engine.personalization_snapshot();
 
     let mut restored = Harness::new(&bytes);
-    restored.engine = Engine::with_composer(Language::English, Box::new(LatinComposer::new()));
+    restored.engine = Engine::with_composer(LanguageDescriptor::builtin("en").unwrap(), Box::new(LatinComposer::new()));
     restored.engine.load_pack(Arc::new(bytes.clone())).unwrap();
     restored.engine.restore_personalization(state);
     restored.type_text("he");

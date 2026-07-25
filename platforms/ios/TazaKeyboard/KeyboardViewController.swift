@@ -8,7 +8,7 @@ import UIKit
 final class KeyboardViewController: UIInputViewController {
     private let preferences = LanguagePreferences()
     private var sessions: [TazaLanguage: KeyboardSession] = [:]
-    private var currentLanguage: TazaLanguage = .english
+    private var currentLanguage: TazaLanguage = TazaLanguage.all[0]
 
     private var metrics = TazaTheme.Metrics.placeholder
     /// 코어에 이미 알린 표시 환경 — 같은 값을 다시 밀어 넣어 배치가 도는 것을 막는다
@@ -45,7 +45,7 @@ final class KeyboardViewController: UIInputViewController {
         // 다른 키보드를 거쳐 돌아와도(익스텐션이 죽었다 살아나도) 마지막 언어로 시작한다
         currentLanguage = preferences.lastUsedLanguage
         if sessions[currentLanguage] == nil {
-            currentLanguage = sessions.keys.first ?? .english
+            currentLanguage = sessions.keys.first ?? TazaLanguage.all[0]
         }
 
         buildViews()
@@ -59,11 +59,7 @@ final class KeyboardViewController: UIInputViewController {
 
     /// 코어 빌드에 포함되지 않은 언어는 nil — 해당 언어는 전환 대상에서 빠진다.
     private func makeSession(language: TazaLanguage) -> KeyboardSession? {
-        let ffiLanguage: FfiLanguage = switch language {
-        case .english: .english
-        case .korean: .korean
-        }
-        guard let session = try? KeyboardSession(language: ffiLanguage) else {
+        guard let session = try? KeyboardSession(languageTag: language.tag) else {
             return nil
         }
         // 내려받아 설치된 팩이 있으면 그쪽을, 없으면 내장 팩을 mmap한다.
@@ -174,7 +170,7 @@ final class KeyboardViewController: UIInputViewController {
                         ),
                         accessibilityLabel: key.accessibilityLabel,
                         accessibilityValue: key.role == .languageSwitch
-                            ? currentLanguage.displayName
+                            ? activeSession?.language().displayName
                             : nil,
                         accessibilityHint: hint(for: key),
                         alternates: key.alternates,
@@ -359,10 +355,12 @@ final class KeyboardViewController: UIInputViewController {
                 accessibilityHint: "키보드 설정 앱을 엽니다"
             )
         ]
+        // 표시 이름·배열 이름은 각 언어의 코어 세션이 팩 선언에서 읽어 알려 준다
         items += languages.map { language in
-            PopupMenuView.Item(
-                title: language.displayName,
-                detail: language.layoutName,
+            let descriptor = sessions[language]?.language()
+            return PopupMenuView.Item(
+                title: descriptor?.displayName ?? language.tag,
+                detail: descriptor?.layoutName ?? "",
                 isSelected: language == currentLanguage
             )
         }

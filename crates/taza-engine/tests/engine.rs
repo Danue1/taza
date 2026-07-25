@@ -4,16 +4,15 @@ use taza_engine::contract::{
     ComposerState, EditorContext, Effect, InputEvent, SuggestionRequest,
 };
 use taza_engine::engine::Engine;
-use taza_engine::lang::Language;
+use taza_engine::lang::LanguageDescriptor;
 use taza_engine::lang::direct::DirectComposer;
 use taza_engine::pack::SectionKind;
-use taza_engine::suggest::{KeyEncoding, SuggestionPolicy};
 use taza_toolchain::PackWriter;
 use taza_toolchain::lexicon::LexiconBuilder;
 
 #[test]
 fn direct_composer_commits_every_key() {
-    let mut engine = Engine::with_composer(Language::English, Box::new(DirectComposer::new()));
+    let mut engine = Engine::with_composer(LanguageDescriptor::builtin("en").unwrap(), Box::new(DirectComposer::new()));
     let context = EditorContext::unavailable();
     assert_eq!(
         engine.handle(InputEvent::Key('h'), &context),
@@ -64,16 +63,8 @@ impl Composer for ReplacingComposer {
         false
     }
 
-    fn suggestion_policy(&self) -> SuggestionPolicy {
-        SuggestionPolicy {
-            encoding: KeyEncoding::Utf8,
-            autocorrect: false,
-            limit: 3,
-        }
-    }
-
     fn snapshot(&self) -> ComposerState {
-        ComposerState::Direct
+        ComposerState::default()
     }
 
     fn restore(&mut self, _state: ComposerState) {}
@@ -86,17 +77,24 @@ fn candidate_replacement_translates_to_delete_then_commit() {
     let mut writer = PackWriter::new("en");
     writer.add_section(SectionKind::Lexicon, lexicon.build());
 
-    let mut engine = Engine::with_composer(Language::English, Box::new(ReplacingComposer));
+    let mut engine = Engine::with_composer(LanguageDescriptor::builtin("en").unwrap(), Box::new(ReplacingComposer));
     engine.load_pack(Arc::new(writer.finish())).unwrap();
     let context = EditorContext::unavailable();
 
     let effects = engine.handle(InputEvent::Key('h'), &context);
+    // 자동교정을 쓰는 언어이므로 교정 후보 뒤에 원문(as-typed)이 함께 붙는다
     assert_eq!(
         effects,
-        vec![Effect::UpdateCandidates(vec![Candidate {
-            text: "the".to_string(),
-            kind: CandidateKind::Correction,
-        }])]
+        vec![Effect::UpdateCandidates(vec![
+            Candidate {
+                text: "the".to_string(),
+                kind: CandidateKind::Correction,
+            },
+            Candidate {
+                text: "teh".to_string(),
+                kind: CandidateKind::Prediction,
+            },
+        ])]
     );
 
     let effects = engine.handle(InputEvent::CandidateSelected(0), &context);
@@ -112,7 +110,7 @@ fn candidate_replacement_translates_to_delete_then_commit() {
 
 #[test]
 fn cursor_drag_finalizes_composing_then_moves() {
-    let mut engine = Engine::new(Language::Korean).unwrap();
+    let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap()).unwrap();
     let context = EditorContext::unavailable();
     engine.handle(InputEvent::Key('ㄱ'), &context);
     engine.handle(InputEvent::Key('ㅏ'), &context);

@@ -12,7 +12,7 @@ use crate::contract::{
 use crate::keyboard::{
     FrameKey, FrameMetrics, Keyboard, KeyboardFrame, KeyboardMetrics, ShellRequest,
 };
-use crate::lang::Language;
+use crate::lang::LanguageDescriptor;
 use crate::pack::PackError;
 use crate::personalization::{PersonalizationState, PersonalizationStore};
 use crate::suggest::{Suggester, Suggestion, SuggestionSources};
@@ -40,7 +40,7 @@ pub struct PressResult {
 
 /// 키보드 익스텐션 프로세스당 하나. 이벤트를 받아 Effect 목록을 낸다.
 pub struct Engine {
-    language: Language,
+    language: LanguageDescriptor,
     composer: Box<dyn Composer>,
     suggester: Suggester,
     keyboard: Keyboard,
@@ -56,19 +56,20 @@ pub struct Engine {
 }
 
 impl Engine {
-    /// 이 빌드에 언어가 포함되지 않았으면 None — 셸은 해당 언어를 비활성 처리한다.
-    pub fn new(language: Language) -> Option<Self> {
-        Some(Engine::with_composer(language, language.composer()?))
+    /// 이 빌드에 골격이 포함되지 않았으면 None — 셸은 해당 언어를 비활성 처리한다.
+    pub fn new(language: LanguageDescriptor) -> Option<Self> {
+        let composer = language.skeleton.composer()?;
+        Some(Engine::with_composer(language, composer))
     }
 
     /// 언어의 기본 합성기 대신 다른 합성기를 꽂는다. 한 언어에 복수 배열·합성기를
     /// 두는 경우(인도계 음역↔네이티브 등)와 테스트가 쓰는 통로다.
-    pub fn with_composer(language: Language, composer: Box<dyn Composer>) -> Self {
+    pub fn with_composer(language: LanguageDescriptor, composer: Box<dyn Composer>) -> Self {
         Engine {
-            language,
-            suggester: Suggester::new(composer.suggestion_policy()),
+            suggester: Suggester::new(language.suggestion_policy()),
             composer,
-            keyboard: Keyboard::new(language.builtin_layout(), language),
+            keyboard: Keyboard::new(language.builtin_layout(), language.clone()),
+            language,
             personalization: PersonalizationStore::new(),
             metrics: KeyboardMetrics::default(),
             pack: None,
@@ -77,17 +78,29 @@ impl Engine {
         }
     }
 
-    pub fn language(&self) -> Language {
-        self.language
+    pub fn language(&self) -> &LanguageDescriptor {
+        &self.language
     }
 
-    /// 언어팩을 갈아 끼운다. 레이아웃 섹션이 있으면 배열도 함께 바뀐다.
+    /// 언어팩을 갈아 끼운다. 팩이 스스로 밝힌 선언(표시 이름·골격·조회 키 인코딩)이
+    /// 내장 선언을 대신하고, 레이아웃 섹션이 있으면 배열도 함께 바뀐다 — 언어를
+    /// 늘리는 일이 팩 배포로 끝나는 것은 이 갱신 덕분이다.
     pub fn load_pack(&mut self, pack: Arc<dyn PackBytes>) -> Result<(), PackError> {
-        let layout = Pack::open(pack.bytes())?.layout();
-        if let Some(layout) = layout {
-            self.keyboard = Keyboard::new(layout, self.language);
-            self.keyboard.set_metrics(self.metrics);
+        let opened = Pack::open(pack.bytes())?;
+        let declared = LanguageDescriptor::from_pack(&opened);
+        let layout = opened.layout();
+        if let Some(declared) = declared {
+            if declared.skeleton != self.language.skeleton
+                && let Some(composer) = declared.skeleton.composer()
+            {
+                self.composer = composer;
+            }
+            self.suggester = Suggester::new(declared.suggestion_policy());
+            self.language = declared;
         }
+        let layout = layout.unwrap_or_else(|| self.language.builtin_layout());
+        self.keyboard = Keyboard::new(layout, self.language.clone());
+        self.keyboard.set_metrics(self.metrics);
         self.pack = Some(pack);
         Ok(())
     }

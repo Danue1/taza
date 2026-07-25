@@ -1,5 +1,5 @@
 use taza_ffi::{
-    FfiEditorContext, FfiEffect, FfiFieldKind, FfiFormFactor, FfiInputEvent, FfiLanguage,
+    FfiEditorContext, FfiEffect, FfiFieldKind, FfiFormFactor, FfiInputEvent,
     KeyboardSession,
 };
 
@@ -13,7 +13,7 @@ fn context(text: &str) -> FfiEditorContext {
 
 #[test]
 fn korean_typing_over_ffi() {
-    let session = KeyboardSession::new(FfiLanguage::Korean).unwrap();
+    let session = KeyboardSession::new("ko".to_string()).unwrap();
     let mut composing = String::new();
     for jamo in ["ㄱ", "ㅏ", "ㅂ", "ㅏ"] {
         let effects = session.handle_event(
@@ -33,7 +33,7 @@ fn korean_typing_over_ffi() {
 
 #[test]
 fn frame_and_press_over_ffi() {
-    let session = KeyboardSession::new(FfiLanguage::English).unwrap();
+    let session = KeyboardSession::new("en".to_string()).unwrap();
     let frame = session.keyboard_frame();
     assert_eq!(frame.rows.len(), 4);
     let q_key = frame.rows[0].iter().find(|key| key.label == "q").unwrap();
@@ -64,7 +64,7 @@ fn pack_loading_and_suggestions_over_ffi() {
     let path = std::env::temp_dir().join("taza-ffi-test.tazapack");
     std::fs::write(&path, writer.finish()).unwrap();
 
-    let session = KeyboardSession::new(FfiLanguage::English).unwrap();
+    let session = KeyboardSession::new("en".to_string()).unwrap();
     session
         .load_pack(path.to_string_lossy().to_string())
         .unwrap();
@@ -100,7 +100,7 @@ fn pack_loading_and_suggestions_over_ffi() {
 
 #[test]
 fn personalization_snapshot_over_ffi() {
-    let session = KeyboardSession::new(FfiLanguage::English).unwrap();
+    let session = KeyboardSession::new("en".to_string()).unwrap();
     for character in ["h", "i"] {
         session.handle_event(
             FfiInputEvent::Key {
@@ -118,14 +118,14 @@ fn personalization_snapshot_over_ffi() {
     let snapshot = session.personalization_snapshot();
     assert!(snapshot.iter().any(|line| line.starts_with("hi\t")));
 
-    let restored = KeyboardSession::new(FfiLanguage::English).unwrap();
+    let restored = KeyboardSession::new("en".to_string()).unwrap();
     restored.restore_personalization(snapshot.clone());
     assert_eq!(restored.personalization_snapshot(), snapshot);
 }
 
 #[test]
 fn metrics_injection_changes_measured_sizes() {
-    let session = KeyboardSession::new(FfiLanguage::English).unwrap();
+    let session = KeyboardSession::new("en".to_string()).unwrap();
     let portrait = session.keyboard_frame().metrics;
     assert!(
         (portrait.total_height - (portrait.grid_height + portrait.candidate_bar_height)).abs()
@@ -197,7 +197,7 @@ fn pack_archive_installs_after_verification() {
         1
     );
     // 설치된 팩은 세션이 바로 mmap할 수 있다
-    let session = KeyboardSession::new(FfiLanguage::English).unwrap();
+    let session = KeyboardSession::new("en".to_string()).unwrap();
     session
         .load_pack(destination.to_string_lossy().to_string())
         .unwrap();

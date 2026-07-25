@@ -3,9 +3,6 @@ use crate::contract::{
     SuggestionRequest, WordBoundary,
 };
 use crate::policy::double_space_period;
-use crate::suggest::{KeyEncoding, SuggestionPolicy};
-
-const SUGGESTION_LIMIT: usize = 3;
 
 fn is_word_character(character: char) -> bool {
     character.is_alphabetic() || character == '\''
@@ -125,23 +122,13 @@ impl Composer for LatinComposer {
         false
     }
 
-    fn suggestion_policy(&self) -> SuggestionPolicy {
-        SuggestionPolicy {
-            encoding: KeyEncoding::Utf8,
-            autocorrect: true,
-            limit: SUGGESTION_LIMIT,
-        }
-    }
-
     fn snapshot(&self) -> ComposerState {
-        ComposerState::Latin {
-            current_word: self.current_word.clone(),
-        }
+        ComposerState::from_text(&self.current_word)
     }
 
     fn restore(&mut self, state: ComposerState) {
-        if let ComposerState::Latin { current_word } = state {
-            self.current_word = current_word;
+        if let Some(text) = state.text() {
+            self.current_word = text.to_string();
         }
     }
 }

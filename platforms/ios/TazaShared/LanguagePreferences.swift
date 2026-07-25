@@ -1,40 +1,25 @@
 import Foundation
 
-/// 셸이 소유하는 언어 목록. 지구본 키는 시스템 키보드끼리의 전환이라, 우리 키보드가
-/// 지원하는 언어 사이의 전환·순서·최근 언어는 앱이 직접 관리한다.
-public enum TazaLanguage: String, CaseIterable, Sendable {
-    case english
-    case korean
+/// 셸이 소유하는 언어 목록의 항목. 지구본 키는 시스템 키보드끼리의 전환이라, 우리
+/// 키보드가 지원하는 언어 사이의 전환·순서·최근 언어는 앱이 직접 관리한다.
+///
+/// 표시 이름·키캡 표기·배열 이름은 여기에 두지 않는다 — 코어가 팩 선언에서 읽어
+/// 알려 주므로(`KeyboardSession.language()`), 언어를 늘리는 일이 아래 목록 한 줄과
+/// 팩 배포로 끝난다.
+public struct TazaLanguage: Hashable, Sendable {
+    /// 언어 태그 — 코어·팩·설정이 언어를 가리키는 유일한 이름
+    public let tag: String
+    /// 배포 파일 이름 (`english` → `english.tazapack`)
+    public let packName: String
 
-    /// 언어는 자기 이름으로 표기한다 (순정 관례)
-    public var displayName: String {
-        switch self {
-        case .english: "English"
-        case .korean: "한국어"
-        }
-    }
+    /// 이 빌드가 다루는 언어들. 팩을 새로 만들면 여기에 한 줄을 더한다.
+    public static let all: [TazaLanguage] = [
+        TazaLanguage(tag: "en", packName: "english"),
+        TazaLanguage(tag: "ko", packName: "korean"),
+    ]
 
-    /// 언어 키에 찍히는 짧은 표기
-    public var keycapLabel: String {
-        switch self {
-        case .english: "A"
-        case .korean: "한"
-        }
-    }
-
-    public var layoutName: String {
-        switch self {
-        case .english: "QWERTY"
-        case .korean: "두벌식"
-        }
-    }
-
-    /// 익스텐션 번들에 들어 있는 언어팩 파일 이름
-    public var packName: String {
-        switch self {
-        case .english: "english"
-        case .korean: "korean"
-        }
+    public static func named(_ tag: String) -> TazaLanguage? {
+        all.first { $0.tag == tag }
     }
 }
 
@@ -62,25 +47,25 @@ public struct LanguagePreferences {
     public var enabledLanguages: [TazaLanguage] {
         get {
             let stored = defaults.array(forKey: Key.enabledLanguages) as? [String] ?? []
-            let languages = stored.compactMap(TazaLanguage.init(rawValue:))
-            return languages.isEmpty ? TazaLanguage.allCases : languages
+            let languages = stored.compactMap(TazaLanguage.named)
+            return languages.isEmpty ? TazaLanguage.all : languages
         }
         nonmutating set {
-            defaults.set(newValue.map(\.rawValue), forKey: Key.enabledLanguages)
+            defaults.set(newValue.map(\.tag), forKey: Key.enabledLanguages)
         }
     }
 
     public var lastUsedLanguage: TazaLanguage {
         get {
             let stored = defaults.string(forKey: Key.lastUsedLanguage)
-                .flatMap(TazaLanguage.init(rawValue:))
+                .flatMap(TazaLanguage.named)
             guard let stored, enabledLanguages.contains(stored) else {
                 return enabledLanguages[0]
             }
             return stored
         }
         nonmutating set {
-            defaults.set(newValue.rawValue, forKey: Key.lastUsedLanguage)
+            defaults.set(newValue.tag, forKey: Key.lastUsedLanguage)
         }
     }
 
@@ -98,4 +83,19 @@ public struct LanguagePreferences {
 public enum TazaDeepLink {
     public static let scheme = "taza"
     public static let settings = URL(string: "taza://settings")!
+}
+
+/// 언어 선언을 코어에서 읽는다 — 설치된 팩이 있으면 팩이 밝힌 값, 없으면 내장 값이다.
+/// 표시 이름·키캡 표기·배열 이름을 셸이 따로 표로 갖지 않게 하는 통로다.
+public func tazaLanguageDescriptor(
+    for language: TazaLanguage,
+    packURL: URL? = nil
+) -> FfiLanguageDescriptor? {
+    guard let session = try? KeyboardSession(languageTag: language.tag) else {
+        return nil
+    }
+    if let packURL {
+        try? session.loadPack(path: packURL.path)
+    }
+    return session.language()
 }

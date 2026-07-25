@@ -2,7 +2,7 @@ use taza_engine::contract::{EditorContext, Effect, InputEvent};
 use taza_engine::keyboard::{
     FormFactor, KeyRole, Keyboard, KeyboardFrame, KeyboardMetrics, ShellRequest, layouts,
 };
-use taza_engine::lang::Language;
+use taza_engine::lang::LanguageDescriptor;
 use taza_engine::engine::Engine;
 
 fn key_center(frame: &KeyboardFrame, label: &str) -> (f32, f32) {
@@ -21,7 +21,7 @@ fn key_center(frame: &KeyboardFrame, label: &str) -> (f32, f32) {
 
 #[test]
 fn frame_geometry_is_normalized_and_centered() {
-    let keyboard = Keyboard::new(layouts::qwerty(), Language::English);
+    let keyboard = Keyboard::new(layouts::qwerty(), LanguageDescriptor::builtin("en").unwrap());
     let frame = keyboard.frame();
     assert_eq!(frame.rows.len(), 4);
 
@@ -41,7 +41,7 @@ fn frame_geometry_is_normalized_and_centered() {
 
 #[test]
 fn hit_test_maps_coordinates_to_keys() {
-    let mut keyboard = Keyboard::new(layouts::qwerty(), Language::English);
+    let mut keyboard = Keyboard::new(layouts::qwerty(), LanguageDescriptor::builtin("en").unwrap());
     let frame = keyboard.frame();
 
     let (x, y) = key_center(&frame, "q");
@@ -59,7 +59,7 @@ fn hit_test_maps_coordinates_to_keys() {
 
 #[test]
 fn coordinates_outside_snap_to_nearest_key() {
-    let mut keyboard = Keyboard::new(layouts::qwerty(), Language::English);
+    let mut keyboard = Keyboard::new(layouts::qwerty(), LanguageDescriptor::builtin("en").unwrap());
     // 화면 왼쪽 위 바깥 → 첫 행 첫 키
     assert_eq!(
         keyboard.press_at(-0.1, -0.5).event,
@@ -74,7 +74,7 @@ fn coordinates_outside_snap_to_nearest_key() {
 
 #[test]
 fn shift_is_one_shot() {
-    let mut keyboard = Keyboard::new(layouts::qwerty(), Language::English);
+    let mut keyboard = Keyboard::new(layouts::qwerty(), LanguageDescriptor::builtin("en").unwrap());
     let frame = keyboard.frame();
     let (shift_x, shift_y) = key_center(&frame, "⇧");
     let (q_x, q_y) = key_center(&frame, "q");
@@ -97,7 +97,7 @@ fn shift_is_one_shot() {
 
 #[test]
 fn shift_toggles_off_when_pressed_twice() {
-    let mut keyboard = Keyboard::new(layouts::qwerty(), Language::English);
+    let mut keyboard = Keyboard::new(layouts::qwerty(), LanguageDescriptor::builtin("en").unwrap());
     let frame = keyboard.frame();
     let (shift_x, shift_y) = key_center(&frame, "⇧");
     keyboard.press_at(shift_x, shift_y);
@@ -111,7 +111,7 @@ fn shift_toggles_off_when_pressed_twice() {
 
 #[test]
 fn accessibility_labels_name_control_keys() {
-    let keyboard = Keyboard::new(layouts::qwerty(), Language::English);
+    let keyboard = Keyboard::new(layouts::qwerty(), LanguageDescriptor::builtin("en").unwrap());
     let frame = keyboard.frame();
     let labels: Vec<&str> = frame
         .rows
@@ -127,7 +127,7 @@ fn accessibility_labels_name_control_keys() {
 
 #[test]
 fn dubeolsik_shift_produces_tense_consonants() {
-    let mut keyboard = Keyboard::new(layouts::dubeolsik(), Language::Korean);
+    let mut keyboard = Keyboard::new(layouts::dubeolsik(), LanguageDescriptor::builtin("ko").unwrap());
     let frame = keyboard.frame();
     let (shift_x, shift_y) = key_center(&frame, "⇧");
     let (giyeok_x, giyeok_y) = key_center(&frame, "ㄱ");
@@ -141,7 +141,7 @@ fn dubeolsik_shift_produces_tense_consonants() {
 
 #[test]
 fn layer_switch_cycles_symbol_layers() {
-    let mut keyboard = Keyboard::new(layouts::qwerty(), Language::English);
+    let mut keyboard = Keyboard::new(layouts::qwerty(), LanguageDescriptor::builtin("en").unwrap());
     let frame = keyboard.frame();
 
     // 문자면 하단의 123 → 심볼 1면
@@ -175,7 +175,7 @@ fn layer_switch_cycles_symbol_layers() {
 
 #[test]
 fn korean_layer_switch_label_is_hangul() {
-    let mut keyboard = Keyboard::new(layouts::dubeolsik(), Language::Korean);
+    let mut keyboard = Keyboard::new(layouts::dubeolsik(), LanguageDescriptor::builtin("ko").unwrap());
     let frame = keyboard.frame();
     let (x, y) = key_center(&frame, "123");
     keyboard.press_at(x, y);
@@ -200,7 +200,7 @@ fn layout_from_pack_roundtrip_drives_keyboard() {
     let loaded = Pack::open(&bytes).unwrap().layout().unwrap();
     assert_eq!(loaded, source);
 
-    let mut keyboard = Keyboard::new(loaded, Language::Korean);
+    let mut keyboard = Keyboard::new(loaded, LanguageDescriptor::builtin("ko").unwrap());
     let frame = keyboard.frame();
     let (x, y) = key_center(&frame, "ㄱ");
     assert_eq!(keyboard.press_at(x, y).event, Some(InputEvent::Key('ㄱ')));
@@ -208,7 +208,7 @@ fn layout_from_pack_roundtrip_drives_keyboard() {
 
 #[test]
 fn bottom_row_order_is_symbols_language_space_enter() {
-    let keyboard = Keyboard::new(layouts::qwerty(), Language::English);
+    let keyboard = Keyboard::new(layouts::qwerty(), LanguageDescriptor::builtin("en").unwrap());
     let frame = keyboard.frame();
     let bottom = frame.rows.last().unwrap();
     let roles: Vec<KeyRole> = bottom.iter().map(|key| key.role).collect();
@@ -229,7 +229,7 @@ fn bottom_row_order_is_symbols_language_space_enter() {
 
 #[test]
 fn language_key_asks_shell_to_switch() {
-    let mut keyboard = Keyboard::new(layouts::dubeolsik(), Language::Korean);
+    let mut keyboard = Keyboard::new(layouts::dubeolsik(), LanguageDescriptor::builtin("ko").unwrap());
     let frame = keyboard.frame();
     let (x, y) = key_center(&frame, "한");
     let outcome = keyboard.press_at(x, y);
@@ -240,7 +240,7 @@ fn language_key_asks_shell_to_switch() {
 
 #[test]
 fn alternates_reach_the_shell_and_come_back_as_input() {
-    let mut keyboard = Keyboard::new(layouts::qwerty(), Language::English);
+    let mut keyboard = Keyboard::new(layouts::qwerty(), LanguageDescriptor::builtin("en").unwrap());
     let frame = keyboard.frame();
     let (x, y) = key_center(&frame, "e");
     let key = keyboard.key_at(x, y);
@@ -255,14 +255,14 @@ fn alternates_reach_the_shell_and_come_back_as_input() {
 
 #[test]
 fn hangul_letters_have_no_alternates() {
-    let keyboard = Keyboard::new(layouts::dubeolsik(), Language::Korean);
+    let keyboard = Keyboard::new(layouts::dubeolsik(), LanguageDescriptor::builtin("ko").unwrap());
     let letters = &keyboard.frame().rows[0];
     assert!(letters.iter().all(|key| key.alternates.is_empty()));
 }
 
 #[test]
 fn cursor_drag_emits_steps_once_per_threshold() {
-    let mut keyboard = Keyboard::new(layouts::qwerty(), Language::English);
+    let mut keyboard = Keyboard::new(layouts::qwerty(), LanguageDescriptor::builtin("en").unwrap());
     keyboard.begin_cursor_drag(0.5);
     // 임계 이하 이동은 0칸
     assert_eq!(keyboard.update_cursor_drag(0.51), 0);
@@ -278,8 +278,8 @@ fn cursor_drag_emits_steps_once_per_threshold() {
 
 #[test]
 fn touch_sequence_types_hangul_through_session() {
-    let mut keyboard = Keyboard::new(layouts::dubeolsik(), Language::Korean);
-    let mut engine = Engine::new(Language::Korean).unwrap();
+    let mut keyboard = Keyboard::new(layouts::dubeolsik(), LanguageDescriptor::builtin("ko").unwrap());
+    let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap()).unwrap();
     let frame = keyboard.frame();
     let context = EditorContext::unavailable();
 
@@ -298,7 +298,7 @@ fn touch_sequence_types_hangul_through_session() {
 
 #[test]
 fn form_factor_drives_measured_sizes() {
-    let mut keyboard = Keyboard::new(layouts::qwerty(), Language::English);
+    let mut keyboard = Keyboard::new(layouts::qwerty(), LanguageDescriptor::builtin("en").unwrap());
     let portrait = keyboard.frame().metrics;
     assert!(
         (portrait.total_height() - (portrait.grid_height + portrait.candidate_bar_height)).abs()
@@ -329,7 +329,7 @@ fn row_height_comes_from_layout_data() {
     let mut layout_set = layouts::qwerty();
     // 낮은 숫자행을 얹는 경우 — 배치도 히트 테스트도 이 값을 따라야 한다
     layout_set.layers[0].rows[0].height_ratio = 0.5;
-    let mut keyboard = Keyboard::new(layout_set, Language::English);
+    let mut keyboard = Keyboard::new(layout_set, LanguageDescriptor::builtin("en").unwrap());
     let frame = keyboard.frame();
 
     let total = 0.5 + 3.0;
@@ -349,12 +349,12 @@ fn row_height_comes_from_layout_data() {
 
 #[test]
 fn cursor_drag_sensitivity_is_physical() {
-    let mut narrow = Keyboard::new(layouts::qwerty(), Language::English);
+    let mut narrow = Keyboard::new(layouts::qwerty(), LanguageDescriptor::builtin("en").unwrap());
     narrow.set_metrics(KeyboardMetrics {
         form_factor: FormFactor::PhonePortrait,
         width_points: 400.0,
     });
-    let mut wide = Keyboard::new(layouts::qwerty(), Language::English);
+    let mut wide = Keyboard::new(layouts::qwerty(), LanguageDescriptor::builtin("en").unwrap());
     wide.set_metrics(KeyboardMetrics {
         form_factor: FormFactor::Tablet,
         width_points: 800.0,
@@ -369,7 +369,7 @@ fn cursor_drag_sensitivity_is_physical() {
 
 #[test]
 fn symbol_rows_span_the_full_width() {
-    let mut keyboard = Keyboard::new(layouts::qwerty(), Language::English);
+    let mut keyboard = Keyboard::new(layouts::qwerty(), LanguageDescriptor::builtin("en").unwrap());
     let (x, y) = key_center(&keyboard.frame(), "123");
     keyboard.press_at(x, y);
 

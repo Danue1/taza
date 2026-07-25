@@ -14,15 +14,19 @@ use std::sync::{Arc, Mutex};
 use taza_engine::contract::{Candidate, CandidateKind, EditorContext, Effect, FieldKind, InputEvent};
 use taza_engine::engine::{Engine, PackBytes};
 use taza_engine::keyboard::{FormFactor, KeyRole, KeyboardMetrics, ShellRequest};
-use taza_engine::lang::Language;
+use taza_engine::lang::LanguageDescriptor;
 use taza_engine::personalization::PersonalizationState;
 
 uniffi::setup_scaffolding!();
 
-#[derive(uniffi::Enum)]
-pub enum FfiLanguage {
-    English,
-    Korean,
+/// 코어가 알려 주는 언어 선언. 표시 이름·키캡 표기는 팩이 밝히므로 셸은 이 값을
+/// 그대로 쓰고 자기 표를 따로 두지 않는다.
+#[derive(uniffi::Record)]
+pub struct FfiLanguageDescriptor {
+    pub tag: String,
+    pub display_name: String,
+    pub keycap_label: String,
+    pub layout_name: String,
 }
 
 #[derive(uniffi::Enum)]
@@ -257,16 +261,28 @@ pub struct KeyboardSession {
 
 #[uniffi::export]
 impl KeyboardSession {
+    /// 언어 태그로 만든다. 내장 선언이 없는 태그는 팩을 받아야 쓸 수 있으므로
+    /// 여기서 걸러진다 — 팩이 실리면 그 선언이 내장 선언을 대신한다.
     #[uniffi::constructor]
-    pub fn new(language: FfiLanguage) -> Result<Self, FfiLanguageError> {
-        let language = match language {
-            FfiLanguage::English => Language::English,
-            FfiLanguage::Korean => Language::Korean,
-        };
+    pub fn new(language_tag: String) -> Result<Self, FfiLanguageError> {
+        let language =
+            LanguageDescriptor::builtin(&language_tag).ok_or(FfiLanguageError::Unsupported)?;
         let engine = Engine::new(language).ok_or(FfiLanguageError::Unsupported)?;
         Ok(KeyboardSession {
             engine: Mutex::new(engine),
         })
+    }
+
+    /// 지금 쓰고 있는 언어 선언 — 팩을 실으면 팩이 밝힌 값으로 바뀐다.
+    pub fn language(&self) -> FfiLanguageDescriptor {
+        let engine = self.engine.lock().unwrap();
+        let language = engine.language();
+        FfiLanguageDescriptor {
+            tag: language.tag.clone(),
+            display_name: language.display_name.clone(),
+            keycap_label: language.keycap_label.clone(),
+            layout_name: language.layout_name.clone(),
+        }
     }
 
     /// 언어팩 파일을 mmap으로 연다. 파일 백드 clean page라 익스텐션 메모리

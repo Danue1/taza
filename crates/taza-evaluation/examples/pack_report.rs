@@ -12,7 +12,7 @@ use std::sync::Arc;
 use taza_engine::contract::Pack;
 use taza_engine::engine::PackBytes;
 use taza_engine::keyboard::layouts;
-use taza_engine::lang::Language;
+use taza_engine::lang::LanguageDescriptor;
 use taza_engine::lang::jamo::decompose_word;
 use taza_evaluation::synthesis::TypoSynthesizer;
 use taza_evaluation::{CompletionTask, EvaluationCase, evaluate_completions, evaluate_corrections};
@@ -80,13 +80,9 @@ fn main() {
         });
     }
 
-    let evaluated_language = if korean {
-        Language::Korean
-    } else {
-        Language::English
-    };
-    let corrections = evaluate_corrections(&pack, evaluated_language, &cases);
-    let completions = evaluate_completions(&pack, evaluated_language, &tasks);
+    let evaluated_language = LanguageDescriptor::builtin(language).expect("모르는 언어 태그");
+    let corrections = evaluate_corrections(&pack, &evaluated_language, &cases);
+    let completions = evaluate_completions(&pack, &evaluated_language, &tasks);
 
     let metadata = opened.metadata();
     println!("팩: {pack_path} ({} 언어)", opened.language());

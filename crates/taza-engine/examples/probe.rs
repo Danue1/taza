@@ -10,7 +10,7 @@
 use std::sync::Arc;
 use taza_engine::contract::{EditorContext, Effect, FieldKind, InputEvent};
 use taza_engine::engine::Engine;
-use taza_engine::lang::Language;
+use taza_engine::lang::LanguageDescriptor;
 
 fn main() {
     let arguments: Vec<String> = std::env::args().skip(1).collect();
@@ -19,8 +19,8 @@ fn main() {
         std::process::exit(1);
     };
     let language = match language.as_str() {
-        "ko" => Language::Korean,
-        "en" => Language::English,
+        "ko" => LanguageDescriptor::builtin("ko").unwrap(),
+        "en" => LanguageDescriptor::builtin("en").unwrap(),
         other => {
             eprintln!("모르는 언어: {other}");
             std::process::exit(1);

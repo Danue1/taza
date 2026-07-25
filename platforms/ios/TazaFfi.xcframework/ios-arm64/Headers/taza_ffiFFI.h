@@ -263,7 +263,7 @@ void uniffi_taza_ffi_fn_free_keyboardsession(void*_Nonnull ptr, RustCallStatus *
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_CONSTRUCTOR_KEYBOARDSESSION_NEW
 #define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_CONSTRUCTOR_KEYBOARDSESSION_NEW
-void*_Nonnull uniffi_taza_ffi_fn_constructor_keyboardsession_new(RustBuffer language, RustCallStatus *_Nonnull out_status
+void*_Nonnull uniffi_taza_ffi_fn_constructor_keyboardsession_new(RustBuffer language_tag, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_BEGIN_CURSOR_DRAG
@@ -294,6 +294,11 @@ RustBuffer uniffi_taza_ffi_fn_method_keyboardsession_key_at(void*_Nonnull ptr, f
 #ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_KEYBOARD_FRAME
 #define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_KEYBOARD_FRAME
 RustBuffer uniffi_taza_ffi_fn_method_keyboardsession_keyboard_frame(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_LANGUAGE
+#define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_LANGUAGE
+RustBuffer uniffi_taza_ffi_fn_method_keyboardsession_language(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_LOAD_PACK
@@ -678,6 +683,12 @@ uint16_t uniffi_taza_ffi_checksum_method_keyboardsession_key_at(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_KEYBOARD_FRAME
 #define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_KEYBOARD_FRAME
 uint16_t uniffi_taza_ffi_checksum_method_keyboardsession_keyboard_frame(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_LANGUAGE
+#define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_LANGUAGE
+uint16_t uniffi_taza_ffi_checksum_method_keyboardsession_language(void
     
 );
 #endif

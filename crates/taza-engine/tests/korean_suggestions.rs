@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use taza_engine::contract::{EditorContext, Effect, InputEvent};
 use taza_engine::engine::Engine;
-use taza_engine::lang::Language;
+use taza_engine::lang::LanguageDescriptor;
 use taza_engine::lang::jamo::{decompose_word, encode_jamo_ascii};
 use taza_engine::pack::SectionKind;
 use taza_toolchain::PackWriter;
@@ -27,7 +27,7 @@ struct Harness {
 
 impl Harness {
     fn new(pack_bytes: &[u8]) -> Self {
-        let mut engine = Engine::new(Language::Korean).unwrap();
+        let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap()).unwrap();
         engine.load_pack(Arc::new(pack_bytes.to_vec())).unwrap();
         Harness {
             engine,
@@ -149,7 +149,7 @@ fn personalized_word_absent_from_lexicon_is_completed() {
 
 #[test]
 fn works_without_pack() {
-    let mut engine = Engine::new(Language::Korean).unwrap();
+    let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap()).unwrap();
     let context = EditorContext::unavailable();
     let effects = engine.handle(InputEvent::Key('ㄱ'), &context);
     assert!(effects.iter().any(|effect| matches!(

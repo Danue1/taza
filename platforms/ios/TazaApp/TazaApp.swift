@@ -16,15 +16,17 @@ struct SettingsView: View {
 
     @StateObject private var packs = PackLibraryModel()
     @State private var enabledLanguages: [TazaLanguage] = []
+    @State private var descriptors: [String: FfiLanguageDescriptor] = [:]
     @State private var testText = ""
 
     var body: some View {
         NavigationStack {
             List {
                 Section("사용 언어") {
-                    ForEach(enabledLanguages, id: \.rawValue) { language in
+                    ForEach(enabledLanguages, id: \.tag) { language in
                         LanguageRow(
                             language: language,
+                            descriptor: descriptors[language.tag],
                             isLastUsed: language == preferences.lastUsedLanguage,
                             packState: packs.states[language],
                             install: { Task { await packs.install(language) } },
@@ -59,7 +61,16 @@ struct SettingsView: View {
             .toolbar { EditButton() }
         }
         .tint(.tazaAccent)
-        .onAppear { enabledLanguages = preferences.enabledLanguages }
+        .onAppear {
+            enabledLanguages = preferences.enabledLanguages
+            let store = PackStore()
+            descriptors = Dictionary(
+                uniqueKeysWithValues: TazaLanguage.all.compactMap { language in
+                    tazaLanguageDescriptor(for: language, packURL: store.packURL(for: language))
+                        .map { (language.tag, $0) }
+                }
+            )
+        }
         .task { await packs.refresh() }
     }
 
@@ -72,6 +83,8 @@ struct SettingsView: View {
 
 private struct LanguageRow: View {
     let language: TazaLanguage
+    /// 표시 이름·키캡 표기·배열 이름은 코어가 팩 선언에서 읽어 준다
+    let descriptor: FfiLanguageDescriptor?
     let isLastUsed: Bool
     let packState: PackLibraryModel.State?
     let install: () -> Void
@@ -79,14 +92,14 @@ private struct LanguageRow: View {
 
     var body: some View {
         HStack {
-            Text(language.keycapLabel)
+            Text(descriptor?.keycapLabel ?? "")
                 .font(.system(size: 15, weight: .semibold))
                 .frame(width: 28, height: 28)
                 .background(.tazaSelection, in: RoundedRectangle(cornerRadius: 6))
             VStack(alignment: .leading, spacing: 2) {
-                Text(language.displayName)
+                Text(descriptor?.displayName ?? language.tag)
                     .foregroundStyle(.tazaLabel)
-                Text(language.layoutName)
+                Text(descriptor?.layoutName ?? "")
                     .font(.footnote)
                     .foregroundStyle(.tazaSecondaryLabel)
             }
@@ -118,7 +131,7 @@ private struct LanguageRow: View {
                 Button(action: remove) {
                     Image(systemName: "trash")
                 }
-                .accessibilityLabel("\(language.displayName) 사전 삭제")
+                .accessibilityLabel("\(descriptor?.displayName ?? language.tag) 사전 삭제")
             }
         case .notInstalled(let size):
             Button(action: install) {
@@ -135,7 +148,7 @@ private struct LanguageRow: View {
                     }
                 }
             }
-            .accessibilityLabel("\(language.displayName) 사전 다운로드")
+            .accessibilityLabel("\(descriptor?.displayName ?? language.tag) 사전 다운로드")
         case .installing:
             ProgressView()
         case .unavailable(let message):

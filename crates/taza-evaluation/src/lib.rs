@@ -9,7 +9,7 @@ pub mod synthesis;
 use std::sync::Arc;
 use taza_engine::contract::{EditorContext, Effect, InputEvent};
 use taza_engine::engine::{Engine, PackBytes};
-use taza_engine::lang::Language;
+use taza_engine::lang::LanguageDescriptor;
 
 /// typed는 실제 입력 시퀀스(한국어는 자모), intended는 화면 표시 형태의 의도 단어.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -52,8 +52,8 @@ struct Typist {
 
 impl Typist {
     /// 평가는 항상 빈 상태에서 시작한다 — 과제마다 엔진을 새로 만든다.
-    fn new(language: Language, pack: &Arc<dyn PackBytes>) -> Self {
-        let mut engine = Engine::new(language).expect("이 빌드에 없는 언어");
+    fn new(language: &LanguageDescriptor, pack: &Arc<dyn PackBytes>) -> Self {
+        let mut engine = Engine::new(language.clone()).expect("이 빌드에 없는 골격");
         engine.load_pack(Arc::clone(pack)).expect("팩 열기 실패");
         Typist {
             engine,
@@ -97,7 +97,7 @@ impl Typist {
 
 pub fn evaluate_corrections(
     pack: &Arc<dyn PackBytes>,
-    language: Language,
+    language: &LanguageDescriptor,
     cases: &[EvaluationCase],
 ) -> CorrectionReport {
     let mut top1 = 0usize;
@@ -137,7 +137,7 @@ pub fn evaluate_corrections(
 
 pub fn evaluate_completions(
     pack: &Arc<dyn PackBytes>,
-    language: Language,
+    language: &LanguageDescriptor,
     tasks: &[CompletionTask],
 ) -> CompletionReport {
     let mut savings_sum = 0.0f64;

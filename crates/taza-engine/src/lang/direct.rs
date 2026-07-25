@@ -1,7 +1,6 @@
 use crate::contract::{
     CommittedText, Composer, ComposerEvent, ComposerOutput, ComposerState, EditorContext,
 };
-use crate::suggest::{KeyEncoding, SuggestionPolicy};
 
 /// composing 없이 즉시 확정하는 골격 — 라틴 전반. 악센트는 레이아웃의 롱프레스 팝업이,
 /// 교정·예측은 자동교정 엔진이 담당하므로 여기서는 다루지 않는다.
@@ -37,16 +36,8 @@ impl Composer for DirectComposer {
         false
     }
 
-    fn suggestion_policy(&self) -> SuggestionPolicy {
-        SuggestionPolicy {
-            encoding: KeyEncoding::Utf8,
-            autocorrect: false,
-            limit: 0,
-        }
-    }
-
     fn snapshot(&self) -> ComposerState {
-        ComposerState::Direct
+        ComposerState::default()
     }
 
     fn restore(&mut self, _state: ComposerState) {}

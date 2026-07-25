@@ -2,6 +2,7 @@
 //! 언어 추가는 이 파일을 하나 더 쓰는 작업이 되도록 설계했다.
 
 use serde::Deserialize;
+use taza_engine::suggest::KeyEncoding;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Deserialize)]
@@ -11,6 +12,14 @@ pub struct Recipe {
     pub name: String,
     /// 팩 헤더에 담기는 언어 태그 (`en`, `ko`)
     pub language: String,
+    /// 언어가 자기를 부르는 이름 — 스페이스바와 언어 목록에 그대로 나간다
+    pub display_name: String,
+    /// 언어 키에 찍히는 짧은 표기
+    pub keycap_label: String,
+    /// 조합 골격 — 이 언어를 어느 합성기로 칠 것인가
+    pub composer_skeleton: String,
+    /// 이 팩이 싣는 배열의 이름 — 설정 화면에 그대로 나간다
+    pub layout_name: String,
     /// 데이터 판 번호 — 같은 언어의 갱신 배포를 구분한다. 원천·규칙을 바꾸면 올린다.
     pub pack_version: u32,
     #[serde(default)]
@@ -78,22 +87,20 @@ fn default_minimum_bigram_count() -> u64 {
     3
 }
 
+/// TOML 표면 — 값의 의미와 인코딩 규칙은 `taza_engine::suggest::KeyEncoding`이 원본이다.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum LexiconEncoding {
-    /// 표제어를 그대로 UTF-8로 저장
     #[default]
     Utf8,
-    /// 한글을 자모 분해 후 두벌식 ASCII로 저장 — trie 바이트 편집거리가 자모
-    /// 편집거리가 된다.
     HangulJamoDubeolsik,
 }
 
-impl LexiconEncoding {
-    pub fn tag(self) -> &'static str {
-        match self {
-            LexiconEncoding::Utf8 => "utf8",
-            LexiconEncoding::HangulJamoDubeolsik => "hangul-jamo-dubeolsik",
+impl From<LexiconEncoding> for KeyEncoding {
+    fn from(encoding: LexiconEncoding) -> Self {
+        match encoding {
+            LexiconEncoding::Utf8 => KeyEncoding::Utf8,
+            LexiconEncoding::HangulJamoDubeolsik => KeyEncoding::HangulJamoDubeolsik,
         }
     }
 }

@@ -4,7 +4,7 @@
 //! 팩 경로를 주면 그 팩(실데이터)으로, 없으면 내장 소형 팩으로 측정한다.
 
 use taza_engine::pack::SectionKind;
-use taza_ffi::{FfiEditorContext, FfiFieldKind, FfiInputEvent, FfiLanguage, KeyboardSession};
+use taza_ffi::{FfiEditorContext, FfiFieldKind, FfiInputEvent, KeyboardSession};
 use taza_toolchain::PackWriter;
 use taza_toolchain::lexicon::LexiconBuilder;
 
@@ -30,7 +30,7 @@ fn main() {
         }
     };
 
-    let session = KeyboardSession::new(FfiLanguage::English).unwrap();
+    let session = KeyboardSession::new("en".to_string()).unwrap();
     session
         .load_pack(path.to_string_lossy().to_string())
         .unwrap();

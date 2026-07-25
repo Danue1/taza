@@ -3,8 +3,6 @@
 
 pub use crate::pack::Pack;
 
-use crate::suggest::SuggestionPolicy;
-
 /// 입력 필드의 종류 — 플랫폼 inputmode/keyboardType/inputType을 셸이 매핑한다.
 /// Text 외 필드에서는 제안·자동교정·개인화 학습을 끈다 (순정 키보드 관습).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -156,17 +154,19 @@ pub struct ComposerOutput {
     pub suggest: SuggestionRequest,
 }
 
-/// 익스텐션 프로세스 kill 대비 직렬화 대상. 표현 형식(바이트 인코딩)은 FFI 계층에서 결정한다.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ComposerState {
-    Direct,
-    Hangul {
-        composing_jamo: Vec<char>,
-        word_jamo: Vec<char>,
-    },
-    Latin {
-        current_word: String,
-    },
+/// 익스텐션 프로세스 kill 대비 직렬화 대상. 무엇을 담을지는 각 합성기가 정하고 코어는
+/// 바이트로만 다룬다 — 골격이 늘어도 이 계약은 그대로다.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ComposerState(pub Vec<u8>);
+
+impl ComposerState {
+    pub fn from_text(text: &str) -> Self {
+        ComposerState(text.as_bytes().to_vec())
+    }
+
+    pub fn text(&self) -> Option<&str> {
+        std::str::from_utf8(&self.0).ok()
+    }
 }
 
 /// 스크립트 조합만 맡는다 — 사전 조회·랭킹·자동교정·학습은 전부 바깥(suggest, engine)의 일이다.
@@ -178,9 +178,6 @@ pub trait Composer: Send {
     fn finalize(&mut self) -> Option<CommittedText>;
 
     fn is_composing(&self) -> bool;
-
-    /// 이 골격에 맞는 랭킹 정책 — 조회 키 인코딩과 자동교정 사용 여부.
-    fn suggestion_policy(&self) -> SuggestionPolicy;
 
     fn snapshot(&self) -> ComposerState;
 

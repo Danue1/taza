@@ -578,6 +578,11 @@ public protocol KeyboardSessionProtocol: AnyObject, Sendable {
     func keyboardFrame()  -> FfiKeyboardFrame
     
     /**
+     * 지금 쓰고 있는 언어 선언 — 팩을 실으면 팩이 밝힌 값으로 바뀐다.
+     */
+    func language()  -> FfiLanguageDescriptor
+    
+    /**
      * 언어팩 파일을 mmap으로 연다. 파일 백드 clean page라 익스텐션 메모리
      * 예산(jetsam footprint)에 산입되지 않는다. 레이아웃 섹션이 있으면 교체한다.
      */
@@ -652,11 +657,15 @@ open class KeyboardSession: KeyboardSessionProtocol, @unchecked Sendable {
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
         return try! rustCall { uniffi_taza_ffi_fn_clone_keyboardsession(self.pointer, $0) }
     }
-public convenience init(language: FfiLanguage)throws  {
+    /**
+     * 언어 태그로 만든다. 내장 선언이 없는 태그는 팩을 받아야 쓸 수 있으므로
+     * 여기서 걸러진다 — 팩이 실리면 그 선언이 내장 선언을 대신한다.
+     */
+public convenience init(languageTag: String)throws  {
     let pointer =
         try rustCallWithError(FfiConverterTypeFfiLanguageError_lift) {
     uniffi_taza_ffi_fn_constructor_keyboardsession_new(
-        FfiConverterTypeFfiLanguage_lower(language),$0
+        FfiConverterString.lower(languageTag),$0
     )
 }
     self.init(unsafeFromRawPointer: pointer)
@@ -728,6 +737,16 @@ open func keyAt(x: Float, y: Float) -> FfiFrameKey  {
 open func keyboardFrame() -> FfiKeyboardFrame  {
     return try!  FfiConverterTypeFfiKeyboardFrame_lift(try! rustCall() {
     uniffi_taza_ffi_fn_method_keyboardsession_keyboard_frame(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+    /**
+     * 지금 쓰고 있는 언어 선언 — 팩을 실으면 팩이 밝힌 값으로 바뀐다.
+     */
+open func language() -> FfiLanguageDescriptor  {
+    return try!  FfiConverterTypeFfiLanguageDescriptor_lift(try! rustCall() {
+    uniffi_taza_ffi_fn_method_keyboardsession_language(self.uniffiClonePointer(),$0
     )
 })
 }
@@ -1501,6 +1520,96 @@ public func FfiConverterTypeFfiKeyboardFrame_lift(_ buf: RustBuffer) throws -> F
 #endif
 public func FfiConverterTypeFfiKeyboardFrame_lower(_ value: FfiKeyboardFrame) -> RustBuffer {
     return FfiConverterTypeFfiKeyboardFrame.lower(value)
+}
+
+
+/**
+ * 코어가 알려 주는 언어 선언. 표시 이름·키캡 표기는 팩이 밝히므로 셸은 이 값을
+ * 그대로 쓰고 자기 표를 따로 두지 않는다.
+ */
+public struct FfiLanguageDescriptor {
+    public var tag: String
+    public var displayName: String
+    public var keycapLabel: String
+    public var layoutName: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(tag: String, displayName: String, keycapLabel: String, layoutName: String) {
+        self.tag = tag
+        self.displayName = displayName
+        self.keycapLabel = keycapLabel
+        self.layoutName = layoutName
+    }
+}
+
+#if compiler(>=6)
+extension FfiLanguageDescriptor: Sendable {}
+#endif
+
+
+extension FfiLanguageDescriptor: Equatable, Hashable {
+    public static func ==(lhs: FfiLanguageDescriptor, rhs: FfiLanguageDescriptor) -> Bool {
+        if lhs.tag != rhs.tag {
+            return false
+        }
+        if lhs.displayName != rhs.displayName {
+            return false
+        }
+        if lhs.keycapLabel != rhs.keycapLabel {
+            return false
+        }
+        if lhs.layoutName != rhs.layoutName {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(tag)
+        hasher.combine(displayName)
+        hasher.combine(keycapLabel)
+        hasher.combine(layoutName)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiLanguageDescriptor: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiLanguageDescriptor {
+        return
+            try FfiLanguageDescriptor(
+                tag: FfiConverterString.read(from: &buf), 
+                displayName: FfiConverterString.read(from: &buf), 
+                keycapLabel: FfiConverterString.read(from: &buf), 
+                layoutName: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FfiLanguageDescriptor, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.tag, into: &buf)
+        FfiConverterString.write(value.displayName, into: &buf)
+        FfiConverterString.write(value.keycapLabel, into: &buf)
+        FfiConverterString.write(value.layoutName, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiLanguageDescriptor_lift(_ buf: RustBuffer) throws -> FfiLanguageDescriptor {
+    return try FfiConverterTypeFfiLanguageDescriptor.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiLanguageDescriptor_lower(_ value: FfiLanguageDescriptor) -> RustBuffer {
+    return FfiConverterTypeFfiLanguageDescriptor.lower(value)
 }
 
 
@@ -2282,76 +2391,6 @@ extension FfiKeyRole: Equatable, Hashable {}
 
 
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
-
-public enum FfiLanguage {
-    
-    case english
-    case korean
-}
-
-
-#if compiler(>=6)
-extension FfiLanguage: Sendable {}
-#endif
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public struct FfiConverterTypeFfiLanguage: FfiConverterRustBuffer {
-    typealias SwiftType = FfiLanguage
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiLanguage {
-        let variant: Int32 = try readInt(&buf)
-        switch variant {
-        
-        case 1: return .english
-        
-        case 2: return .korean
-        
-        default: throw UniffiInternalError.unexpectedEnumCase
-        }
-    }
-
-    public static func write(_ value: FfiLanguage, into buf: inout [UInt8]) {
-        switch value {
-        
-        
-        case .english:
-            writeInt(&buf, Int32(1))
-        
-        
-        case .korean:
-            writeInt(&buf, Int32(2))
-        
-        }
-    }
-}
-
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeFfiLanguage_lift(_ buf: RustBuffer) throws -> FfiLanguage {
-    return try FfiConverterTypeFfiLanguage.lift(buf)
-}
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeFfiLanguage_lower(_ value: FfiLanguage) -> RustBuffer {
-    return FfiConverterTypeFfiLanguage.lower(value)
-}
-
-
-extension FfiLanguage: Equatable, Hashable {}
-
-
-
-
-
-
 
 /**
  * 빌드에 포함되지 않은 언어를 요청한 경우 — 셸은 해당 언어를 목록에서 제외한다.
@@ -2736,6 +2775,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_taza_ffi_checksum_method_keyboardsession_keyboard_frame() != 38766) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_taza_ffi_checksum_method_keyboardsession_language() != 52953) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_taza_ffi_checksum_method_keyboardsession_load_pack() != 39525) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -2757,7 +2799,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_taza_ffi_checksum_method_keyboardsession_update_cursor_drag() != 8289) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_taza_ffi_checksum_constructor_keyboardsession_new() != 9538) {
+    if (uniffi_taza_ffi_checksum_constructor_keyboardsession_new() != 8465) {
         return InitializationResult.apiChecksumMismatch
     }
 

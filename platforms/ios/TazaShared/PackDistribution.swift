@@ -22,7 +22,7 @@ public struct PackCatalogEntry: Codable, Sendable {
     public let attribution: String
 
     public var taza: TazaLanguage? {
-        TazaLanguage.allCases.first { $0.packName == name }
+        TazaLanguage.all.first { $0.packName == name }
     }
 }
 

@@ -1,14 +1,14 @@
 use taza_engine::contract::{
-    Composer, ComposerEvent, ComposerState, EditorContext, Effect, InputEvent,
+    Composer, ComposerEvent, EditorContext, Effect, InputEvent,
 };
 use taza_engine::engine::Engine;
-use taza_engine::lang::Language;
+use taza_engine::lang::LanguageDescriptor;
 use taza_engine::lang::hangul::HangulComposer;
 
 /// 이벤트 문자열: 자모/문자는 Key, '<'는 Backspace, '_'는 Separator(' '), '|'는 CursorMoved.
 /// 문서 상태(committed + composing)를 유지하며 매 이벤트마다 커서 앞 문맥으로 전달한다.
 fn run(events: &str) -> (String, Option<String>) {
-    let mut engine = Engine::new(Language::Korean).unwrap();
+    let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap()).unwrap();
     let mut committed = String::new();
     let mut composing: Option<String> = None;
     for character in events.chars() {
@@ -159,14 +159,14 @@ fn decomposes_compound_vowel_when_resuming() {
 
 #[test]
 fn resume_skips_when_context_unavailable() {
-    let mut engine = Engine::new(Language::Korean).unwrap();
+    let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap()).unwrap();
     let effects = engine.handle(InputEvent::Backspace, &EditorContext::unavailable());
     assert_eq!(effects, vec![Effect::DeleteBackward(1)]);
 }
 
 #[test]
 fn cursor_move_finalizes_composing() {
-    let mut engine = Engine::new(Language::Korean).unwrap();
+    let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap()).unwrap();
     let context = EditorContext::unavailable();
     engine.handle(InputEvent::Key('ㄱ'), &context);
     engine.handle(InputEvent::Key('ㅏ'), &context);
@@ -185,13 +185,7 @@ fn snapshot_roundtrip_preserves_composing() {
     composer.feed(ComposerEvent::Key('ㅏ'), &context);
     composer.feed(ComposerEvent::Key('ㅂ'), &context);
     let state = composer.snapshot();
-    assert_eq!(
-        state,
-        ComposerState::Hangul {
-            composing_jamo: vec!['ㄱ', 'ㅏ', 'ㅂ'],
-            word_jamo: vec!['ㄱ', 'ㅏ', 'ㅂ'],
-        }
-    );
+    assert_eq!(state.text(), Some("ㄱㅏㅂ\tㄱㅏㅂ"));
 
     let mut restored = HangulComposer::new();
     restored.restore(state);

@@ -7,6 +7,7 @@
 
 use crate::recipe::{LanguageModelRules, LexiconRules, Role};
 use std::collections::{HashMap, HashSet};
+use taza_engine::lang::jamo::decompose_word;
 use taza_engine::pack::lexicon::MAX_FREQUENCY;
 
 #[derive(Debug, Default)]
@@ -52,9 +53,9 @@ pub fn normalize(
     rules: &LexiconRules,
 ) -> (Vec<(String, u32)>, NormalizeReport) {
     let has_inventory = signals.iter().any(|signal| signal.role == Role::Inventory);
-    let stems: Vec<&str> = signals
+    let stems: HashSet<Vec<char>> = signals
         .iter()
-        .flat_map(|signal| signal.stems.iter().map(String::as_str))
+        .flat_map(|signal| signal.stems.iter().map(|stem| inflection_key(stem)))
         .collect();
     let mut accumulated: HashMap<&str, Accumulated> = HashMap::new();
     let mut accepted_inflections = 0usize;
@@ -263,14 +264,22 @@ pub fn normalize_bigrams(
     )
 }
 
-/// 알려진 어간으로 시작하고 그보다 긴 낱말인가 — 활용형으로 볼 수 있는 최소 조건이다.
+/// 활용 관계를 재는 단위. 한글은 자모로 풀고, 풀 수 없는 글자가 섞이면 표층 그대로 둔다.
+///
+/// 표층 음절로 재면 한국어 활용의 대부분을 놓친다 — 어미는 어간의 마지막 음절 **안으로**
+/// 들어가 그 음절을 바꾸기 때문이다("하"→"했", "오"→"왔", "주"→"줘"). 자모로 풀면 이
+/// 변화가 어미 자모의 덧붙음으로 드러나(ㅈㅜ → ㅈㅜㅓ) 접두 관계가 그대로 성립한다.
+fn inflection_key(word: &str) -> Vec<char> {
+    decompose_word(word).unwrap_or_else(|| word.chars().collect())
+}
+
+/// 알려진 어간에서 뻗어 나온 낱말인가 — 활용형으로 볼 수 있는 최소 조건이다.
 /// 한국어 용언 어간은 대개 한 음절(있·하·같)이라 길이로 더 조이면 정작 흔한 활용형이
 /// 다 걸러진다. 어간 집합이 용언 파일에서만 오므로(고유명사는 애초에 빠져 있다)
 /// 이 조건만으로도 잡음이 새는 길은 좁다.
-fn grows_from_stem(word: &str, stems: &[&str]) -> bool {
-    stems
-        .iter()
-        .any(|stem| word.len() > stem.len() && word.starts_with(stem))
+fn grows_from_stem(word: &str, stems: &HashSet<Vec<char>>) -> bool {
+    let key = inflection_key(word);
+    (1..key.len()).any(|length| stems.contains(&key[..length]))
 }
 
 /// 실사용 횟수는 로그로 눌러 담는다 — 상위 몇 낱말이 점수 공간을 독점하지 않게.

@@ -64,9 +64,11 @@
 		09D758E33FF50C0D459ED005 /* taza_ffi.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = taza_ffi.swift; sourceTree = "<group>"; };
 		1CF4D18278033FE3DE2C617D /* PopupMenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopupMenuView.swift; sourceTree = "<group>"; };
 		231812FDBF992843227998D5 /* KeyboardGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardGridView.swift; sourceTree = "<group>"; };
+		32902B00D00EF10D00F679B8 /* TazaApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TazaApp.entitlements; sourceTree = "<group>"; };
 		41F6BF764826351F53195B38 /* TazaTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TazaTheme.swift; sourceTree = "<group>"; };
 		4957B682B5A359C74E1326BE /* PackLibraryModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackLibraryModel.swift; sourceTree = "<group>"; };
 		574B66EBEC60DDBFD132D9FB /* TazaFfi.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = TazaFfi.xcframework; sourceTree = "<group>"; };
+		6DD6CA34EFC067B2496D6396 /* TazaKeyboard.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TazaKeyboard.entitlements; sourceTree = "<group>"; };
 		884F7F9DE893001ADF7495D9 /* PackDistribution.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackDistribution.swift; sourceTree = "<group>"; };
 		967EC11F78904F1D768ACEFF /* english.tazapack */ = {isa = PBXFileReference; path = english.tazapack; sourceTree = "<group>"; };
 		A063705662AC7D869C6B9CA8 /* CandidateBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateBarView.swift; sourceTree = "<group>"; };
@@ -115,6 +117,7 @@
 			children = (
 				B2D44F944B1A5EDD1842A418 /* Info.plist */,
 				4957B682B5A359C74E1326BE /* PackLibraryModel.swift */,
+				32902B00D00EF10D00F679B8 /* TazaApp.entitlements */,
 				ED73162F9E8CB714176E666F /* TazaApp.swift */,
 			);
 			path = TazaApp;
@@ -165,6 +168,7 @@
 			children = (
 				DCB46D787A274326D1E6E049 /* Info.plist */,
 				E277A6F3562678279800454E /* KeyboardViewController.swift */,
+				6DD6CA34EFC067B2496D6396 /* TazaKeyboard.entitlements */,
 			);
 			path = TazaKeyboard;
 			sourceTree = "<group>";
@@ -328,6 +332,7 @@
 		006DA97AB8D61713B6938B41 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = TazaKeyboard/TazaKeyboard.entitlements;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"\".\"",
@@ -347,6 +352,7 @@
 		09486F20A782C4AF3704B525 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = TazaKeyboard/TazaKeyboard.entitlements;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"\".\"",
@@ -416,7 +422,7 @@
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.9;
-				TAZA_PACK_CATALOG_URL = "";
+				TAZA_PACK_CATALOG_URL = "https://github.com/Danue1/taza/releases/download/packs/catalog.json";
 			};
 			name = Release;
 		};
@@ -424,6 +430,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = TazaApp/TazaApp.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -500,7 +507,7 @@
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.9;
-				TAZA_PACK_CATALOG_URL = "";
+				TAZA_PACK_CATALOG_URL = "https://github.com/Danue1/taza/releases/download/packs/catalog.json";
 			};
 			name = Debug;
 		};
@@ -508,6 +515,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = TazaApp/TazaApp.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",

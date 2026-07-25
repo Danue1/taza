@@ -9,7 +9,7 @@ pub mod synthesis;
 use synthesis::TypedSequence;
 
 use std::sync::Arc;
-use taza_engine::contract::{EditorContext, Effect, InputEvent};
+use taza_engine::contract::{CandidateKind, EditorContext, Effect, InputEvent};
 use taza_engine::engine::{Engine, PackBytes};
 use taza_engine::lang::LanguageDescriptor;
 
@@ -59,6 +59,9 @@ pub struct CompletionTask {
 struct Typist {
     engine: Engine,
     committed: String,
+    /// 원문 슬롯을 뺀 후보들 — 그 자리는 랭킹의 산물이 아니라 "친 대로 두기"라서
+    /// 순위에 섞으면 어떤 사전으로도 top1이 오르지 않는다. 슬롯이 자리를 차지해
+    /// 표시되는 후보가 하나 줄어든 것은 이 목록에 그대로 반영된다.
     candidates: Vec<String>,
 }
 
@@ -107,6 +110,7 @@ impl Typist {
                 Effect::UpdateCandidates(candidates) => {
                     self.candidates = candidates
                         .into_iter()
+                        .filter(|candidate| candidate.kind != CandidateKind::Typed)
                         .map(|candidate| candidate.text)
                         .collect();
                 }

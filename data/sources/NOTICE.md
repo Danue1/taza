@@ -24,11 +24,13 @@
 
 - mecab-ko-dic 2.1.1-20180720 (Apache-2.0)
 - Tatoeba sentences (kor) 2026-07-25 (CC-BY 2.0 FR)
+- Korean Wikipedia 20260701 (CC BY-SA 4.0)
 
 ### 저작자 표시
 
 > Korean morpheme dictionary from mecab-ko-dic 2.1.1-20180720 (https://bitbucket.org/eunjeon/mecab-ko-dic), licensed under Apache License 2.0.
 > Word frequencies derived from the Tatoeba Project Korean sentence export (https://tatoeba.org), licensed CC-BY 2.0 FR.
+> Word frequencies derived from the Korean Wikipedia article dump of 2026-07-01 (https://ko.wikipedia.org), licensed CC BY-SA 4.0.
 
 ## 재현
 

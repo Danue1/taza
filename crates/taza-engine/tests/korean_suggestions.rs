@@ -1,12 +1,13 @@
 use taza_engine::keyboard::KeySignal;
 use std::sync::Arc;
-use taza_engine::contract::{EditorContext, Effect, InputEvent};
+use taza_engine::contract::{CandidateKind, EditorContext, Effect, InputEvent};
 use taza_engine::engine::Engine;
 use taza_engine::lang::LanguageDescriptor;
 use taza_engine::lang::jamo::{decompose_word, encode_jamo_ascii};
 use taza_engine::pack::SectionKind;
 use taza_toolchain::PackWriter;
 use taza_toolchain::lexicon::LexiconBuilder;
+use taza_toolchain::metadata::MetadataBuilder;
 
 fn korean_pack() -> Vec<u8> {
     let mut lexicon = LexiconBuilder::new();
@@ -14,8 +15,11 @@ fn korean_pack() -> Vec<u8> {
         let encoded = encode_jamo_ascii(&decompose_word(word).unwrap()).unwrap();
         lexicon.insert(&encoded, frequency);
     }
+    let mut metadata = MetadataBuilder::new();
+    metadata.set(taza_engine::pack::metadata::keys::AFFIXES, "를\n는\n에게");
     let mut writer = PackWriter::new("ko");
     writer.add_section(SectionKind::Lexicon, lexicon.build());
+    writer.add_section(SectionKind::Metadata, metadata.build());
     writer.finish()
 }
 
@@ -24,6 +28,8 @@ struct Harness {
     committed: String,
     composing: Option<String>,
     candidates: Vec<String>,
+    /// 후보 바에 실제로 나가는 목록 — 원문 슬롯을 포함한다
+    shown: Vec<String>,
 }
 
 impl Harness {
@@ -35,6 +41,7 @@ impl Harness {
             committed: String::new(),
             composing: None,
             candidates: Vec::new(),
+            shown: Vec::new(),
         }
     }
 
@@ -63,8 +70,13 @@ impl Harness {
                     }
                 }
                 Effect::UpdateCandidates(candidates) => {
+                    // 셸이 보내는 선택 인덱스는 원문 슬롯을 포함한 목록 기준이므로
+                    // 그대로 두고, 순위 검증용으로 원문을 뺀 목록을 따로 둔다 —
+                    // 그 슬롯이 첫 자리를 지킨다는 계약은 engine.rs가 검증한다.
+                    self.shown = candidates.iter().map(|c| c.text.clone()).collect();
                     self.candidates = candidates
                         .into_iter()
+                        .filter(|candidate| candidate.kind != CandidateKind::Typed)
                         .map(|candidate| candidate.text)
                         .collect();
                 }
@@ -112,7 +124,7 @@ fn selecting_candidate_replaces_whole_word() {
     assert_eq!(harness.composing.as_deref(), Some("하세"));
 
     let index = harness
-        .candidates
+        .shown
         .iter()
         .position(|candidate| candidate == "안녕하세요")
         .unwrap();
@@ -159,4 +171,37 @@ fn works_without_pack() {
         effect,
         Effect::SetComposing(text) if text.text == "ㄱ"
     )));
+}
+
+/// 교착어에서 어절은 학습한 말에 조사가 붙어 자란다. 스토어에는 확정한 형태만 남으므로
+/// 결합형은 사전에도 스토어에도 없다 — 팩이 밝힌 접사가 그 자리를 메운다.
+#[test]
+fn learned_word_combines_with_pack_affixes() {
+    let bytes = korean_pack();
+    let mut harness = Harness::new(&bytes);
+    // "안다"를 학습시킨다 (사전에 없는 사용자 어휘)
+    for _ in 0..4 {
+        harness.type_jamo("ㅇㅏㄴㄷㅏ ");
+    }
+    // 학습한 적 없는 "안다를"이 조사 결합으로 제안된다
+    harness.type_jamo("ㅇㅏㄴㄷㅏㄹ");
+    assert!(
+        harness.candidates.contains(&"안다를".to_string()),
+        "결합형이 없음: {:?}",
+        harness.candidates
+    );
+}
+
+/// 학습하지 않은 말에는 조사를 붙이지 않는다 — 아무 어절에나 조사를 붙이면
+/// 후보 바가 결합형으로 뒤덮인다.
+#[test]
+fn unlearned_word_does_not_combine() {
+    let bytes = korean_pack();
+    let mut harness = Harness::new(&bytes);
+    harness.type_jamo("ㅇㅏㄴㄴㅕㅇㅇㅔ");
+    assert!(
+        !harness.candidates.iter().any(|c| c == "안녕에게"),
+        "학습하지 않은 말에 조사가 붙음: {:?}",
+        harness.candidates
+    );
 }

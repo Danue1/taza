@@ -79,22 +79,22 @@ fn candidate_replacement_translates_to_delete_then_commit() {
     let context = EditorContext::unavailable();
 
     let effects = engine.handle(InputEvent::Key(KeySignal::certain('h')), &context);
-    // 자동교정을 쓰는 언어이므로 교정 후보 뒤에 원문(as-typed)이 함께 붙는다
+    // 원문(as-typed)이 첫 자리를 지키고 교정 후보가 그 뒤에 붙는다
     assert_eq!(
         effects,
         vec![Effect::UpdateCandidates(vec![
             Candidate {
-                text: "the".to_string(),
-                kind: CandidateKind::Correction,
+                text: "teh".to_string(),
+                kind: CandidateKind::Typed,
             },
             Candidate {
-                text: "teh".to_string(),
-                kind: CandidateKind::Prediction,
+                text: "the".to_string(),
+                kind: CandidateKind::Correction,
             },
         ])]
     );
 
-    let effects = engine.handle(InputEvent::CandidateSelected(0), &context);
+    let effects = engine.handle(InputEvent::CandidateSelected(1), &context);
     assert_eq!(
         effects,
         vec![

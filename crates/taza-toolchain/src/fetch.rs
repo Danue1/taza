@@ -14,6 +14,24 @@ pub fn hex_digest(bytes: &[u8]) -> String {
     digest.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
+/// 캐시 파일의 sha256 — 원천이 기가바이트 단위라 통째로 메모리에 올리지 않고 흘려 읽는다.
+fn file_digest(path: &Path) -> Result<String, String> {
+    let mut file = std::fs::File::open(path)
+        .map_err(|error| format!("{} 열기 실패: {error}", path.display()))?;
+    let mut hasher = Sha256::new();
+    let mut buffer = vec![0u8; CHUNK];
+    loop {
+        let read = file
+            .read(&mut buffer)
+            .map_err(|error| format!("{} 읽기 실패: {error}", path.display()))?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
+    }
+    Ok(hasher.finalize().iter().map(|b| format!("{b:02x}")).collect())
+}
+
 /// 캐시에 있으면 그대로, 없으면 내려받아 검증한 뒤 캐시에 넣고 경로를 돌려준다.
 /// 캐시 파일 이름에 해시를 넣어, 같은 URL의 다른 판이 서로를 덮지 않게 한다.
 pub fn fetch(url: &str, expected_sha256: &str, cache_directory: &Path) -> Result<PathBuf, String> {
@@ -22,9 +40,7 @@ pub fn fetch(url: &str, expected_sha256: &str, cache_directory: &Path) -> Result
     let file_name = url.rsplit('/').next().unwrap_or("source");
     let cached = cache_directory.join(format!("{}-{file_name}", &expected_sha256[..12]));
     if cached.exists() {
-        let bytes = std::fs::read(&cached)
-            .map_err(|error| format!("{} 읽기 실패: {error}", cached.display()))?;
-        if hex_digest(&bytes) == expected_sha256 {
+        if file_digest(&cached)? == expected_sha256 {
             return Ok(cached);
         }
         // 캐시가 깨졌으면 지우고 다시 받는다

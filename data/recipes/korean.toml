@@ -27,10 +27,9 @@ minimum_word_length = 1
 # 코퍼스가 이미 알고 있다 — 어간 조건으로 고유명사·오타가 섞이는 길만 막는다.
 accept_inflections = true
 
-# 한국어 Tatoeba 익스포트가 작아 문맥 신호도 얇다 — 임계를 낮추되 상한을 보수적으로.
 [language_model]
-max_bigrams = 15000
-minimum_count = 2
+max_bigrams = 50000
+minimum_count = 3
 
 [script]
 word_separated = true
@@ -78,3 +77,17 @@ role = "frequency"
 weight = 0.5
 format = "tatoeba"
 minimum_count = 2
+
+# 위키백과는 어휘 폭과 문맥 신호를 대는 큰 원천이지만 문어체로 기울어 있다 — 구어체인
+# Tatoeba보다 낮은 weight를 주어, 어휘는 넓히되 순위의 결은 구어체가 잡게 한다.
+[[sources]]
+name = "Korean Wikipedia"
+version = "20260701"
+license = "CC BY-SA 4.0"
+attribution = "Word frequencies derived from the Korean Wikipedia article dump of 2026-07-01 (https://ko.wikipedia.org), licensed CC BY-SA 4.0."
+url = "https://dumps.wikimedia.org/kowiki/20260701/kowiki-20260701-pages-articles.xml.bz2"
+sha256 = "bd3f21c078672aebd537d81a889cce82cb46fa403a417f4b43625c80fbf74813"
+role = "frequency"
+weight = 0.01
+format = "wikipedia"
+minimum_count = 5

@@ -1701,6 +1701,7 @@ public func FfiConverterTypeFfiPressResult_lower(_ value: FfiPressResult) -> Rus
 
 public enum FfiCandidateKind {
     
+    case typed
     case prediction
     case conversion
     case correction
@@ -1721,11 +1722,13 @@ public struct FfiConverterTypeFfiCandidateKind: FfiConverterRustBuffer {
         let variant: Int32 = try readInt(&buf)
         switch variant {
         
-        case 1: return .prediction
+        case 1: return .typed
         
-        case 2: return .conversion
+        case 2: return .prediction
         
-        case 3: return .correction
+        case 3: return .conversion
+        
+        case 4: return .correction
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -1735,16 +1738,20 @@ public struct FfiConverterTypeFfiCandidateKind: FfiConverterRustBuffer {
         switch value {
         
         
-        case .prediction:
+        case .typed:
             writeInt(&buf, Int32(1))
         
         
-        case .conversion:
+        case .prediction:
             writeInt(&buf, Int32(2))
         
         
-        case .correction:
+        case .conversion:
             writeInt(&buf, Int32(3))
+        
+        
+        case .correction:
+            writeInt(&buf, Int32(4))
         
         }
     }

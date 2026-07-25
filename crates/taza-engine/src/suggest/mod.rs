@@ -81,17 +81,18 @@ impl Suggester {
         };
         let mut ranked: Vec<(i64, Suggestion)> = Vec::new();
 
-        // 원문이 이미 표제어이거나 학습된 어휘면 순정 관습대로 맨 앞에 둔다
-        let known = lexicon
-            .as_ref()
-            .is_some_and(|lexicon| lexicon.contains(key))
-            || sources.personalization.is_learned(key);
+        // 원문은 순정 관습대로 언제나 첫 자리 — 사전이 무엇을 내놓든 친 대로 두는 길이
+        // 열려 있어야 하고, 사전에 없는 말을 칠 때 후보 바가 비지 않는 것도 이 슬롯이다.
+        // 사전이 없으면 이 슬롯도 없다 — 고를 다른 후보가 애초에 없으니 "친 대로 두기"가
+        // 선택지가 되지 못하고, 후보 바에 방금 친 글자만 되비칠 뿐이다.
         let mut suggestions = Vec::new();
-        if known && let Some(text) = self.policy.encoding.decode(key) {
+        if lexicon.is_some()
+            && let Some(text) = self.policy.encoding.decode(key)
+        {
             suggestions.push(Suggestion {
                 key: key.to_string(),
                 text,
-                kind: CandidateKind::Prediction,
+                kind: CandidateKind::Typed,
             });
         }
 
@@ -127,6 +128,10 @@ impl Suggester {
             );
             self.push_ranked(&mut ranked, score, entry.key, CandidateKind::Prediction);
         }
+        for (combined, weight) in self.learned_with_affix(key, sources) {
+            let score = score::combine(weight, 0, 0, 0);
+            self.push_ranked(&mut ranked, score, combined, CandidateKind::Prediction);
+        }
 
         ranked.sort_by(|left, right| {
             right
@@ -134,29 +139,16 @@ impl Suggester {
                 .cmp(&left.0)
                 .then_with(|| left.1.text.cmp(&right.1.text))
         });
+        // 원문 슬롯은 랭킹 자리를 빼앗지 않는다 — limit은 사전이 내놓는 후보의 수다
+        let ranked_limit = self.policy.limit + suggestions.len();
         for (_, suggestion) in ranked {
-            if suggestions.len() >= self.policy.limit {
+            if suggestions.len() >= ranked_limit {
                 break;
             }
             if suggestions.iter().any(|kept| kept.text == suggestion.text) {
                 continue;
             }
             suggestions.push(suggestion);
-        }
-
-        // 미등재 원문은 목록 끝에 그대로 노출 — 자동교정을 피해 이것을 고르는 것이
-        // 학습 경로다. 교정하지 않는 골격에는 필요 없다.
-        if self.policy.autocorrect
-            && lexicon.is_some()
-            && !known
-            && let Some(text) = self.policy.encoding.decode(key)
-            && !suggestions.iter().any(|kept| kept.text == text)
-        {
-            suggestions.push(Suggestion {
-                key: key.to_string(),
-                text,
-                kind: CandidateKind::Prediction,
-            });
         }
         suggestions
     }
@@ -244,6 +236,50 @@ impl Suggester {
             text,
             kind: CandidateKind::Correction,
         })
+    }
+
+    /// 학습한 어휘에 접사가 붙은 어절 — (조회 키, 개인화 가중치).
+    ///
+    /// 교착어에서는 사용자가 "타자"를 쓰기 시작하면 "타자를"·"타자는"도 곧 치게 되는데,
+    /// 개인화 스토어에는 확정한 형태 그대로만 남으므로 결합형은 사전에도 스토어에도
+    /// 없다. 팩이 밝힌 접사 목록으로 그 자리를 메운다 — 사전을 넓힐 때 쓴 것과 같은
+    /// 목록이라 둘이 어긋나지 않는다.
+    ///
+    /// 지금 치고 있는 어절이 완성돼 가는 중일 수도 있으므로("타자ㄹ") 접사는 접두만
+    /// 맞아도 받아들인다. 결합형이 이미 사전에 있으면 사전 쪽 점수가 옳으니 내지 않는다.
+    fn learned_with_affix(
+        &self,
+        key: &str,
+        sources: &SuggestionSources<'_>,
+    ) -> Vec<(String, u32)> {
+        let Some(pack) = sources.pack else {
+            return Vec::new();
+        };
+        let Some(affixes) = pack.affixes() else {
+            return Vec::new();
+        };
+        let lexicon = pack.lexicon();
+        let mut combined = Vec::new();
+        for (stem, weight) in sources.personalization.learned_prefixes(key) {
+            let typed_affix = &key[stem.len()..];
+            for affix in affixes.split('\n') {
+                let Some(encoded) = self.policy.encoding.encode(affix) else {
+                    continue;
+                };
+                if !encoded.starts_with(typed_affix) {
+                    continue;
+                }
+                let word = format!("{stem}{encoded}");
+                if lexicon
+                    .as_ref()
+                    .is_some_and(|lexicon| lexicon.contains(&word))
+                {
+                    continue;
+                }
+                combined.push((word, weight));
+            }
+        }
+        combined
     }
 
     fn language_model_weight(&self, key: &str, sources: &SuggestionSources<'_>) -> u32 {

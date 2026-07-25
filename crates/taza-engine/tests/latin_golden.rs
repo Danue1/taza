@@ -45,6 +45,8 @@ struct Harness {
     engine: Engine,
     committed: String,
     candidates: Vec<String>,
+    /// 후보 바에 실제로 나가는 목록 — 원문 슬롯을 포함한다
+    shown: Vec<String>,
     incognito: bool,
     field: FieldKind,
 }
@@ -57,6 +59,7 @@ impl Harness {
             engine,
             committed: String::new(),
             candidates: Vec::new(),
+            shown: Vec::new(),
             incognito: false,
             field: FieldKind::Text,
         }
@@ -77,8 +80,13 @@ impl Harness {
                     }
                 }
                 Effect::UpdateCandidates(candidates) => {
+                    // 셸이 보내는 선택 인덱스는 원문 슬롯을 포함한 목록 기준이므로
+                    // 그대로 두고, 순위 검증용으로 원문을 뺀 목록을 따로 둔다 —
+                    // 그 슬롯이 첫 자리를 지킨다는 계약은 engine.rs가 검증한다.
+                    self.shown = candidates.iter().map(|c| c.text.clone()).collect();
                     self.candidates = candidates
                         .into_iter()
+                        .filter(|candidate| candidate.kind != CandidateKind::Typed)
                         .map(|candidate| candidate.text)
                         .collect();
                 }
@@ -108,8 +116,8 @@ fn typing_commits_immediately_and_suggests() {
     let mut harness = Harness::new(&bytes);
     harness.type_text("th");
     assert_eq!(harness.committed, "th");
-    // 미등재 단어는 원문("th")이 끝에 붙는다 — 선택 시 학습 경로
-    assert_eq!(harness.candidates, vec!["the", "they", "then", "th"]);
+    // 원문("th")은 첫 자리를 지키고 랭킹 후보가 그 뒤에 온다
+    assert_eq!(harness.shown, vec!["th", "the", "they", "then"]);
 }
 
 #[test]
@@ -117,7 +125,7 @@ fn exact_word_ranks_first() {
     let bytes = english_pack();
     let mut harness = Harness::new(&bytes);
     harness.type_text("the");
-    assert_eq!(harness.candidates[0], "the");
+    assert_eq!(harness.shown[0], "the");
 }
 
 #[test]
@@ -195,9 +203,9 @@ fn candidate_selection_replaces_word_and_starts_new_sequence() {
     let bytes = english_pack();
     let mut harness = Harness::new(&bytes);
     harness.type_text("th");
-    let selected = harness.candidates[0].clone();
+    let selected = harness.shown[1].clone();
     assert_eq!(selected, "the");
-    harness.send(InputEvent::CandidateSelected(0));
+    harness.send(InputEvent::CandidateSelected(1));
     assert_eq!(harness.committed, "the ");
     assert_eq!(harness.candidates, vec!["quick", "best"]);
 
@@ -205,7 +213,7 @@ fn candidate_selection_replaces_word_and_starts_new_sequence() {
     // 보너스를 받아 앞에 선다 — 개인화 가중치가 팩 빈도와 같은 점수 공간에 있기 때문이다.
     harness.type_text("he");
     assert_eq!(harness.committed, "the he");
-    assert_eq!(harness.candidates, vec!["the", "help", "hello", "he"]);
+    assert_eq!(harness.shown, vec!["he", "the", "help", "hello"]);
 }
 
 #[test]
@@ -229,7 +237,7 @@ fn backspace_shrinks_word_and_updates_suggestions() {
     harness.type_text("thex");
     harness.send(InputEvent::Backspace);
     assert_eq!(harness.committed, "the");
-    assert_eq!(harness.candidates[0], "the");
+    assert_eq!(harness.shown[0], "the");
 }
 
 #[test]
@@ -244,7 +252,7 @@ fn resumes_word_after_cursor_move() {
     assert_eq!(harness.committed, "them");
     harness.send(InputEvent::Key(KeySignal::certain('e')));
     assert_eq!(harness.committed, "theme");
-    assert_eq!(harness.candidates[0], "theme");
+    assert_eq!(harness.shown[0], "theme");
 }
 
 #[test]
@@ -363,7 +371,7 @@ fn selecting_raw_word_learns_it_and_suppresses_autocorrection() {
     for _ in 0..2 {
         harness.type_text("thw");
         let raw_index = harness
-            .candidates
+            .shown
             .iter()
             .position(|candidate| candidate == "thw")
             .unwrap();

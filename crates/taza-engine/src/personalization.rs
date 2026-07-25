@@ -102,6 +102,17 @@ impl PersonalizationStore {
         completions
     }
 
+    /// 이 어절의 접두 가운데 학습된 것들 — (접두, 가중치). 교착어에서 어절은
+    /// "학습한 말 + 접사"로 자라므로, 접두를 되짚어야 그 자란 형태를 알아볼 수 있다.
+    /// 어절 전체가 학습돼 있으면 그것은 결합형이 아니라 그 자체이므로 뺀다.
+    pub fn learned_prefixes(&self, word: &str) -> Vec<(String, u32)> {
+        (1..word.len())
+            .filter(|&length| word.is_char_boundary(length))
+            .filter(|&length| self.is_learned(&word[..length]))
+            .map(|length| (word[..length].to_string(), self.weight(&word[..length])))
+            .collect()
+    }
+
     pub fn snapshot(&self) -> PersonalizationState {
         PersonalizationState {
             entries: self

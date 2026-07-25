@@ -30,6 +30,10 @@ pub mod keys {
     pub const COMPOSER_SKELETON: &str = "composer_skeleton";
     /// 이 팩이 싣고 있는 배열의 이름 (`QWERTY`, `두벌식`) — 설정 화면에 그대로 나간다
     pub const LAYOUT_NAME: &str = "layout_name";
+    /// 어절 뒤에 붙어 활용형을 만드는 접사 — 줄바꿈으로 나눈 표시 형태 목록.
+    /// 학습한 어휘에 이것을 붙여 사전에도 스토어에도 없는 결합형을 제안한다.
+    /// 교착어가 아닌 언어의 팩에는 없다.
+    pub const AFFIXES: &str = "affixes";
     /// 어절을 공백으로 나누는 스크립트인지 — `true`/`false`
     pub const WORD_SEPARATED: &str = "word_separated";
     /// 오른쪽에서 왼쪽으로 쓰는 스크립트인지 — `true`/`false`

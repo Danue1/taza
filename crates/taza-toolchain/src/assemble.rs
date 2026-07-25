@@ -27,6 +27,7 @@ pub fn assemble(
     recipe: &Recipe,
     words: &[(String, u32)],
     bigrams: &[(String, String, u32)],
+    affixes: &[String],
     layout_text: Option<&str>,
 ) -> Result<AssembledPack, String> {
     let mut lexicon = LexiconBuilder::new();
@@ -76,6 +77,9 @@ pub fn assemble(
         recipe.script.word_separated.to_string(),
     );
     metadata.set(keys::RIGHT_TO_LEFT, recipe.script.right_to_left.to_string());
+    if !affixes.is_empty() {
+        metadata.set(keys::AFFIXES, affixes.join("\n"));
+    }
     metadata.set(keys::SOURCES, source_lines(recipe));
     metadata.set(keys::ATTRIBUTION, attribution(recipe));
 

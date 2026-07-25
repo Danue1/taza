@@ -90,7 +90,9 @@ fn pack_loading_and_suggestions_over_ffi() {
             }
         }
     }
-    assert_eq!(candidates[0], "hello");
+    // [0]은 원문 슬롯이고 사전이 내놓는 후보는 그 뒤에 온다
+    assert_eq!(candidates[0], "he");
+    assert_eq!(candidates[1], "hello");
     assert!(
         session
             .load_pack("/nonexistent/path.tazapack".to_string())

@@ -30,12 +30,24 @@ fn main() {
         }
     };
 
-    let session = KeyboardSession::new("en".to_string()).unwrap();
+    // 팩이 밝힌 언어로 세션을 연다 — 언어를 못 박으면 한국어 실팩은 재 볼 수가 없다
+    let bytes = std::fs::read(&path).unwrap();
+    let language = taza_engine::contract::Pack::open(&bytes)
+        .expect("팩 열기 실패")
+        .language()
+        .to_string();
+    let word = if language == "ko" {
+        "ㅇㅏㄴㄴㅕㅇ "
+    } else {
+        "hello "
+    };
+    drop(bytes);
+
+    let session = KeyboardSession::new(language).unwrap();
     session
         .load_pack(path.to_string_lossy().to_string())
         .unwrap();
 
-    let word = "hello ";
     let iterations = 2000usize;
     let mut durations = Vec::with_capacity(iterations * word.len());
     let mut committed = String::new();

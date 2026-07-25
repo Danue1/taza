@@ -60,6 +60,7 @@ pub enum FfiInputEvent {
 
 #[derive(uniffi::Enum)]
 pub enum FfiCandidateKind {
+    Typed,
     Prediction,
     Conversion,
     Correction,
@@ -181,6 +182,7 @@ fn convert_candidate(candidate: Candidate) -> FfiCandidate {
     FfiCandidate {
         text: candidate.text,
         kind: match candidate.kind {
+            CandidateKind::Typed => FfiCandidateKind::Typed,
             CandidateKind::Prediction => FfiCandidateKind::Prediction,
             CandidateKind::Conversion => FfiCandidateKind::Conversion,
             CandidateKind::Correction => FfiCandidateKind::Correction,

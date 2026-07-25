@@ -212,6 +212,13 @@ pub enum Extraction {
         #[serde(default = "default_minimum_count")]
         minimum_count: u64,
     },
+    /// MediaWiki XML 덤프 (`<page>` … `<text>`, bzip2). 문어체로 기울어 있으므로
+    /// 구어체 원천과 함께 쓰고 weight로 균형을 잡는다.
+    Wikipedia {
+        /// 이 횟수 미만으로 나타난 낱말은 잡음으로 본다.
+        #[serde(default = "default_minimum_count")]
+        minimum_count: u64,
+    },
     /// mecab-ko-dic 형태소 사전 — CSV의 비용(cost)이 낮을수록 흔한 형태소다.
     MecabKoDic {
         /// 표제어를 그대로 취하는 CSV 파일들 (체언·부사·감탄사 등)

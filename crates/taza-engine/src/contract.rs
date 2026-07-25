@@ -111,6 +111,8 @@ pub struct ComposingText {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CandidateKind {
+    /// 친 그대로의 원문. 교정·완성을 물리고 원문을 지키는 길이며 언제나 첫 자리다.
+    Typed,
     Prediction,
     Conversion,
     Correction,

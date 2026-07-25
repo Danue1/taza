@@ -110,6 +110,13 @@ fn build(recipe_path: &Path, options: &Options) -> Result<CatalogEntry, String> 
             stems: &signal.stems,
         })
         .collect();
+    // 원천이 밝힌 접사는 팩에 실려 코어가 학습 어휘의 결합형을 제안하는 데 쓰인다
+    let mut affixes: Vec<String> = extracted
+        .iter()
+        .flat_map(|(_, signal)| signal.affixes.iter().cloned())
+        .collect();
+    affixes.sort_unstable();
+    affixes.dedup();
     let (words, report) = normalize(&signals, &recipe.lexicon);
     println!(
         "  정규화: 후보 {} / 코퍼스 관측 {} / 활용형 수용 {} / 필터 제외 {} / 예산 제외 {} → 표제어 {}",
@@ -159,7 +166,7 @@ fn build(recipe_path: &Path, options: &Options) -> Result<CatalogEntry, String> 
                 .map_err(|error| format!("{} 읽기 실패: {error}", path.display()))
         })
         .transpose()?;
-    let assembled = assemble::assemble(&recipe, &words, &bigrams, layout_text.as_deref())?;
+    let assembled = assemble::assemble(&recipe, &words, &bigrams, &affixes, layout_text.as_deref())?;
     let packs_directory = options.data_directory.join("packs");
     std::fs::create_dir_all(&packs_directory)
         .map_err(|error| format!("{} 만들기 실패: {error}", packs_directory.display()))?;

@@ -4,5 +4,8 @@
 /data/cache/
 /data/build/
 
+# 팩 A/B 비교용 로컬 기준선 스냅샷 — 생성물이라 공유하지 않는다
+/data-baseline/
+
 # 언어팩 배포처의 로컬 덮어쓰기 — 개발자마다 다르므로 공유하지 않는다
 /platforms/ios/Packs.local.xcconfig

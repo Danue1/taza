@@ -130,6 +130,12 @@ impl<'bytes> Pack<'bytes> {
         crate::pack::layout::deserialize(self.section(SectionKind::Layout)?)
     }
 
+    /// 어절 뒤에 붙어 활용형을 만드는 접사 — 줄바꿈으로 나눈 표시 형태 목록.
+    /// 교착어가 아닌 언어의 팩에는 없다.
+    pub fn affixes(&self) -> Option<&'bytes str> {
+        self.metadata()?.get(crate::pack::metadata::keys::AFFIXES)
+    }
+
     /// 팩의 출처·라이선스·스크립트 특성. 고지 화면과 갱신 판단이 이 값을 읽는다.
     pub fn metadata(&self) -> Option<Metadata<'bytes>> {
         self.section(SectionKind::Metadata).map(Metadata::new)

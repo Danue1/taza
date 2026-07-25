@@ -53,10 +53,12 @@ pub fn normalize(
     rules: &LexiconRules,
 ) -> (Vec<(String, u32)>, NormalizeReport) {
     let has_inventory = signals.iter().any(|signal| signal.role == Role::Inventory);
-    let stems: HashSet<Vec<char>> = signals
-        .iter()
-        .flat_map(|signal| signal.stems.iter().map(|stem| inflection_key(stem)))
-        .collect();
+    let mut stems = InflectionStems::default();
+    for signal in signals {
+        for stem in signal.stems {
+            stems.insert(stem);
+        }
+    }
     let mut accumulated: HashMap<&str, Accumulated> = HashMap::new();
     let mut accepted_inflections = 0usize;
     for signal in signals {
@@ -74,7 +76,7 @@ pub fn normalize(
                     let entry = match accumulated.get_mut(word.as_str()) {
                         Some(entry) => entry,
                         None if !has_inventory => accumulated.entry(word).or_default(),
-                        None if rules.accept_inflections && grows_from_stem(word, &stems) => {
+                        None if rules.accept_inflections && stems.grew(word) => {
                             accepted_inflections += 1;
                             accumulated.entry(word).or_default()
                         }
@@ -273,13 +275,53 @@ fn inflection_key(word: &str) -> Vec<char> {
     decompose_word(word).unwrap_or_else(|| word.chars().collect())
 }
 
-/// 알려진 어간에서 뻗어 나온 낱말인가 — 활용형으로 볼 수 있는 최소 조건이다.
-/// 한국어 용언 어간은 대개 한 음절(있·하·같)이라 길이로 더 조이면 정작 흔한 활용형이
-/// 다 걸러진다. 어간 집합이 용언 파일에서만 오므로(고유명사는 애초에 빠져 있다)
-/// 이 조건만으로도 잡음이 새는 길은 좁다.
-fn grows_from_stem(word: &str, stems: &HashSet<Vec<char>>) -> bool {
-    let key = inflection_key(word);
-    (1..key.len()).any(|length| stems.contains(&key[..length]))
+/// 어간 말모음이 어미와 축약돼 아예 다른 모음으로 나타나는 짝. 두벌식에서 두 키인
+/// 축약(ㅗ+ㅏ→ㅘ, ㅜ+ㅓ→ㅝ)은 자모로 풀면 덧붙음으로 보여 이미 접두로 잡히므로,
+/// 한 키짜리 모음으로 바뀌어 접두 관계가 끊기는 것만 적는다.
+const VOWEL_CONTRACTIONS: [(char, &[char]); 3] = [
+    ('ㅏ', &['ㅐ']),       // 하 + 여 → 해
+    ('ㅣ', &['ㅕ']),       // 마시 + 어 → 마셔
+    ('ㅡ', &['ㅓ', 'ㅏ']), // 쓰 + 어 → 써, 바쁘 + 아 → 바빠
+];
+
+/// 활용형을 알아보는 어간 색인. 축약형을 따로 두는 이유는 어절이 될 조건이 다르기
+/// 때문이다 — 표층 어간은 어미가 붙어야 어절이 되지만("하"는 어절이 아니다),
+/// 축약형은 이미 어미가 녹아든 형태라 그 자체로 어절이다("해", "미안해", "써").
+#[derive(Default)]
+struct InflectionStems {
+    bare: HashSet<Vec<char>>,
+    contracted: HashSet<Vec<char>>,
+}
+
+impl InflectionStems {
+    fn insert(&mut self, stem: &str) {
+        let key = inflection_key(stem);
+        let Some(&last) = key.last() else {
+            return;
+        };
+        for (vowel, contractions) in VOWEL_CONTRACTIONS {
+            if vowel != last {
+                continue;
+            }
+            for &replacement in contractions {
+                let mut variant = key.clone();
+                variant.pop();
+                variant.push(replacement);
+                self.contracted.insert(variant);
+            }
+        }
+        self.bare.insert(key);
+    }
+
+    /// 알려진 어간에서 뻗어 나온 낱말인가 — 활용형으로 볼 수 있는 최소 조건이다.
+    /// 한국어 용언 어간은 대개 한 음절(있·하·같)이라 길이로 더 조이면 정작 흔한
+    /// 활용형이 다 걸러진다. 어간 집합이 용언 파일에서만 오므로(고유명사는 애초에
+    /// 빠져 있다) 이 조건만으로도 잡음이 새는 길은 좁다.
+    fn grew(&self, word: &str) -> bool {
+        let key = inflection_key(word);
+        (1..key.len()).any(|length| self.bare.contains(&key[..length]))
+            || (1..=key.len()).any(|length| self.contracted.contains(&key[..length]))
+    }
 }
 
 /// 실사용 횟수는 로그로 눌러 담는다 — 상위 몇 낱말이 점수 공간을 독점하지 않게.

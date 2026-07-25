@@ -6,19 +6,35 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.9"
+    # 비워 두면 앱이 다운로드를 "배포처 미설정"으로 표시한다. 로컬 확인은
+    # `xcodebuild TAZA_PACK_CATALOG_URL=file:///…/data/packs/catalog.json`처럼 넘긴다.
+    TAZA_PACK_CATALOG_URL: ""
 targets:
   TazaApp:
     type: application
     platform: iOS
-    sources: [TazaApp]
+    # 디자인 시스템·언어 설정은 익스텐션과 앱이 함께 쓴다
+    sources:
+      - TazaApp
+      - TazaDesignSystem
+      - TazaShared
+      # 사전 다운로드·설치는 컨테이너 앱 전담이므로 앱도 코어 FFI를 링크한다
+      - Generated
     info:
       path: TazaApp/Info.plist
       properties:
         UILaunchScreen: {}
         CFBundleDisplayName: Taza
+        CFBundleURLTypes:
+          - CFBundleURLName: io.danuel.taza
+            CFBundleURLSchemes: [taza]
+        # 언어팩 배포처. 개발 중에는 로컬 카탈로그(file:// 또는 사내 호스트)를 가리킨다.
+        TazaPackCatalogURL: $(TAZA_PACK_CATALOG_URL)
     dependencies:
       - target: TazaKeyboard
         embed: true
+      - framework: TazaFfi.xcframework
+        embed: false
   TazaKeyboard:
     type: app-extension
     platform: iOS
@@ -27,10 +43,12 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: io.danuel.taza.TazaApp.keyboard
     sources:
       - TazaKeyboard
+      - TazaDesignSystem
+      - TazaShared
       - Generated
+      # 기본 언어만 내장한다 — 나머지 언어는 컨테이너 앱이 내려받아 App Group에 놓고,
+      # 익스텐션은 설치된 팩을 우선해서 mmap한다 (PackStore).
       - path: ../../data/packs/english.tazapack
-        buildPhase: resources
-      - path: ../../data/packs/korean.tazapack
         buildPhase: resources
     info:
       path: TazaKeyboard/Info.plist

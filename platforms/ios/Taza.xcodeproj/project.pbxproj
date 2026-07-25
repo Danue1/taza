@@ -7,12 +7,32 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		06BA5BE0A5AA3486C935ED67 /* AlternatesPopupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4B96DBD027FDAC753ED1C22 /* AlternatesPopupView.swift */; };
+		0E30F9C34F96DCD74EB9A582 /* TazaFfi.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 574B66EBEC60DDBFD132D9FB /* TazaFfi.xcframework */; };
+		12DF9E1CAAA30308638617BC /* PackStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEBE767DBD452E15506A5A63 /* PackStore.swift */; };
+		17A73285A7A75F1F16D90EE9 /* PopupMenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CF4D18278033FE3DE2C617D /* PopupMenuView.swift */; };
+		1AC4ED72A4D1ABD55DBDFFF1 /* AlternatesPopupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4B96DBD027FDAC753ED1C22 /* AlternatesPopupView.swift */; };
 		26A0513E4B66D6CE6DB73F41 /* TazaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED73162F9E8CB714176E666F /* TazaApp.swift */; };
+		3019F5A031B7115115BC292F /* TazaTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41F6BF764826351F53195B38 /* TazaTheme.swift */; };
+		30BDB01EA0873C1877520D3A /* TazaTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41F6BF764826351F53195B38 /* TazaTheme.swift */; };
+		369E46DF161F9B435DF3F758 /* PackDistribution.swift in Sources */ = {isa = PBXBuildFile; fileRef = 884F7F9DE893001ADF7495D9 /* PackDistribution.swift */; };
 		3E0BC546CC1D731D0B6A3450 /* KeyboardViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E277A6F3562678279800454E /* KeyboardViewController.swift */; };
+		4F214DC30D753E60B9747574 /* LanguagePreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB583ACD6DB1BB697B271FC5 /* LanguagePreferences.swift */; };
 		59D49C2340D7FE5D2D10FABA /* TazaFfi.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 574B66EBEC60DDBFD132D9FB /* TazaFfi.xcframework */; };
+		5E4263D489496E09E4383A59 /* PackStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEBE767DBD452E15506A5A63 /* PackStore.swift */; };
+		6960AF473D2FC302038FF650 /* PackLibraryModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4957B682B5A359C74E1326BE /* PackLibraryModel.swift */; };
+		8E5AF29409A34ECA1642E37B /* taza_ffi.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09D758E33FF50C0D459ED005 /* taza_ffi.swift */; };
+		985D52154ACD24EF1991EB7F /* KeyCapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D73EC3E65D47C2BDD32ACE91 /* KeyCapView.swift */; };
 		9A68A8DF12A9534D11183FEE /* taza_ffi.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09D758E33FF50C0D459ED005 /* taza_ffi.swift */; };
 		A4C42B0C343DF0FB1AC2133F /* TazaKeyboard.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D2F92E8CE1713F64464B2F31 /* TazaKeyboard.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		F59ACA26E53B0BA73848F8E9 /* korean.tazapack in Resources */ = {isa = PBXBuildFile; fileRef = 01E96B42EC4AB1EAD8B54BA1 /* korean.tazapack */; };
+		B8BAAABBD9299848CAA18DCB /* KeyboardGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 231812FDBF992843227998D5 /* KeyboardGridView.swift */; };
+		BBA947F49AD25E089A393156 /* PopupMenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CF4D18278033FE3DE2C617D /* PopupMenuView.swift */; };
+		BBE5DF3D9481195887C2E4A9 /* CandidateBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A063705662AC7D869C6B9CA8 /* CandidateBarView.swift */; };
+		D9BC3D52CB9C0EEABAD2DD39 /* KeyCapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D73EC3E65D47C2BDD32ACE91 /* KeyCapView.swift */; };
+		E8EFF20B9BD72F4F70F27FD8 /* CandidateBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A063705662AC7D869C6B9CA8 /* CandidateBarView.swift */; };
+		E973811921C023B99C178023 /* KeyboardGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 231812FDBF992843227998D5 /* KeyboardGridView.swift */; };
+		EE063B6901756837FB1E0522 /* PackDistribution.swift in Sources */ = {isa = PBXBuildFile; fileRef = 884F7F9DE893001ADF7495D9 /* PackDistribution.swift */; };
+		EF91DFC274CB7EE0DE2FC447 /* LanguagePreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB583ACD6DB1BB697B271FC5 /* LanguagePreferences.swift */; };
 		FA80F36305EBB2C36AD14416 /* english.tazapack in Resources */ = {isa = PBXBuildFile; fileRef = 967EC11F78904F1D768ACEFF /* english.tazapack */; };
 /* End PBXBuildFile section */
 
@@ -41,18 +61,25 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		01E96B42EC4AB1EAD8B54BA1 /* korean.tazapack */ = {isa = PBXFileReference; path = korean.tazapack; sourceTree = "<group>"; };
 		09D758E33FF50C0D459ED005 /* taza_ffi.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = taza_ffi.swift; sourceTree = "<group>"; };
-		173F7EA0753F967D5CFD3655 /* taza_ffiFFI.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = taza_ffiFFI.h; sourceTree = "<group>"; };
+		1CF4D18278033FE3DE2C617D /* PopupMenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopupMenuView.swift; sourceTree = "<group>"; };
+		231812FDBF992843227998D5 /* KeyboardGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardGridView.swift; sourceTree = "<group>"; };
+		41F6BF764826351F53195B38 /* TazaTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TazaTheme.swift; sourceTree = "<group>"; };
+		4957B682B5A359C74E1326BE /* PackLibraryModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackLibraryModel.swift; sourceTree = "<group>"; };
 		574B66EBEC60DDBFD132D9FB /* TazaFfi.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = TazaFfi.xcframework; sourceTree = "<group>"; };
+		884F7F9DE893001ADF7495D9 /* PackDistribution.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackDistribution.swift; sourceTree = "<group>"; };
 		967EC11F78904F1D768ACEFF /* english.tazapack */ = {isa = PBXFileReference; path = english.tazapack; sourceTree = "<group>"; };
+		A063705662AC7D869C6B9CA8 /* CandidateBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateBarView.swift; sourceTree = "<group>"; };
+		AEBE767DBD452E15506A5A63 /* PackStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackStore.swift; sourceTree = "<group>"; };
 		B2D44F944B1A5EDD1842A418 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
-		B58086723E62EFD160475AC0 /* taza_ffiFFI.modulemap */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.module-map"; path = taza_ffiFFI.modulemap; sourceTree = "<group>"; };
 		D2F92E8CE1713F64464B2F31 /* TazaKeyboard.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = TazaKeyboard.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		D73EC3E65D47C2BDD32ACE91 /* KeyCapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyCapView.swift; sourceTree = "<group>"; };
 		DCB46D787A274326D1E6E049 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		E277A6F3562678279800454E /* KeyboardViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardViewController.swift; sourceTree = "<group>"; };
+		EB583ACD6DB1BB697B271FC5 /* LanguagePreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguagePreferences.swift; sourceTree = "<group>"; };
 		EC8A29F7A6126AC96406242C /* TazaApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TazaApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		ED73162F9E8CB714176E666F /* TazaApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TazaApp.swift; sourceTree = "<group>"; };
+		F4B96DBD027FDAC753ED1C22 /* AlternatesPopupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlternatesPopupView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -64,6 +91,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		61DE1C84951E558A03606714 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0E30F9C34F96DCD74EB9A582 /* TazaFfi.xcframework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -71,8 +106,6 @@
 			isa = PBXGroup;
 			children = (
 				09D758E33FF50C0D459ED005 /* taza_ffi.swift */,
-				173F7EA0753F967D5CFD3655 /* taza_ffiFFI.h */,
-				B58086723E62EFD160475AC0 /* taza_ffiFFI.modulemap */,
 			);
 			path = Generated;
 			sourceTree = "<group>";
@@ -81,9 +114,33 @@
 			isa = PBXGroup;
 			children = (
 				B2D44F944B1A5EDD1842A418 /* Info.plist */,
+				4957B682B5A359C74E1326BE /* PackLibraryModel.swift */,
 				ED73162F9E8CB714176E666F /* TazaApp.swift */,
 			);
 			path = TazaApp;
+			sourceTree = "<group>";
+		};
+		A207D19956AA7DCF483A7B09 /* TazaDesignSystem */ = {
+			isa = PBXGroup;
+			children = (
+				F4B96DBD027FDAC753ED1C22 /* AlternatesPopupView.swift */,
+				A063705662AC7D869C6B9CA8 /* CandidateBarView.swift */,
+				231812FDBF992843227998D5 /* KeyboardGridView.swift */,
+				D73EC3E65D47C2BDD32ACE91 /* KeyCapView.swift */,
+				1CF4D18278033FE3DE2C617D /* PopupMenuView.swift */,
+				41F6BF764826351F53195B38 /* TazaTheme.swift */,
+			);
+			path = TazaDesignSystem;
+			sourceTree = "<group>";
+		};
+		A3A264251F71F89B3EB2FC5E /* TazaShared */ = {
+			isa = PBXGroup;
+			children = (
+				EB583ACD6DB1BB697B271FC5 /* LanguagePreferences.swift */,
+				884F7F9DE893001ADF7495D9 /* PackDistribution.swift */,
+				AEBE767DBD452E15506A5A63 /* PackStore.swift */,
+			);
+			path = TazaShared;
 			sourceTree = "<group>";
 		};
 		B14A7D11CF177ADF0A3B9514 /* Frameworks */ = {
@@ -118,7 +175,9 @@
 				59973978AA06E686130F3C5C /* Generated */,
 				E2B506EE41D55AC9C1F048D8 /* packs */,
 				9C5ED62067042AFC3E057D86 /* TazaApp */,
+				A207D19956AA7DCF483A7B09 /* TazaDesignSystem */,
 				C1A98C305B918F916778E615 /* TazaKeyboard */,
+				A3A264251F71F89B3EB2FC5E /* TazaShared */,
 				B14A7D11CF177ADF0A3B9514 /* Frameworks */,
 				BA040973AB30D1953EF06239 /* Products */,
 			);
@@ -128,7 +187,6 @@
 			isa = PBXGroup;
 			children = (
 				967EC11F78904F1D768ACEFF /* english.tazapack */,
-				01E96B42EC4AB1EAD8B54BA1 /* korean.tazapack */,
 			);
 			name = packs;
 			path = ../../data/packs;
@@ -161,6 +219,7 @@
 			buildConfigurationList = FF6F6D367477BEE9B6971297 /* Build configuration list for PBXNativeTarget "TazaApp" */;
 			buildPhases = (
 				E392EC30A448E0734B689918 /* Sources */,
+				61DE1C84951E558A03606714 /* Frameworks */,
 				088B39EADA8099DBA84AA490 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
@@ -212,7 +271,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				FA80F36305EBB2C36AD14416 /* english.tazapack in Resources */,
-				F59ACA26E53B0BA73848F8E9 /* korean.tazapack in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -223,7 +281,16 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				06BA5BE0A5AA3486C935ED67 /* AlternatesPopupView.swift in Sources */,
+				E8EFF20B9BD72F4F70F27FD8 /* CandidateBarView.swift in Sources */,
+				D9BC3D52CB9C0EEABAD2DD39 /* KeyCapView.swift in Sources */,
+				E973811921C023B99C178023 /* KeyboardGridView.swift in Sources */,
 				3E0BC546CC1D731D0B6A3450 /* KeyboardViewController.swift in Sources */,
+				EF91DFC274CB7EE0DE2FC447 /* LanguagePreferences.swift in Sources */,
+				369E46DF161F9B435DF3F758 /* PackDistribution.swift in Sources */,
+				5E4263D489496E09E4383A59 /* PackStore.swift in Sources */,
+				17A73285A7A75F1F16D90EE9 /* PopupMenuView.swift in Sources */,
+				30BDB01EA0873C1877520D3A /* TazaTheme.swift in Sources */,
 				9A68A8DF12A9534D11183FEE /* taza_ffi.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -232,7 +299,18 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1AC4ED72A4D1ABD55DBDFFF1 /* AlternatesPopupView.swift in Sources */,
+				BBE5DF3D9481195887C2E4A9 /* CandidateBarView.swift in Sources */,
+				985D52154ACD24EF1991EB7F /* KeyCapView.swift in Sources */,
+				B8BAAABBD9299848CAA18DCB /* KeyboardGridView.swift in Sources */,
+				4F214DC30D753E60B9747574 /* LanguagePreferences.swift in Sources */,
+				EE063B6901756837FB1E0522 /* PackDistribution.swift in Sources */,
+				6960AF473D2FC302038FF650 /* PackLibraryModel.swift in Sources */,
+				12DF9E1CAAA30308638617BC /* PackStore.swift in Sources */,
+				BBA947F49AD25E089A393156 /* PopupMenuView.swift in Sources */,
 				26A0513E4B66D6CE6DB73F41 /* TazaApp.swift in Sources */,
+				3019F5A031B7115115BC292F /* TazaTheme.swift in Sources */,
+				8E5AF29409A34ECA1642E37B /* taza_ffi.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -338,6 +416,7 @@
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.9;
+				TAZA_PACK_CATALOG_URL = "";
 			};
 			name = Release;
 		};
@@ -346,6 +425,10 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\".\"",
+				);
 				INFOPLIST_FILE = TazaApp/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -417,6 +500,7 @@
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.9;
+				TAZA_PACK_CATALOG_URL = "";
 			};
 			name = Debug;
 		};
@@ -425,6 +509,10 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\".\"",
+				);
 				INFOPLIST_FILE = TazaApp/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

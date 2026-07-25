@@ -1,5 +1,5 @@
 use taza_ffi::{
-    FfiEditorContext, FfiEffect, FfiFieldKind, FfiFormFactor, FfiInputEvent,
+    FfiEditorContext, FfiEffect, FfiFieldKind, FfiFormFactor, FfiInputEvent, FfiUserPreferences,
     KeyboardSession,
 };
 
@@ -123,6 +123,28 @@ fn personalization_snapshot_over_ffi() {
     let restored = KeyboardSession::new("en".to_string()).unwrap();
     restored.restore_personalization(snapshot.clone());
     assert_eq!(restored.personalization_snapshot(), snapshot);
+}
+
+#[test]
+fn preferences_injection_reaches_the_core() {
+    let session = KeyboardSession::new("en".to_string()).unwrap();
+    session.set_preferences(FfiUserPreferences {
+        auto_correction: true,
+        predictions: true,
+        double_space_period: false,
+        personalized_learning: true,
+    });
+    let effects = session.handle_event(
+        FfiInputEvent::Separator {
+            character: " ".to_string(),
+        },
+        context("hi "),
+    );
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, FfiEffect::CommitText { text } if text == " "))
+    );
 }
 
 #[test]

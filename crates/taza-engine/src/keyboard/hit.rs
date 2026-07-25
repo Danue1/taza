@@ -105,12 +105,7 @@ pub(crate) fn key_position_at(layout: &KeyboardLayout, x: f32, y: f32) -> KeyPos
 
 /// 좌표가 만든 문자 키 신호. 눌린 키가 문자 키일 때만 뜻이 있으며, 첫 항목은 기하
 /// 판정이 고른 키와 언제나 같다 — 화면에 찍히는 글자와 판정이 어긋나면 안 된다.
-pub(crate) fn key_signal_at(
-    layout: &KeyboardLayout,
-    x: f32,
-    y: f32,
-    pressed: char,
-) -> KeySignal {
+pub(crate) fn key_signal_at(layout: &KeyboardLayout, x: f32, y: f32, pressed: char) -> KeySignal {
     let mut scored: Vec<(f32, char)> = Vec::new();
     let heights = row_heights(layout);
     for (row_index, row) in layout.rows.iter().enumerate() {

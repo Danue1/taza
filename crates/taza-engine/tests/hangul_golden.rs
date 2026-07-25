@@ -1,8 +1,8 @@
-use taza_engine::keyboard::KeySignal;
 use taza_engine::contract::{
-    Composer, ComposerEvent, EditorContext, Effect, InputEvent,
+    Composer, ComposerEvent, EditorContext, Effect, InputEvent, UserPreferences,
 };
 use taza_engine::engine::Engine;
+use taza_engine::keyboard::KeySignal;
 use taza_engine::lang::LanguageDescriptor;
 use taza_engine::lang::hangul::HangulComposer;
 
@@ -131,6 +131,41 @@ fn separator_commits_window() {
 #[test]
 fn double_space_inserts_period() {
     assert_text("ㄱㅏ__", "가. ", None);
+}
+
+/// 더블 스페이스 마침표는 언어와 무관한 규칙이라 합성기가 아니라 Engine이 본다 —
+/// 설정을 끄면 한글에서도 공백 두 개가 그대로 남는다.
+#[test]
+fn double_space_period_setting_reaches_hangul() {
+    let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap()).unwrap();
+    engine.set_preferences(UserPreferences {
+        double_space_period: false,
+        ..UserPreferences::default()
+    });
+    let mut committed = String::new();
+    for input in [
+        InputEvent::Key(KeySignal::certain('ㄱ')),
+        InputEvent::Key(KeySignal::certain('ㅏ')),
+        InputEvent::Separator(' '),
+        InputEvent::Separator(' '),
+    ] {
+        let context = EditorContext {
+            text_before_cursor: Some(committed.clone()),
+            ..EditorContext::unavailable()
+        };
+        for effect in engine.handle(input, &context) {
+            match effect {
+                Effect::CommitText(text) => committed.push_str(&text),
+                Effect::DeleteBackward(count) => {
+                    for _ in 0..count {
+                        committed.pop();
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    assert_eq!(committed, "가  ");
 }
 
 #[test]

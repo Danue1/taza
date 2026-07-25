@@ -114,7 +114,8 @@ impl TypoSynthesizer {
 
     /// 이 배열로 칠 수 있는 낱말인가.
     pub fn can_type(&self, text: &str) -> bool {
-        text.chars().all(|character| self.centers.contains_key(&character))
+        text.chars()
+            .all(|character| self.centers.contains_key(&character))
     }
 
     /// 단어 하나에서 오타 변형 하나를 만든다. 유형: 인접 키 치환·인접 전치·탈락·인접 삽입.

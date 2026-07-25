@@ -7,14 +7,15 @@ use std::sync::Arc;
 
 use crate::contract::{
     Candidate, Composer, ComposerEvent, ComposerOutput, EditorContext, Effect, InputEvent, Pack,
-    SuggestionRequest,
+    SuggestionRequest, UserPreferences,
 };
 use crate::keyboard::{
-    FrameKey, FrameMetrics, Keyboard, KeyboardFrame, KeyboardMetrics, KeySignal, ShellRequest,
+    FrameKey, FrameMetrics, KeySignal, Keyboard, KeyboardFrame, KeyboardMetrics, ShellRequest,
 };
 use crate::lang::LanguageDescriptor;
 use crate::pack::PackError;
 use crate::personalization::{PersonalizationState, PersonalizationStore};
+use crate::policy::Assistance;
 use crate::suggest::{Suggester, Suggestion, SuggestionSources};
 
 /// 언어팩 바이트의 소유자. 온디바이스에서는 mmap, 테스트·평가에서는 `Vec<u8>`이며
@@ -47,6 +48,7 @@ pub struct Engine {
     personalization: PersonalizationStore,
     /// 팩 교체로 키보드를 다시 만들어도 셸이 주입한 표시 환경은 이어져야 한다
     metrics: KeyboardMetrics,
+    preferences: UserPreferences,
     pack: Option<Arc<dyn PackBytes>>,
     /// 후보 목록은 Engine이 소유한다 — 셸은 인덱스로 고르고, 학습·문맥 추적에 쓰는
     /// 조회 키는 표시 텍스트와 함께 여기에만 남는다
@@ -87,6 +89,7 @@ impl Engine {
             language,
             personalization: PersonalizationStore::new(),
             metrics: KeyboardMetrics::default(),
+            preferences: UserPreferences::default(),
             pack: None,
             suggestions: Vec::new(),
             previous_word: None,
@@ -120,6 +123,13 @@ impl Engine {
         self.keyboard.set_metrics(self.metrics);
         self.pack = Some(pack);
         Ok(())
+    }
+
+    /// 사용자 설정 주입 — 셸이 설정 저장소에서 읽어 넣는다. 팩과 무관한 값이라
+    /// 팩을 갈아 끼워도 유지되고, 설정 화면에서 바뀐 값은 다음 키보드 표시 때
+    /// 이 호출로 반영된다.
+    pub fn set_preferences(&mut self, preferences: UserPreferences) {
+        self.preferences = preferences;
     }
 
     /// 표시 환경 주입 — 셸이 자기 크기를 알게 될 때(첫 배치, 회전, 분할) 부른다.
@@ -245,6 +255,12 @@ impl Engine {
         self.personalization = PersonalizationStore::restore(state);
     }
 
+    /// 배운 것을 전부 잊는다 — 순정 키보드의 "키보드 사전 재설정"에 해당한다.
+    /// 학습을 끄는 설정과 짝이다: 설정은 앞으로를 막고 이것은 지난 것을 지운다.
+    pub fn reset_personalization(&mut self) {
+        self.personalization = PersonalizationStore::new();
+    }
+
     /// 합성기를 돌린 뒤 랭킹·자동교정·학습을 얹어 Effect로 옮긴다.
     /// `selected`는 후보 선택으로 어절이 끝난 경우의 그 후보다.
     fn feed(
@@ -259,8 +275,8 @@ impl Engine {
             .as_ref()
             .and_then(|holder| Pack::open(holder.bytes()).ok());
         let was_composing = self.composer.is_composing();
-        let output = self.composer.feed(event, context);
-        let assistance = context.field.assistance_enabled();
+        let output = self.compose(event, context);
+        let assistance = crate::policy::assistance(&self.preferences, context);
 
         let ComposerOutput {
             mut delete_before_commit,
@@ -277,9 +293,9 @@ impl Engine {
         // 어절이 끝났는가 — 경계 문자를 쳤거나 후보를 골랐거나
         let confirmed = match boundary {
             Some(boundary) => {
-                let correction = if assistance {
+                let correction = if assistance.correcting {
                     self.suggester
-                        .autocorrection(&boundary.key, &self.sources(pack.as_ref()))
+                        .autocorrection(&boundary.key, &self.sources(pack.as_ref(), assistance))
                 } else {
                     None
                 };
@@ -305,20 +321,23 @@ impl Engine {
             Some(key) => {
                 // 어절이 끝났으므로 다음 어절은 새 터치 신호로 시작한다
                 self.touches.clear();
-                if assistance && !context.incognito && !key.is_empty() {
+                // 시크릿 필드는 학습만 막고 조회는 그대로 둔다 — 순정 키보드도
+                // 이미 배운 말은 시크릿에서 계속 제안한다
+                if assistance.personalizing && !context.incognito && !key.is_empty() {
                     self.personalization.record(key);
                 }
                 self.previous_word = (!key.is_empty()).then(|| key.clone());
-                if assistance {
-                    self.suggester.predict_next(&self.sources(pack.as_ref()))
+                if assistance.predicting {
+                    self.suggester
+                        .predict_next(&self.sources(pack.as_ref(), assistance))
                 } else {
                     Vec::new()
                 }
             }
             None => match &suggest {
-                SuggestionRequest::Word { key } if assistance => {
-                    self.suggester.suggest(key, &self.sources(pack.as_ref()))
-                }
+                SuggestionRequest::Word { key } if assistance.predicting => self
+                    .suggester
+                    .suggest(key, &self.sources(pack.as_ref(), assistance)),
                 _ => Vec::new(),
             },
         };
@@ -339,6 +358,19 @@ impl Engine {
         effects
     }
 
+    /// 합성기를 돌리기 전에 언어와 무관한 규칙을 먼저 본다. 지금은 더블 스페이스
+    /// 마침표 하나뿐이고, 조합 중에는 성립할 수 없으므로 합성기 상태를 건드리지 않는다.
+    fn compose(&mut self, event: ComposerEvent, context: &EditorContext) -> ComposerOutput {
+        if event == ComposerEvent::Separator(' ')
+            && self.preferences.double_space_period
+            && !self.composer.is_composing()
+            && let Some(output) = crate::policy::double_space_period(context)
+        {
+            return output;
+        }
+        self.composer.feed(event, context)
+    }
+
     /// 자동교정 직후의 Backspace — 교정 결과를 지우고 사용자가 친 원문을 되살린다.
     /// 이어지는 타이핑은 문맥 채택(adopt)이 알아서 그 어절을 잇는다.
     fn revert(&mut self, correction: Correction) -> Vec<Effect> {
@@ -351,10 +383,14 @@ impl Engine {
         effects
     }
 
-    fn sources<'call>(&'call self, pack: Option<&'call Pack<'call>>) -> SuggestionSources<'call> {
+    fn sources<'call>(
+        &'call self,
+        pack: Option<&'call Pack<'call>>,
+        assistance: Assistance,
+    ) -> SuggestionSources<'call> {
         SuggestionSources {
             pack,
-            personalization: &self.personalization,
+            personalization: assistance.personalizing.then_some(&self.personalization),
             previous_word: self.previous_word.as_deref(),
             touches: &self.touches,
         }

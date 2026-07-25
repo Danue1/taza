@@ -316,6 +316,11 @@ RustBuffer uniffi_taza_ffi_fn_method_keyboardsession_personalization_snapshot(vo
 RustBuffer uniffi_taza_ffi_fn_method_keyboardsession_press_at(void*_Nonnull ptr, float x, float y, RustBuffer context, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_RESET_PERSONALIZATION
+#define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_RESET_PERSONALIZATION
+void uniffi_taza_ffi_fn_method_keyboardsession_reset_personalization(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_RESTORE_PERSONALIZATION
 #define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_RESTORE_PERSONALIZATION
 void uniffi_taza_ffi_fn_method_keyboardsession_restore_personalization(void*_Nonnull ptr, RustBuffer lines, RustCallStatus *_Nonnull out_status
@@ -331,9 +336,20 @@ RustBuffer uniffi_taza_ffi_fn_method_keyboardsession_select_alternate(void*_Nonn
 void uniffi_taza_ffi_fn_method_keyboardsession_set_metrics(void*_Nonnull ptr, RustBuffer form_factor, float width_points, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_SET_PREFERENCES
+#define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_SET_PREFERENCES
+void uniffi_taza_ffi_fn_method_keyboardsession_set_preferences(void*_Nonnull ptr, RustBuffer preferences, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_UPDATE_CURSOR_DRAG
 #define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_UPDATE_CURSOR_DRAG
 RustBuffer uniffi_taza_ffi_fn_method_keyboardsession_update_cursor_drag(void*_Nonnull ptr, float x, RustBuffer context, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_FUNC_DEFAULT_USER_PREFERENCES
+#define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_FUNC_DEFAULT_USER_PREFERENCES
+RustBuffer uniffi_taza_ffi_fn_func_default_user_preferences(RustCallStatus *_Nonnull out_status
+    
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_FUNC_INSTALL_PACK_ARCHIVE
@@ -632,6 +648,12 @@ void ffi_taza_ffi_rust_future_free_void(uint64_t handle
 void ffi_taza_ffi_rust_future_complete_void(uint64_t handle, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_FUNC_DEFAULT_USER_PREFERENCES
+#define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_FUNC_DEFAULT_USER_PREFERENCES
+uint16_t uniffi_taza_ffi_checksum_func_default_user_preferences(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_FUNC_INSTALL_PACK_ARCHIVE
 #define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_FUNC_INSTALL_PACK_ARCHIVE
 uint16_t uniffi_taza_ffi_checksum_func_install_pack_archive(void
@@ -710,6 +732,12 @@ uint16_t uniffi_taza_ffi_checksum_method_keyboardsession_press_at(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_RESET_PERSONALIZATION
+#define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_RESET_PERSONALIZATION
+uint16_t uniffi_taza_ffi_checksum_method_keyboardsession_reset_personalization(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_RESTORE_PERSONALIZATION
 #define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_RESTORE_PERSONALIZATION
 uint16_t uniffi_taza_ffi_checksum_method_keyboardsession_restore_personalization(void
@@ -725,6 +753,12 @@ uint16_t uniffi_taza_ffi_checksum_method_keyboardsession_select_alternate(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_SET_METRICS
 #define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_SET_METRICS
 uint16_t uniffi_taza_ffi_checksum_method_keyboardsession_set_metrics(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_SET_PREFERENCES
+#define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_SET_PREFERENCES
+uint16_t uniffi_taza_ffi_checksum_method_keyboardsession_set_preferences(void
     
 );
 #endif

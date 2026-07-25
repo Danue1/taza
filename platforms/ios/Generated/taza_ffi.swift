@@ -598,6 +598,12 @@ public protocol KeyboardSessionProtocol: AnyObject, Sendable {
      */
     func pressAt(x: Float, y: Float, context: FfiEditorContext)  -> FfiPressResult
     
+    /**
+     * 배운 것을 전부 잊는다 — 순정의 "키보드 사전 재설정". 셸은 이 호출과 함께
+     * 보관 중인 스냅샷도 지운다.
+     */
+    func resetPersonalization() 
+    
     func restorePersonalization(lines: [String]) 
     
     /**
@@ -610,6 +616,12 @@ public protocol KeyboardSessionProtocol: AnyObject, Sendable {
      * 이후 프레임의 치수는 이 값을 따른다.
      */
     func setMetrics(formFactor: FfiFormFactor, widthPoints: Float) 
+    
+    /**
+     * 사용자 설정 주입 — 셸은 키보드를 띄울 때마다 자기 저장소에서 읽어 넣는다.
+     * 설정 화면에서 바뀐 값은 다음 표시 때 이 호출로 반영된다.
+     */
+    func setPreferences(preferences: FfiUserPreferences) 
     
     func updateCursorDrag(x: Float, context: FfiEditorContext)  -> [FfiEffect]
     
@@ -785,6 +797,16 @@ open func pressAt(x: Float, y: Float, context: FfiEditorContext) -> FfiPressResu
 })
 }
     
+    /**
+     * 배운 것을 전부 잊는다 — 순정의 "키보드 사전 재설정". 셸은 이 호출과 함께
+     * 보관 중인 스냅샷도 지운다.
+     */
+open func resetPersonalization()  {try! rustCall() {
+    uniffi_taza_ffi_fn_method_keyboardsession_reset_personalization(self.uniffiClonePointer(),$0
+    )
+}
+}
+    
 open func restorePersonalization(lines: [String])  {try! rustCall() {
     uniffi_taza_ffi_fn_method_keyboardsession_restore_personalization(self.uniffiClonePointer(),
         FfiConverterSequenceString.lower(lines),$0
@@ -812,6 +834,17 @@ open func setMetrics(formFactor: FfiFormFactor, widthPoints: Float)  {try! rustC
     uniffi_taza_ffi_fn_method_keyboardsession_set_metrics(self.uniffiClonePointer(),
         FfiConverterTypeFfiFormFactor_lower(formFactor),
         FfiConverterFloat.lower(widthPoints),$0
+    )
+}
+}
+    
+    /**
+     * 사용자 설정 주입 — 셸은 키보드를 띄울 때마다 자기 저장소에서 읽어 넣는다.
+     * 설정 화면에서 바뀐 값은 다음 표시 때 이 호출로 반영된다.
+     */
+open func setPreferences(preferences: FfiUserPreferences)  {try! rustCall() {
+    uniffi_taza_ffi_fn_method_keyboardsession_set_preferences(self.uniffiClonePointer(),
+        FfiConverterTypeFfiUserPreferences_lower(preferences),$0
     )
 }
 }
@@ -1694,6 +1727,96 @@ public func FfiConverterTypeFfiPressResult_lift(_ buf: RustBuffer) throws -> Ffi
 #endif
 public func FfiConverterTypeFfiPressResult_lower(_ value: FfiPressResult) -> RustBuffer {
     return FfiConverterTypeFfiPressResult.lower(value)
+}
+
+
+/**
+ * 설정 화면이 소유하는 값 — 순정 키보드의 설정은 서드파티가 읽을 수 없으므로
+ * 셸이 자기 저장소에서 읽어 세션에 넣는다.
+ */
+public struct FfiUserPreferences {
+    public var autoCorrection: Bool
+    public var predictions: Bool
+    public var doubleSpacePeriod: Bool
+    public var personalizedLearning: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(autoCorrection: Bool, predictions: Bool, doubleSpacePeriod: Bool, personalizedLearning: Bool) {
+        self.autoCorrection = autoCorrection
+        self.predictions = predictions
+        self.doubleSpacePeriod = doubleSpacePeriod
+        self.personalizedLearning = personalizedLearning
+    }
+}
+
+#if compiler(>=6)
+extension FfiUserPreferences: Sendable {}
+#endif
+
+
+extension FfiUserPreferences: Equatable, Hashable {
+    public static func ==(lhs: FfiUserPreferences, rhs: FfiUserPreferences) -> Bool {
+        if lhs.autoCorrection != rhs.autoCorrection {
+            return false
+        }
+        if lhs.predictions != rhs.predictions {
+            return false
+        }
+        if lhs.doubleSpacePeriod != rhs.doubleSpacePeriod {
+            return false
+        }
+        if lhs.personalizedLearning != rhs.personalizedLearning {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(autoCorrection)
+        hasher.combine(predictions)
+        hasher.combine(doubleSpacePeriod)
+        hasher.combine(personalizedLearning)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiUserPreferences: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiUserPreferences {
+        return
+            try FfiUserPreferences(
+                autoCorrection: FfiConverterBool.read(from: &buf), 
+                predictions: FfiConverterBool.read(from: &buf), 
+                doubleSpacePeriod: FfiConverterBool.read(from: &buf), 
+                personalizedLearning: FfiConverterBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FfiUserPreferences, into buf: inout [UInt8]) {
+        FfiConverterBool.write(value.autoCorrection, into: &buf)
+        FfiConverterBool.write(value.predictions, into: &buf)
+        FfiConverterBool.write(value.doubleSpacePeriod, into: &buf)
+        FfiConverterBool.write(value.personalizedLearning, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiUserPreferences_lift(_ buf: RustBuffer) throws -> FfiUserPreferences {
+    return try FfiConverterTypeFfiUserPreferences.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiUserPreferences_lower(_ value: FfiUserPreferences) -> RustBuffer {
+    return FfiConverterTypeFfiUserPreferences.lower(value)
 }
 
 // Note that we don't yet support `indirect` for enums.
@@ -2708,6 +2831,16 @@ fileprivate struct FfiConverterSequenceSequenceTypeFfiFrameKey: FfiConverterRust
     }
 }
 /**
+ * 아직 사용자가 건드리지 않은 설정의 값. 기본값의 주인은 코어이므로 셸은 자기 표를
+ * 두지 않고 이 함수를 부른다.
+ */
+public func defaultUserPreferences() -> FfiUserPreferences  {
+    return try!  FfiConverterTypeFfiUserPreferences_lift(try! rustCall() {
+    uniffi_taza_ffi_fn_func_default_user_preferences($0
+    )
+})
+}
+/**
  * 아카이브를 검증·해제해 `destination_path`에 놓는다. 이미 있는 팩은 교체된다.
  */
 public func installPackArchive(archivePath: String, destinationPath: String, expectedArchiveSha256: String, expectedPackSha256: String)throws  -> FfiInstalledPack  {
@@ -2755,6 +2888,9 @@ private let initializationResult: InitializationResult = {
     if bindings_contract_version != scaffolding_contract_version {
         return InitializationResult.contractVersionMismatch
     }
+    if (uniffi_taza_ffi_checksum_func_default_user_preferences() != 51281) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_taza_ffi_checksum_func_install_pack_archive() != 64508) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -2794,6 +2930,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_taza_ffi_checksum_method_keyboardsession_press_at() != 48447) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_taza_ffi_checksum_method_keyboardsession_reset_personalization() != 25360) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_taza_ffi_checksum_method_keyboardsession_restore_personalization() != 5700) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -2801,6 +2940,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_taza_ffi_checksum_method_keyboardsession_set_metrics() != 53134) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_taza_ffi_checksum_method_keyboardsession_set_preferences() != 16590) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_taza_ffi_checksum_method_keyboardsession_update_cursor_drag() != 8289) {

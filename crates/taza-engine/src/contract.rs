@@ -24,6 +24,34 @@ impl FieldKind {
     }
 }
 
+/// 사용자가 설정 화면에서 켜고 끄는 것. 양 플랫폼 모두 순정 키보드의 이 설정들을
+/// 서드파티가 읽을 수 없으므로(iOS는 시스템 설정 비공개, Android는 IME마다 자기 설정)
+/// 값의 주인은 우리 설정 화면이고 셸이 세션에 주입한다. 필드 성격(`FieldKind`)과는
+/// AND로 결합한다 — 설정을 켜 두어도 비밀번호 필드에서는 보조 기능이 꺼진다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UserPreferences {
+    /// 어절이 끝날 때 오타를 사전 표제어로 갈아치운다
+    pub auto_correction: bool,
+    /// 후보 바에 완성·교정·다음 단어 예측을 띄운다
+    pub predictions: bool,
+    /// 공백 두 번을 ". "로 바꾼다 (iOS "." 단축키 / Gboard 더블 스페이스 마침표)
+    pub double_space_period: bool,
+    /// 확정한 어휘를 개인 사전에 기록해 이후 제안에 반영한다
+    pub personalized_learning: bool,
+}
+
+impl Default for UserPreferences {
+    /// 순정 키보드의 공장 초기값 — 넷 다 켜져 있다.
+    fn default() -> Self {
+        UserPreferences {
+            auto_correction: true,
+            predictions: true,
+            double_space_period: true,
+            personalized_learning: true,
+        }
+    }
+}
+
 /// 커서 주변 문맥. 플랫폼이 제공하지 못하면 None (iOS는 앱에 따라 0자·nil이 일상).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct EditorContext {

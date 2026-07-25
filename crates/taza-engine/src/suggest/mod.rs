@@ -46,11 +46,34 @@ pub struct Suggestion {
 /// 랭킹이 참조하는 온디바이스 자료 묶음. 팩은 mmap 뷰라 이벤트마다 새로 만든다.
 pub struct SuggestionSources<'call> {
     pub pack: Option<&'call Pack<'call>>,
-    pub personalization: &'call PersonalizationStore,
+    /// 개인화가 꺼진 입력(설정 off·비밀번호 필드 등)에서는 None — 그때는 기록도
+    /// 조회도 없이 사전과 언어모델만으로 랭킹한다.
+    pub personalization: Option<&'call PersonalizationStore>,
     /// 직전에 확정된 어휘의 조회 키 — 언어모델 문맥
     pub previous_word: Option<&'call str>,
     /// 지금 어절에 눌린 터치 신호 — 조회 키의 끝에서부터 맞춘다
     pub touches: &'call [KeySignal],
+}
+
+impl SuggestionSources<'_> {
+    fn learned_weight(&self, key: &str) -> u32 {
+        self.personalization.map_or(0, |store| store.weight(key))
+    }
+
+    fn is_learned(&self, key: &str) -> bool {
+        self.personalization
+            .is_some_and(|store| store.is_learned(key))
+    }
+
+    fn learned_entries(&self, query: &Query<'_>, limit: usize) -> Vec<Entry> {
+        self.personalization
+            .map_or_else(Vec::new, |store| store.search(query, limit))
+    }
+
+    fn learned_prefixes(&self, key: &str) -> Vec<(String, u32)> {
+        self.personalization
+            .map_or_else(Vec::new, |store| store.learned_prefixes(key))
+    }
 }
 
 pub struct Suggester {
@@ -100,7 +123,7 @@ impl Suggester {
             for entry in lexicon.search(&query, self.policy.limit * DICTIONARY_POOL_FACTOR) {
                 let score = score::combine(
                     entry.frequency,
-                    sources.personalization.weight(&entry.key),
+                    sources.learned_weight(&entry.key),
                     self.language_model_weight(&entry.key, sources),
                     entry.cost,
                 );
@@ -113,7 +136,7 @@ impl Suggester {
             }
         }
         // 사전에 없는 사용자 어휘(이름 등) — 개인화 스토어만이 아는 표제어
-        for entry in sources.personalization.search(&query, self.policy.limit) {
+        for entry in sources.learned_entries(&query, self.policy.limit) {
             if lexicon
                 .as_ref()
                 .is_some_and(|lexicon| lexicon.contains(&entry.key))
@@ -172,7 +195,7 @@ impl Suggester {
                 .unwrap_or(0);
             let score = score::combine(
                 frequency,
-                sources.personalization.weight(&prediction.word),
+                sources.learned_weight(&prediction.word),
                 prediction.weight,
                 0,
             );
@@ -200,7 +223,7 @@ impl Suggester {
     pub fn autocorrection(&self, key: &str, sources: &SuggestionSources<'_>) -> Option<Suggestion> {
         // 학습된 어휘(사용자 사전)는 사전에 없어도 교정하지 않는다.
         // 짧은 입력의 오교정은 편집 예산(edit_budget)이 0을 주는 것으로 막힌다.
-        if !self.policy.autocorrect || sources.personalization.is_learned(key) {
+        if !self.policy.autocorrect || sources.is_learned(key) {
             return None;
         }
         let lexicon = sources.pack.and_then(|pack| pack.lexicon())?;
@@ -222,11 +245,11 @@ impl Suggester {
         // 개인화 가중치뿐이며, 교정 후보는 편집 비용을 치르고도 그만큼을 넘어야 한다.
         let corrected = score::combine(
             best.frequency,
-            sources.personalization.weight(&best.key),
+            sources.learned_weight(&best.key),
             self.language_model_weight(&best.key, sources),
             best.cost,
         );
-        let typed = score::combine(0, sources.personalization.weight(key), 0, 0);
+        let typed = score::combine(0, sources.learned_weight(key), 0, 0);
         if corrected - typed <= score::AUTOCORRECT_MARGIN {
             return None;
         }
@@ -247,11 +270,7 @@ impl Suggester {
     ///
     /// 지금 치고 있는 어절이 완성돼 가는 중일 수도 있으므로("타자ㄹ") 접사는 접두만
     /// 맞아도 받아들인다. 결합형이 이미 사전에 있으면 사전 쪽 점수가 옳으니 내지 않는다.
-    fn learned_with_affix(
-        &self,
-        key: &str,
-        sources: &SuggestionSources<'_>,
-    ) -> Vec<(String, u32)> {
+    fn learned_with_affix(&self, key: &str, sources: &SuggestionSources<'_>) -> Vec<(String, u32)> {
         let Some(pack) = sources.pack else {
             return Vec::new();
         };
@@ -260,7 +279,7 @@ impl Suggester {
         };
         let lexicon = pack.lexicon();
         let mut combined = Vec::new();
-        for (stem, weight) in sources.personalization.learned_prefixes(key) {
+        for (stem, weight) in sources.learned_prefixes(key) {
             let typed_affix = &key[stem.len()..];
             for affix in affixes.split('\n') {
                 let Some(encoded) = self.policy.encoding.encode(affix) else {

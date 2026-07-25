@@ -1,5 +1,7 @@
 use std::sync::Arc;
-use taza_engine::contract::{CandidateKind, EditorContext, Effect, FieldKind, InputEvent};
+use taza_engine::contract::{
+    CandidateKind, EditorContext, Effect, FieldKind, InputEvent, UserPreferences,
+};
 use taza_engine::engine::Engine;
 use taza_engine::keyboard::KeySignal;
 use taza_engine::lang::LanguageDescriptor;
@@ -284,6 +286,100 @@ fn double_space_inserts_period() {
 }
 
 #[test]
+fn auto_correction_off_keeps_the_typed_word_but_still_predicts() {
+    let bytes = english_pack();
+    let mut harness = Harness::new(&bytes);
+    harness.engine.set_preferences(UserPreferences {
+        auto_correction: false,
+        ..UserPreferences::default()
+    });
+    harness.type_text("teh ");
+    assert_eq!(harness.committed, "teh ");
+
+    // 교정만 꺼진 것이므로 후보 제안은 그대로 나온다
+    harness.type_text("th");
+    assert_eq!(harness.candidates, vec!["the", "they", "then"]);
+}
+
+#[test]
+fn predictions_off_empties_the_candidate_bar_but_still_corrects() {
+    let bytes = english_pack();
+    let mut harness = Harness::new(&bytes);
+    harness.engine.set_preferences(UserPreferences {
+        predictions: false,
+        ..UserPreferences::default()
+    });
+    harness.type_text("teh ");
+    assert_eq!(harness.committed, "the ");
+    assert!(harness.shown.is_empty());
+}
+
+#[test]
+fn double_space_period_off_leaves_two_spaces() {
+    let bytes = english_pack();
+    let mut harness = Harness::new(&bytes);
+    harness.engine.set_preferences(UserPreferences {
+        double_space_period: false,
+        ..UserPreferences::default()
+    });
+    harness.type_text("the  ");
+    assert_eq!(harness.committed, "the  ");
+}
+
+#[test]
+fn personalized_learning_off_keeps_the_static_ranking() {
+    let bytes = english_pack();
+    let mut harness = Harness::new(&bytes);
+    harness.engine.set_preferences(UserPreferences {
+        personalized_learning: false,
+        ..UserPreferences::default()
+    });
+    harness.type_text("hello hello ");
+    harness.type_text("he");
+    assert_eq!(harness.candidates[0], "help");
+}
+
+/// 학습을 끄면 앞으로 배우지 않을 뿐 아니라 이미 배운 것도 쓰지 않는다 — 껐는데
+/// 예전에 배운 말이 계속 순위를 흔들면 설정이 한 일이 눈에 보이지 않는다.
+#[test]
+fn personalized_learning_off_also_stops_using_what_was_learned() {
+    let bytes = english_pack();
+    let mut harness = Harness::new(&bytes);
+    harness.type_text("hello hello ");
+    harness.type_text("he");
+    assert_eq!(harness.candidates[0], "hello");
+
+    harness.engine.set_preferences(UserPreferences {
+        personalized_learning: false,
+        ..UserPreferences::default()
+    });
+    harness.type_text(" he");
+    assert_eq!(harness.candidates[0], "help");
+}
+
+/// 재설정은 배운 것을 지운다 — 학습으로 억제됐던 자동교정이 다시 살아난다.
+#[test]
+fn resetting_personalization_forgets_learned_words() {
+    let bytes = english_pack();
+    let mut harness = Harness::new(&bytes);
+    for _ in 0..2 {
+        harness.type_text("thw");
+        let raw_index = harness
+            .shown
+            .iter()
+            .position(|candidate| candidate == "thw")
+            .unwrap();
+        harness.send(InputEvent::CandidateSelected(raw_index));
+    }
+    harness.type_text("thw ");
+    assert_eq!(harness.committed, "thw thw thw ");
+
+    harness.engine.reset_personalization();
+    harness.type_text("thw ");
+    assert_eq!(harness.committed, "thw thw thw the ");
+}
+
+#[test]
 fn email_field_disables_assistance() {
     let bytes = english_pack();
     let mut harness = Harness::new(&bytes);
@@ -330,7 +426,7 @@ fn suggestion_kinds_distinguish_completion_from_correction() {
         "teh",
         &SuggestionSources {
             pack: Some(&pack),
-            personalization: &personalization,
+            personalization: Some(&personalization),
             previous_word: None,
             touches: &[],
         },
@@ -382,8 +478,6 @@ fn selecting_raw_word_learns_it_and_suppresses_autocorrection() {
     // 학습 후에는 separator에서도 교정되지 않는다
     harness.type_text("thw ");
     assert_eq!(harness.committed, "thw thw thw ");
-
-
 }
 
 #[test]
@@ -395,7 +489,10 @@ fn personalization_snapshot_persists_learning() {
     let state = harness.engine.personalization_snapshot();
 
     let mut restored = Harness::new(&bytes);
-    restored.engine = Engine::with_composer(LanguageDescriptor::builtin("en").unwrap(), Box::new(LatinComposer::new()));
+    restored.engine = Engine::with_composer(
+        LanguageDescriptor::builtin("en").unwrap(),
+        Box::new(LatinComposer::new()),
+    );
     restored.engine.load_pack(Arc::new(bytes.clone())).unwrap();
     restored.engine.restore_personalization(state);
     restored.type_text("he");

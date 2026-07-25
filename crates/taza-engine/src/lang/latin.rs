@@ -2,7 +2,6 @@ use crate::contract::{
     CommittedText, Composer, ComposerEvent, ComposerOutput, ComposerState, EditorContext,
     SuggestionRequest, WordBoundary,
 };
-use crate::policy::double_space_period;
 
 fn is_word_character(character: char) -> bool {
     character.is_alphabetic() || character == '\''
@@ -67,15 +66,10 @@ impl Composer for LatinComposer {
                     ..ComposerOutput::default()
                 }
             }
-            ComposerEvent::Separator(' ') if self.current_word.is_empty() => {
-                match double_space_period(context) {
-                    Some(output) => output,
-                    None => ComposerOutput {
-                        commit: Some(CommittedText::plain(" ".to_string())),
-                        ..ComposerOutput::default()
-                    },
-                }
-            }
+            ComposerEvent::Separator(' ') if self.current_word.is_empty() => ComposerOutput {
+                commit: Some(CommittedText::plain(" ".to_string())),
+                ..ComposerOutput::default()
+            },
             ComposerEvent::Separator(character) => {
                 let word = std::mem::take(&mut self.current_word);
                 ComposerOutput {

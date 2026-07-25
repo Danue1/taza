@@ -7,10 +7,10 @@
 //! ```
 //! 입력에서 공백은 어절 경계, `<`는 Backspace다. 한국어 입력은 자모열로 준다.
 
-use taza_engine::keyboard::KeySignal;
 use std::sync::Arc;
 use taza_engine::contract::{EditorContext, Effect, FieldKind, InputEvent};
 use taza_engine::engine::Engine;
+use taza_engine::keyboard::KeySignal;
 use taza_engine::lang::LanguageDescriptor;
 
 fn main() {

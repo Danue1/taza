@@ -13,6 +13,7 @@ use std::sync::{Arc, Mutex};
 
 use taza_engine::contract::{
     Candidate, CandidateKind, EditorContext, Effect, FieldKind, InputEvent, KeySignal,
+    UserPreferences,
 };
 use taza_engine::engine::{Engine, PackBytes};
 use taza_engine::keyboard::{FormFactor, KeyRole, KeyboardMetrics, ShellRequest};
@@ -46,6 +47,29 @@ pub struct FfiEditorContext {
     pub text_before_cursor: Option<String>,
     pub incognito: bool,
     pub field: FfiFieldKind,
+}
+
+/// 설정 화면이 소유하는 값 — 순정 키보드의 설정은 서드파티가 읽을 수 없으므로
+/// 셸이 자기 저장소에서 읽어 세션에 넣는다.
+#[derive(uniffi::Record)]
+pub struct FfiUserPreferences {
+    pub auto_correction: bool,
+    pub predictions: bool,
+    pub double_space_period: bool,
+    pub personalized_learning: bool,
+}
+
+/// 아직 사용자가 건드리지 않은 설정의 값. 기본값의 주인은 코어이므로 셸은 자기 표를
+/// 두지 않고 이 함수를 부른다.
+#[uniffi::export]
+pub fn default_user_preferences() -> FfiUserPreferences {
+    let defaults = UserPreferences::default();
+    FfiUserPreferences {
+        auto_correction: defaults.auto_correction,
+        predictions: defaults.predictions,
+        double_space_period: defaults.double_space_period,
+        personalized_learning: defaults.personalized_learning,
+    }
 }
 
 #[derive(uniffi::Enum)]
@@ -310,6 +334,20 @@ impl KeyboardSession {
             })
     }
 
+    /// 사용자 설정 주입 — 셸은 키보드를 띄울 때마다 자기 저장소에서 읽어 넣는다.
+    /// 설정 화면에서 바뀐 값은 다음 표시 때 이 호출로 반영된다.
+    pub fn set_preferences(&self, preferences: FfiUserPreferences) {
+        self.engine
+            .lock()
+            .unwrap()
+            .set_preferences(UserPreferences {
+                auto_correction: preferences.auto_correction,
+                predictions: preferences.predictions,
+                double_space_period: preferences.double_space_period,
+                personalized_learning: preferences.personalized_learning,
+            });
+    }
+
     /// 표시 환경 주입 — 셸이 자기 크기를 알게 될 때(첫 배치, 회전, 분할) 부른다.
     /// 이후 프레임의 치수는 이 값을 따른다.
     pub fn set_metrics(&self, form_factor: FfiFormFactor, width_points: f32) {
@@ -410,6 +448,12 @@ impl KeyboardSession {
             lines.push(format!("{word}\t{count}\t{last_used}"));
         }
         lines
+    }
+
+    /// 배운 것을 전부 잊는다 — 순정의 "키보드 사전 재설정". 셸은 이 호출과 함께
+    /// 보관 중인 스냅샷도 지운다.
+    pub fn reset_personalization(&self) {
+        self.engine.lock().unwrap().reset_personalization();
     }
 
     pub fn restore_personalization(&self, lines: Vec<String>) {

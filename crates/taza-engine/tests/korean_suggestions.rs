@@ -1,7 +1,7 @@
-use taza_engine::keyboard::KeySignal;
 use std::sync::Arc;
 use taza_engine::contract::{CandidateKind, EditorContext, Effect, InputEvent};
 use taza_engine::engine::Engine;
+use taza_engine::keyboard::KeySignal;
 use taza_engine::lang::LanguageDescriptor;
 use taza_engine::lang::jamo::{decompose_word, encode_jamo_ascii};
 use taza_engine::pack::SectionKind;

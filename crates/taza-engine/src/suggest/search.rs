@@ -155,7 +155,13 @@ impl Search<'_, '_> {
     /// `row`는 지금 접두사에 대한 편집거리 DP 행, `previous`는 전치를 잡기 위한
     /// 한 단계 전의 행과 그때의 엣지 바이트다. `on_query_path`는 여기까지의 경로가
     /// 질의와 한 글자도 어긋나지 않았는지 — 완성인지 교정인지를 가르는 값이다.
-    fn visit(&mut self, node: Node, row: &[u32], previous: Option<(&[u32], u8)>, on_query_path: bool) {
+    fn visit(
+        &mut self,
+        node: Node,
+        row: &[u32],
+        previous: Option<(&[u32], u8)>,
+        on_query_path: bool,
+    ) {
         if self.visited >= VISIT_BUDGET {
             return;
         }
@@ -182,13 +188,12 @@ impl Search<'_, '_> {
         } else {
             row.iter().copied().min().unwrap_or(0)
         };
-        let best_possible = score::combine(
-            self.lexicon.max_subtree_frequency(node),
-            0,
-            0,
-            lower_bound,
-        );
-        if self.worst_kept().is_some_and(|worst| best_possible <= worst) {
+        let best_possible =
+            score::combine(self.lexicon.max_subtree_frequency(node), 0, 0, lower_bound);
+        if self
+            .worst_kept()
+            .is_some_and(|worst| best_possible <= worst)
+        {
             return;
         }
 

@@ -36,6 +36,8 @@ struct SettingsView: View {
                     .onMove(perform: moveLanguage)
                 }
 
+                TypingSection()
+
                 Section("키보드 테스트") {
                     TextField("여기에 입력해 보세요", text: $testText)
                 }
@@ -78,6 +80,48 @@ struct SettingsView: View {
     private func moveLanguage(from source: IndexSet, to destination: Int) {
         enabledLanguages.move(fromOffsets: source, toOffset: destination)
         preferences.enabledLanguages = enabledLanguages
+    }
+}
+
+/// 순정 키보드에서는 설정 → 일반 → 키보드에 있는 항목들. 서드파티 키보드는 그 값을
+/// 읽을 수 없으므로 우리가 직접 갖고 키보드 세션에 넘긴다.
+private struct TypingSection: View {
+    private let typing = TypingPreferences()
+    private let learning = LearningStore()
+
+    @State private var autoCorrection = true
+    @State private var predictions = true
+    @State private var doubleSpacePeriod = true
+    @State private var personalizedLearning = true
+    @State private var confirmingReset = false
+
+    var body: some View {
+        Section("입력") {
+            // 항목 이름은 순정 키보드 표기를 따른다 (설정 → 일반 → 키보드)
+            Toggle("자동 수정", isOn: $autoCorrection)
+            Toggle("자동 완성", isOn: $predictions)
+            Toggle("\".\" 단축키", isOn: $doubleSpacePeriod)
+            Toggle("입력 학습", isOn: $personalizedLearning)
+            Button("입력 학습 재설정", role: .destructive) { confirmingReset = true }
+        }
+        .confirmationDialog(
+            "배운 단어를 모두 지울까요?",
+            isPresented: $confirmingReset,
+            titleVisibility: .visible
+        ) {
+            Button("재설정", role: .destructive) { learning.removeAll() }
+            Button("취소", role: .cancel) {}
+        }
+        .onAppear {
+            autoCorrection = typing.autoCorrection
+            predictions = typing.predictions
+            doubleSpacePeriod = typing.doubleSpacePeriod
+            personalizedLearning = typing.personalizedLearning
+        }
+        .onChange(of: autoCorrection) { typing.autoCorrection = $0 }
+        .onChange(of: predictions) { typing.predictions = $0 }
+        .onChange(of: doubleSpacePeriod) { typing.doubleSpacePeriod = $0 }
+        .onChange(of: personalizedLearning) { typing.personalizedLearning = $0 }
     }
 }
 

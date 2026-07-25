@@ -21,6 +21,8 @@
 		59D49C2340D7FE5D2D10FABA /* TazaFfi.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 574B66EBEC60DDBFD132D9FB /* TazaFfi.xcframework */; };
 		5E4263D489496E09E4383A59 /* PackStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEBE767DBD452E15506A5A63 /* PackStore.swift */; };
 		6960AF473D2FC302038FF650 /* PackLibraryModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4957B682B5A359C74E1326BE /* PackLibraryModel.swift */; };
+		6C91C12D78ED96C9BCFBBC2A /* TypingPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA49C9A39372AED3BDF64BD5 /* TypingPreferences.swift */; };
+		857A56BEC78B89D7F063E6BB /* LearningStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A599D679961790DCA7854EE /* LearningStore.swift */; };
 		8E5AF29409A34ECA1642E37B /* taza_ffi.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09D758E33FF50C0D459ED005 /* taza_ffi.swift */; };
 		985D52154ACD24EF1991EB7F /* KeyCapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D73EC3E65D47C2BDD32ACE91 /* KeyCapView.swift */; };
 		9A68A8DF12A9534D11183FEE /* taza_ffi.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09D758E33FF50C0D459ED005 /* taza_ffi.swift */; };
@@ -29,10 +31,12 @@
 		BBA947F49AD25E089A393156 /* PopupMenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CF4D18278033FE3DE2C617D /* PopupMenuView.swift */; };
 		BBE5DF3D9481195887C2E4A9 /* CandidateBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A063705662AC7D869C6B9CA8 /* CandidateBarView.swift */; };
 		D9BC3D52CB9C0EEABAD2DD39 /* KeyCapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D73EC3E65D47C2BDD32ACE91 /* KeyCapView.swift */; };
+		E0F0F44036B3A32B2195EFC8 /* TypingPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA49C9A39372AED3BDF64BD5 /* TypingPreferences.swift */; };
 		E8EFF20B9BD72F4F70F27FD8 /* CandidateBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A063705662AC7D869C6B9CA8 /* CandidateBarView.swift */; };
 		E973811921C023B99C178023 /* KeyboardGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 231812FDBF992843227998D5 /* KeyboardGridView.swift */; };
 		EE063B6901756837FB1E0522 /* PackDistribution.swift in Sources */ = {isa = PBXBuildFile; fileRef = 884F7F9DE893001ADF7495D9 /* PackDistribution.swift */; };
 		EF91DFC274CB7EE0DE2FC447 /* LanguagePreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB583ACD6DB1BB697B271FC5 /* LanguagePreferences.swift */; };
+		FA7EBAF4DF3462006A206826 /* LearningStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A599D679961790DCA7854EE /* LearningStore.swift */; };
 		FA80F36305EBB2C36AD14416 /* english.tazapack in Resources */ = {isa = PBXBuildFile; fileRef = 967EC11F78904F1D768ACEFF /* english.tazapack */; };
 /* End PBXBuildFile section */
 
@@ -71,6 +75,7 @@
 		61D84CF1C4F727E80DCDCC41 /* Packs.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Packs.xcconfig; sourceTree = "<group>"; };
 		6DD6CA34EFC067B2496D6396 /* TazaKeyboard.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TazaKeyboard.entitlements; sourceTree = "<group>"; };
 		884F7F9DE893001ADF7495D9 /* PackDistribution.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackDistribution.swift; sourceTree = "<group>"; };
+		8A599D679961790DCA7854EE /* LearningStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LearningStore.swift; sourceTree = "<group>"; };
 		967EC11F78904F1D768ACEFF /* english.tazapack */ = {isa = PBXFileReference; path = english.tazapack; sourceTree = "<group>"; };
 		A063705662AC7D869C6B9CA8 /* CandidateBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateBarView.swift; sourceTree = "<group>"; };
 		AEBE767DBD452E15506A5A63 /* PackStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackStore.swift; sourceTree = "<group>"; };
@@ -83,6 +88,7 @@
 		EC8A29F7A6126AC96406242C /* TazaApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TazaApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		ED73162F9E8CB714176E666F /* TazaApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TazaApp.swift; sourceTree = "<group>"; };
 		F4B96DBD027FDAC753ED1C22 /* AlternatesPopupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlternatesPopupView.swift; sourceTree = "<group>"; };
+		FA49C9A39372AED3BDF64BD5 /* TypingPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingPreferences.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -150,8 +156,10 @@
 			isa = PBXGroup;
 			children = (
 				EB583ACD6DB1BB697B271FC5 /* LanguagePreferences.swift */,
+				8A599D679961790DCA7854EE /* LearningStore.swift */,
 				884F7F9DE893001ADF7495D9 /* PackDistribution.swift */,
 				AEBE767DBD452E15506A5A63 /* PackStore.swift */,
+				FA49C9A39372AED3BDF64BD5 /* TypingPreferences.swift */,
 			);
 			path = TazaShared;
 			sourceTree = "<group>";
@@ -302,10 +310,12 @@
 				E973811921C023B99C178023 /* KeyboardGridView.swift in Sources */,
 				3E0BC546CC1D731D0B6A3450 /* KeyboardViewController.swift in Sources */,
 				EF91DFC274CB7EE0DE2FC447 /* LanguagePreferences.swift in Sources */,
+				857A56BEC78B89D7F063E6BB /* LearningStore.swift in Sources */,
 				369E46DF161F9B435DF3F758 /* PackDistribution.swift in Sources */,
 				5E4263D489496E09E4383A59 /* PackStore.swift in Sources */,
 				17A73285A7A75F1F16D90EE9 /* PopupMenuView.swift in Sources */,
 				30BDB01EA0873C1877520D3A /* TazaTheme.swift in Sources */,
+				6C91C12D78ED96C9BCFBBC2A /* TypingPreferences.swift in Sources */,
 				9A68A8DF12A9534D11183FEE /* taza_ffi.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -319,12 +329,14 @@
 				985D52154ACD24EF1991EB7F /* KeyCapView.swift in Sources */,
 				B8BAAABBD9299848CAA18DCB /* KeyboardGridView.swift in Sources */,
 				4F214DC30D753E60B9747574 /* LanguagePreferences.swift in Sources */,
+				FA7EBAF4DF3462006A206826 /* LearningStore.swift in Sources */,
 				EE063B6901756837FB1E0522 /* PackDistribution.swift in Sources */,
 				6960AF473D2FC302038FF650 /* PackLibraryModel.swift in Sources */,
 				12DF9E1CAAA30308638617BC /* PackStore.swift in Sources */,
 				BBA947F49AD25E089A393156 /* PopupMenuView.swift in Sources */,
 				26A0513E4B66D6CE6DB73F41 /* TazaApp.swift in Sources */,
 				3019F5A031B7115115BC292F /* TazaTheme.swift in Sources */,
+				E0F0F44036B3A32B2195EFC8 /* TypingPreferences.swift in Sources */,
 				8E5AF29409A34ECA1642E37B /* taza_ffi.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

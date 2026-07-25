@@ -317,7 +317,33 @@ EditorContext.field(FieldKind: Text/Email/Url/Number/Phone/Password), Text 외 �
   저작자 표시도 같은 메타데이터에서 읽어 "사전 출처" 절에 싣는다 — 라이선스 고지가 데이터와
   함께 움직인다.
 
-백로그(우선순위순): 숫자 전용 필드의 숫자 패드 레이아웃(현재는 심볼면 수동 진입) /
+추가 구현됨(v2.6): **입력 보조 설정은 우리가 소유한다** — 순정 키보드의 설정은 양
+플랫폼 모두 서드파티가 읽을 수 없다(iOS는 설정 → 일반 → 키보드의 토글을 익스텐션에
+열어 주지 않고, Android는 IME마다 자기 설정 화면을 갖는다). 값의 주인은 우리 설정
+앱이고, 셸은 저장소에서 읽어 코어에 주입만 한다.
+- `UserPreferences`(자동 수정 / 예측 / "." 단축키 / 입력 학습)를 팩과 별개로 세션에
+  주입(`set_preferences`) — 팩 교체와 무관하고, 설정 화면에서 바뀐 값은 다음 키보드
+  표시 때 반영된다(익스텐션 재생성을 기다리지 않는다).
+- **판단은 코어가 결합한다**: `policy::assistance`가 사용자 설정 ∧ 필드 성격(`FieldKind`)을
+  묶어 `Assistance`(correcting·predicting·personalizing)를 내고, 학습 기록만 추가로
+  incognito를 본다. 셸에는 새 분기가 생기지 않는다.
+- **입력 학습을 끄면 조회도 멈춘다**: `SuggestionSources.personalization`이 `Option`이라
+  꺼진 입력에서는 개인화 스토어를 아예 참조하지 않는다. 껐는데 예전에 배운 말이 계속
+  순위를 흔들면 설정이 한 일이 사용자 눈에 보이지 않는다. 지난 것을 지우는 쪽은
+  `reset_personalization`(순정의 "키보드 사전 재설정")이 맡아 설정과 짝을 이룬다.
+- 언어와 무관한 규칙(더블 스페이스 마침표)은 합성기가 아니라 Engine이 합성기보다 먼저
+  본다 — 규칙 하나를 끄는 설정이 언어 수만큼 늘어나지 않게.
+- iOS 설정 앱은 App Group `TypingPreferences`에 쓰고, 익스텐션은 `viewWillAppear`에서
+  모든 언어 세션에 주입한다. 학습 스냅샷도 같은 리듬이다 — `LearningStore`에서 복원하고
+  (스냅샷이 비었으면 코어 학습도 비운다) 키보드가 내려갈 때 저장한다.
+- **App Group 미활성 상태의 한계**: 서명 팀이 붙기 전에는 앱과 익스텐션이 각자의 저장소로
+  물러나므로 **설정 앱에서 바꾼 타이핑 설정·학습 재설정이 키보드에 닿지 않는다**. 언어
+  설정은 키보드에서도 바꿀 수 있어 우회되지만 이쪽은 우회로가 없다 — 기기 실증은 App
+  Group 활성화 이후로 미뤄져 있다.
+
+백로그(우선순위순): 필드 힌트 승격(UITextInputTraits의 autocapitalization·autocorrection·
+smartQuotes와 Android inputType 플래그를 EditorContext로) /
+숫자 전용 필드의 숫자 패드 레이아웃(현재는 심볼면 수동 진입) /
 이모지 레이어 / shift 더블탭 캡스락 — press 이벤트에 타임스탬프 필요 /
 문장 첫 글자 자동 대문자화 / 키 프레스 문자 팝업(확대 미리보기) /
 키 사운드·햅틱(Effect::Feedback) / 스페이스바 좌우 스와이프 언어 전환 /

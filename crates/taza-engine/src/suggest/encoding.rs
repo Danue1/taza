@@ -49,7 +49,9 @@ impl KeyEncoding {
 #[cfg(feature = "lang-hangul")]
 fn encode_hangul(display: &str) -> Option<String> {
     use crate::lang::jamo::{decompose_word, encode_jamo_ascii};
-    decompose_word(display).as_deref().and_then(encode_jamo_ascii)
+    decompose_word(display)
+        .as_deref()
+        .and_then(encode_jamo_ascii)
 }
 
 #[cfg(feature = "lang-hangul")]

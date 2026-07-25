@@ -7,6 +7,8 @@ import UIKit
 /// 자체 관리), 키 역할로만 갈리는 길게 누르기, 딥 링크로 설정 앱 열기.
 final class KeyboardViewController: UIInputViewController {
     private let preferences = LanguagePreferences()
+    private let typing = TypingPreferences()
+    private let learning = LearningStore()
     private var sessions: [TazaLanguage: KeyboardSession] = [:]
     private var currentLanguage: TazaLanguage = TazaLanguage.all[0]
 
@@ -50,6 +52,31 @@ final class KeyboardViewController: UIInputViewController {
 
         buildViews()
         refreshFrame()
+    }
+
+    /// 설정 앱에서 바뀐 값은 다음 표시 때 반영된다 — 익스텐션이 살아 있는 채로
+    /// 설정을 다녀오는 경우까지 덮는다. 학습도 같은 이유로 매번 저장소를 따른다:
+    /// 앱에서 재설정을 눌렀으면 스냅샷이 비어 있고, 그때는 코어의 학습도 비운다.
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        let core = typing.core
+        for (language, session) in sessions {
+            session.setPreferences(preferences: core)
+            let snapshot = learning.snapshot(for: language)
+            if snapshot.isEmpty {
+                session.resetPersonalization()
+            } else {
+                session.restorePersonalization(lines: snapshot)
+            }
+        }
+    }
+
+    /// 익스텐션은 키보드가 내려갈 때마다 사라질 수 있으므로 배운 것을 여기서 남긴다.
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        for (language, session) in sessions {
+            learning.save(session.personalizationSnapshot(), for: language)
+        }
     }
 
     override func viewDidLayoutSubviews() {

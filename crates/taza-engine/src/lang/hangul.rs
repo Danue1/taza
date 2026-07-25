@@ -3,7 +3,6 @@ use crate::contract::{
     CommittedText, Composer, ComposerEvent, ComposerOutput, ComposerState, ComposingText,
     EditorContext, SuggestionRequest, WordBoundary,
 };
-use crate::policy::double_space_period;
 
 use super::jamo::decompose;
 
@@ -128,12 +127,9 @@ impl Composer for HangulComposer {
             }
             ComposerEvent::Separator(' ') if self.composing_jamo.is_empty() => {
                 self.word_jamo.clear();
-                match double_space_period(context) {
-                    Some(output) => output,
-                    None => ComposerOutput {
-                        commit: Some(CommittedText::plain(" ".to_string())),
-                        ..ComposerOutput::default()
-                    },
+                ComposerOutput {
+                    commit: Some(CommittedText::plain(" ".to_string())),
+                    ..ComposerOutput::default()
                 }
             }
             ComposerEvent::Key(character) | ComposerEvent::Separator(character) => {
@@ -158,9 +154,7 @@ impl Composer for HangulComposer {
                 // 어절 중 composing 창 밖으로 이미 확정된 앞부분을 지우고, commit이
                 // composing 구간을 치환한다. 선택 뒤 타이핑은 새 입력 시퀀스.
                 let word_length = compose_word(&self.word_jamo).chars().count();
-                let composing_length = render_all(&recompose(&self.composing_jamo))
-                    .chars()
-                    .count();
+                let composing_length = render_all(&recompose(&self.composing_jamo)).chars().count();
                 self.composing_jamo.clear();
                 self.word_jamo.clear();
                 ComposerOutput {
@@ -189,7 +183,9 @@ impl Composer for HangulComposer {
     }
 
     fn restore(&mut self, state: ComposerState) {
-        let Some((composing, word)) = state.text().and_then(|text| text.split_once(STATE_SEPARATOR))
+        let Some((composing, word)) = state
+            .text()
+            .and_then(|text| text.split_once(STATE_SEPARATOR))
         else {
             return;
         };

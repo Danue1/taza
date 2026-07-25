@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use taza_engine::contract::{
-    Candidate, CandidateKind, CommittedText, Composer, ComposerEvent, ComposerOutput,
-    ComposerState, EditorContext, Effect, InputEvent, SuggestionRequest,
+    Candidate, CandidateGroup, CandidateKind, CommittedText, Composer, ComposerEvent,
+    ComposerOutput, ComposerState, EditorContext, Effect, InputEvent, SuggestionRequest,
 };
 use taza_engine::engine::Engine;
 use taza_engine::keyboard::KeySignal;
@@ -92,10 +92,12 @@ fn candidate_replacement_translates_to_delete_then_commit() {
             Candidate {
                 text: "teh".to_string(),
                 kind: CandidateKind::Typed,
+                group: CandidateGroup::Word,
             },
             Candidate {
                 text: "the".to_string(),
                 kind: CandidateKind::Correction,
+                group: CandidateGroup::Word,
             },
         ])]
     );

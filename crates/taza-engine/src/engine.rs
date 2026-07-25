@@ -6,7 +6,8 @@
 use std::sync::Arc;
 
 use crate::contract::{
-    Candidate, Composer, ComposerEvent, ComposerOutput, EditorContext, Effect, InputEvent, Pack,
+    AnnotationPanel, AnnotationPanelGroup, AnnotationPanelItem, Candidate, CandidateGroup,
+    Composer, ComposerEvent, ComposerOutput, EditorContext, Effect, InputEvent, Pack,
     SuggestionRequest, UserPreferences,
 };
 use crate::keyboard::{
@@ -29,6 +30,25 @@ impl<Source: AsRef<[u8]> + Send + Sync> PackBytes for Source {
         self.as_ref()
     }
 }
+
+/// 검색면 한 그룹에 담는 항목 수의 상한. 셸이 세로로 스크롤하므로 화면에 보이는 것보다
+/// 넉넉하되, 한 갈래가 다른 갈래를 밀어내지 않을 만큼으로 끊는다.
+const PANEL_GROUP_LIMIT: usize = 48;
+/// 검색어로 표를 훑을 때 모으는 항목 수 — 갈래로 나눈 뒤 그룹별 상한이 다시 걸린다.
+const PANEL_SEARCH_POOL: usize = PANEL_GROUP_LIMIT * 3;
+
+/// 검색면 그룹 이름 — 키 라벨과 마찬가지로 코어가 정한다(셸은 그리기만 한다).
+fn panel_group_label(group: CandidateGroup) -> &'static str {
+    match group {
+        CandidateGroup::Word => "낱말",
+        CandidateGroup::Emoji => "이모지",
+        CandidateGroup::Symbol => "기호",
+        CandidateGroup::Emoticon => "얼굴 문자",
+    }
+}
+
+/// 최근에 고른 것들이 모이는 그룹의 이름 — 갈래가 섞이므로 갈래 이름을 쓸 수 없다.
+const PANEL_RECENT_LABEL: &str = "자주 쓰는";
 
 /// 터치 한 번의 결과 — 입력이 만든 Effect와, 코어가 판정할 수 없어 셸에 넘기는 요청.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -194,21 +214,7 @@ impl Engine {
 
     pub fn handle(&mut self, event: InputEvent, context: &EditorContext) -> Vec<Effect> {
         match event {
-            InputEvent::CursorMoved | InputEvent::FocusLost => {
-                let was_composing = self.composer.is_composing();
-                let mut effects = Vec::new();
-                if let Some(committed) = self.composer.finalize() {
-                    effects.push(Effect::CommitText(committed.surface));
-                }
-                if was_composing {
-                    effects.push(Effect::ClearComposing);
-                }
-                // 커서가 옮겨 갔으므로 직전 어휘는 더 이상 문맥이 아니다
-                self.previous_word = None;
-                self.touches.clear();
-                self.replace_suggestions(Vec::new(), &mut effects);
-                effects
-            }
+            InputEvent::CursorMoved | InputEvent::FocusLost => self.finalize_composition(),
             InputEvent::CursorDrag(steps) => {
                 // 이동 전에 진행 중 composing을 언어별 규칙으로 확정한다 — 커서가
                 // 빠져나간 자리에 조합 중 텍스트를 남기지 않는다.
@@ -244,6 +250,128 @@ impl Engine {
                 )
             }
         }
+    }
+
+    /// 진행 중 조합을 언어별 규칙으로 확정하고 후보 바를 비운다. 커서가 옮겨 가거나
+    /// 초점을 잃을 때, 그리고 검색면에서 곁들일 것을 골라 어절을 끝낼 때 함께 쓴다.
+    fn finalize_composition(&mut self) -> Vec<Effect> {
+        let was_composing = self.composer.is_composing();
+        let mut effects = Vec::new();
+        if let Some(committed) = self.composer.finalize() {
+            effects.push(Effect::CommitText(committed.surface));
+        }
+        if was_composing {
+            effects.push(Effect::ClearComposing);
+        }
+        // 어절이 여기서 끝났으므로 직전 어휘는 더 이상 문맥이 아니다
+        self.previous_word = None;
+        self.touches.clear();
+        self.replace_suggestions(Vec::new(), &mut effects);
+        effects
+    }
+
+    /// 통합 검색면 내용. `query`는 검색 필드에 친 표시 문자열이며, 비어 있으면 자주 쓰는
+    /// 것과 갈래별 표시 순서를 낸다. 무엇을 어떤 순서로 보일지는 데이터(팩)와 개인화가
+    /// 정하므로 셸은 그리기만 한다.
+    pub fn annotation_panel(&self, query: &str) -> AnnotationPanel {
+        let holder = self.pack.clone();
+        let pack = holder
+            .as_ref()
+            .and_then(|holder| Pack::open(holder.bytes()).ok());
+        let mut groups = Vec::new();
+        if query.is_empty() {
+            let recent: Vec<AnnotationPanelItem> = self
+                .personalization
+                .recent_annotations()
+                .iter()
+                .map(|(group, text)| AnnotationPanelItem {
+                    group: *group,
+                    text: text.clone(),
+                })
+                .collect();
+            if !recent.is_empty() {
+                groups.push(AnnotationPanelGroup {
+                    group: None,
+                    label: PANEL_RECENT_LABEL.to_string(),
+                    items: recent,
+                });
+            }
+            if let Some(catalog) = pack.as_ref().and_then(|pack| pack.annotation_catalog()) {
+                for group in Self::accompanying_groups() {
+                    let items: Vec<AnnotationPanelItem> = catalog
+                        .items(group, PANEL_GROUP_LIMIT)
+                        .into_iter()
+                        .map(|text| AnnotationPanelItem {
+                            group,
+                            text: text.to_string(),
+                        })
+                        .collect();
+                    if !items.is_empty() {
+                        groups.push(AnnotationPanelGroup {
+                            group: Some(group),
+                            label: panel_group_label(group).to_string(),
+                            items,
+                        });
+                    }
+                }
+            }
+            return AnnotationPanel { groups };
+        }
+
+        // 검색은 낱말로 한다 — 표의 키가 조회 키 공간에 있으므로 검색어도 그리로 옮긴다
+        let (Some(table), Some(key)) = (
+            pack.as_ref().and_then(|pack| pack.annotations()),
+            self.suggester.policy().encoding.encode(query),
+        ) else {
+            return AnnotationPanel::default();
+        };
+        let found = table.search(&key, PANEL_SEARCH_POOL);
+        for group in Self::accompanying_groups() {
+            let items: Vec<AnnotationPanelItem> = found
+                .iter()
+                .filter(|annotation| annotation.group == group)
+                .take(PANEL_GROUP_LIMIT)
+                .map(|annotation| AnnotationPanelItem {
+                    group,
+                    text: annotation.text.to_string(),
+                })
+                .collect();
+            if !items.is_empty() {
+                groups.push(AnnotationPanelGroup {
+                    group: Some(group),
+                    label: panel_group_label(group).to_string(),
+                    items,
+                });
+            }
+        }
+        AnnotationPanel { groups }
+    }
+
+    /// 검색면에서 고른 것을 넣는다. 진행 중 조합은 언어별 규칙으로 먼저 확정하고,
+    /// 고른 것은 자주 쓰는 목록 맨 앞으로 올라간다(시크릿 필드에서는 남기지 않는다).
+    pub fn select_annotation(
+        &mut self,
+        group: CandidateGroup,
+        text: &str,
+        context: &EditorContext,
+    ) -> Vec<Effect> {
+        if text.is_empty() {
+            return Vec::new();
+        }
+        let assistance = crate::policy::assistance(&self.preferences, context);
+        let mut effects = self.finalize_composition();
+        effects.push(Effect::CommitText(text.to_string()));
+        if assistance.personalizing && !context.incognito {
+            self.personalization.record_annotation(group, text);
+        }
+        effects
+    }
+
+    /// 낱말에 곁들이는 갈래들 — 검색면이 그룹으로 세우는 것은 이들뿐이다.
+    fn accompanying_groups() -> impl Iterator<Item = CandidateGroup> {
+        CandidateGroup::DISPLAY_ORDER
+            .into_iter()
+            .filter(|group| *group != CandidateGroup::Word)
     }
 
     /// 익스텐션 kill 대비 — 개인화 상태를 스냅샷해 컨테이너 저장소에 보관한다.
@@ -405,6 +533,7 @@ impl Engine {
             .map(|suggestion| Candidate {
                 text: suggestion.text.clone(),
                 kind: suggestion.kind.clone(),
+                group: suggestion.group,
             })
             .collect();
         self.suggestions = suggestions;

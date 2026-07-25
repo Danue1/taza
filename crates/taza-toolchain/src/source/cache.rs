@@ -5,16 +5,17 @@
 //! 없도록, 원천과 파서가 그대로면 지난번 결과를 그대로 쓴다.
 //!
 //! 캐시가 낡는 경우는 셋뿐이고 모두 키에 들어간다: 원천 파일이 바뀌거나(해시), 파서
-//! 설정이 바뀌거나(추출 선언), 파서 자체가 바뀌었을 때(`PARSER_VERSION`).
+//! 설정이 바뀌거나(추출 선언), 파서 자체가 바뀌었을 때(`parse::parser_version`).
 
-use crate::parse::{PARSER_VERSION, Signal};
+use crate::parse::{Annotation, Signal, parser_version};
 use crate::recipe::Extraction;
 use crate::source::acquire::hex_digest;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use taza_engine::contract::CandidateGroup;
 
 /// 캐시 파일 형식의 판. 형식을 바꾸면 올린다 — 낡은 파일은 읽히지 않고 버려진다.
-const FORMAT: u8 = 2;
+const FORMAT: u8 = 3;
 const MAGIC: &[u8; 6] = b"TZSIG\0";
 
 /// 캐시 압축 수준. 캐시는 오래 두는 것이 아니라 다음 실행까지만 사는 것이므로,
@@ -30,7 +31,11 @@ pub fn path(
     // 추출 선언은 Debug 표현으로 지문을 뜬다 — 필드가 늘거나 값이 바뀌면 표현이 달라져
     // 캐시가 저절로 무효가 된다.
     let fingerprint = hex_digest(
-        format!("{source_digest}\n{extraction:?}\n{language}\n{PARSER_VERSION}").as_bytes(),
+        format!(
+            "{source_digest}\n{extraction:?}\n{language}\n{}",
+            parser_version(extraction)
+        )
+        .as_bytes(),
     );
     directory.join(format!("{}.tzsig", &fingerprint[..32]))
 }
@@ -84,10 +89,11 @@ fn encode(signal: &Signal) -> Vec<u8> {
         write_text(&mut bytes, right);
         bytes.extend_from_slice(&count.to_le_bytes());
     }
-    write_length(&mut bytes, signal.emoji.len());
-    for (key, emoji) in &signal.emoji {
-        write_text(&mut bytes, key);
-        write_text(&mut bytes, emoji);
+    write_length(&mut bytes, signal.annotations.len());
+    for annotation in &signal.annotations {
+        write_text(&mut bytes, &annotation.word);
+        bytes.push(annotation.group.tag().unwrap_or_default());
+        write_text(&mut bytes, &annotation.text);
     }
     for list in [&signal.stems, &signal.affixes] {
         write_length(&mut bytes, list.len());
@@ -124,8 +130,13 @@ fn decode(bytes: &[u8]) -> Option<Signal> {
             .push((left, right, u64::from_le_bytes(cursor.eight()?)));
     }
     for _ in 0..cursor.length()? {
-        let key = cursor.text()?;
-        signal.emoji.push((key, cursor.text()?));
+        let word = cursor.text()?;
+        let group = CandidateGroup::from_tag(cursor.take(1)?[0])?;
+        signal.annotations.push(Annotation {
+            word,
+            group,
+            text: cursor.text()?,
+        });
     }
     for _ in 0..cursor.length()? {
         signal.stems.push(cursor.text()?);
@@ -181,7 +192,11 @@ mod tests {
             attested: vec![("규제".to_string(), 0.4)],
             observed: vec![("당국".to_string(), 7)],
             bigrams: vec![("규제".to_string(), "당국".to_string(), 3)],
-            emoji: vec![("웃음".to_string(), "😀".to_string())],
+            annotations: vec![Annotation {
+                word: "웃음".to_string(),
+                group: CandidateGroup::Emoji,
+                text: "😀".to_string(),
+            }],
             stems: vec!["하".to_string()],
             affixes: vec!["는".to_string()],
         };
@@ -189,13 +204,13 @@ mod tests {
         assert_eq!(decoded.attested, signal.attested);
         assert_eq!(decoded.observed, signal.observed);
         assert_eq!(decoded.bigrams, signal.bigrams);
-        assert_eq!(decoded.emoji, signal.emoji);
+        assert_eq!(decoded.annotations, signal.annotations);
         assert_eq!(decoded.stems, signal.stems);
         assert_eq!(decoded.affixes, signal.affixes);
     }
 
     /// 캐시가 낡는 세 경우가 모두 키에 들어가는가 — 원천이 바뀌거나, 파서 설정이
-    /// 바뀌거나, 다른 언어로 읽거나. (파서 자체의 변경은 `PARSER_VERSION`이 맡는다.)
+    /// 바뀌거나, 다른 언어로 읽거나. (파서 자체의 변경은 `parse::parser_version`이 맡는다.)
     #[test]
     fn key_changes_with_source_and_settings() {
         let directory = Path::new("/cache");

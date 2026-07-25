@@ -2,6 +2,11 @@
 //!
 //! 원천이 문장을 어떻게 담고 있든(TSV 한 줄, XML 안의 wikitext, JSON 필드) 세는 방식은
 //! 같으므로 여기 모은다. 어절을 어떻게 끊는지가 사전 품질을 좌우하는 자리다.
+//!
+//! 낱말은 표층 글자가 아니라 번호로 센다. 위키백과 규모의 코퍼스는 토큰이 수억 개라
+//! 출현마다 낱말을 복제하면 그 복제가 파이프라인 시간의 대부분을 차지하고, 짝 표는
+//! 열쇠에 낱말을 두 벌씩 더 들고 있게 된다. 번호로 세면 낱말 하나를 처음 만났을 때만
+//! 복제하고, 짝은 8바이트 열쇠가 된다.
 
 use super::Signal;
 use std::collections::HashMap;
@@ -38,8 +43,12 @@ fn word_of(chunk: &str) -> Option<&str> {
 /// 있든(TSV 한 줄, XML 안의 wikitext) 세는 방식은 같으므로 여기 모은다.
 #[derive(Default)]
 pub struct CorpusCounts {
-    pub counts: HashMap<String, u64>,
-    pub pairs: HashMap<(String, String), u64>,
+    /// 낱말 → 번호. 낱말이 복제되는 자리는 여기 하나뿐이다.
+    numbers: HashMap<Box<str>, u32>,
+    /// 번호 → 관측 횟수
+    counts: Vec<u64>,
+    /// (앞말 번호, 뒷말 번호) → 관측 횟수
+    pairs: HashMap<(u32, u32), u64>,
 }
 
 impl CorpusCounts {
@@ -57,7 +66,7 @@ impl CorpusCounts {
     }
 
     fn read_line(&mut self, line: &str, cased: bool) {
-        let mut previous: Option<&str> = None;
+        let mut previous: Option<u32> = None;
         for token in line.split_whitespace().map(word_of) {
             let Some(token) = token else {
                 previous = None;
@@ -67,24 +76,45 @@ impl CorpusCounts {
                 previous = None;
                 continue;
             }
-            *self.counts.entry(token.to_string()).or_insert(0) += 1;
+            let number = self.number_of(token);
+            self.counts[number as usize] += 1;
             if let Some(left) = previous {
-                *self
-                    .pairs
-                    .entry((left.to_string(), token.to_string()))
-                    .or_insert(0) += 1;
+                *self.pairs.entry((left, number)).or_insert(0) += 1;
             }
-            previous = Some(token);
+            previous = Some(number);
         }
+    }
+
+    /// 낱말의 번호. 처음 만난 낱말만 복제한다.
+    fn number_of(&mut self, word: &str) -> u32 {
+        if let Some(&number) = self.numbers.get(word) {
+            return number;
+        }
+        let number = self.counts.len() as u32;
+        self.numbers.insert(word.into(), number);
+        self.counts.push(0);
+        number
     }
 
     /// 집계 표가 너무 커지면 한 번만 만난 항목을 쳐낸다. 위키백과 규모의 코퍼스는
     /// 짝의 종류가 수천만이라 통째로 들고 있을 수 없는데, 우리가 쓰는 것은 흔한
     /// 쪽이므로 한 번짜리를 버려도 순위가 거의 달라지지 않는다 — 실제로 흔한 것은
     /// 곧 다시 만나 되살아난다. 최종 횟수는 그만큼 과소평가되지만 순서는 남는다.
+    ///
+    /// 쳐낸 낱말의 번호는 비워 두고 다시 쓰지 않는다 — 짝이 이미 가리키고 있는 번호를
+    /// 다른 낱말에 내주면 없던 이웃 관계가 생긴다. 짝은 두 번 이상 만난 것만 살아남고
+    /// 그 낱말은 적어도 두 번 관측된 것이므로, 쳐낸 자리를 가리키는 짝은 남지 않는다.
     pub fn prune_if_large(&mut self) {
-        if self.counts.len() > PRUNE_THRESHOLD {
-            self.counts.retain(|_, count| *count > 1);
+        if self.numbers.len() > PRUNE_THRESHOLD {
+            let counts = &mut self.counts;
+            self.numbers.retain(|_, number| {
+                let count = &mut counts[*number as usize];
+                if *count > 1 {
+                    return true;
+                }
+                *count = 0;
+                false
+            });
         }
         if self.pairs.len() > PRUNE_THRESHOLD {
             self.pairs.retain(|_, count| *count > 1);
@@ -92,19 +122,58 @@ impl CorpusCounts {
     }
 
     pub fn finish(self, minimum_count: u64) -> Signal {
+        let mut words: Vec<Option<Box<str>>> = vec![None; self.counts.len()];
+        for (word, number) in self.numbers {
+            words[number as usize] = Some(word);
+        }
+        let bigrams = self
+            .pairs
+            .into_iter()
+            .filter_map(|((left, right), count)| {
+                let left = words[left as usize].as_deref()?;
+                let right = words[right as usize].as_deref()?;
+                Some((left.to_string(), right.to_string(), count))
+            })
+            .collect();
+        let observed = words
+            .into_iter()
+            .zip(&self.counts)
+            .filter_map(|(word, &count)| {
+                (count >= minimum_count)
+                    .then_some(word)
+                    .flatten()
+                    .map(|word| (word.into_string(), count))
+            })
+            .collect();
         Signal {
-            observed: self
-                .counts
-                .into_iter()
-                .filter(|(_, count)| *count >= minimum_count)
-                .collect(),
-            bigrams: self
-                .pairs
-                .into_iter()
-                .map(|((left, right), count)| (left, right, count))
-                .collect(),
+            observed,
+            bigrams,
             ..Signal::default()
         }
+    }
+
+    /// 아무 낱말도 세지 못했는가 — 원천을 잘못 읽었는지 가리는 조건이다.
+    pub fn is_empty(&self) -> bool {
+        self.numbers.is_empty()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn count(&self, word: &str) -> Option<u64> {
+        self.numbers
+            .get(word)
+            .map(|&number| self.counts[number as usize])
+    }
+
+    #[cfg(test)]
+    pub(crate) fn pair_count(&self, left: &str, right: &str) -> Option<u64> {
+        let left = *self.numbers.get(left)?;
+        let right = *self.numbers.get(right)?;
+        self.pairs.get(&(left, right)).copied()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn pair_kinds(&self) -> usize {
+        self.pairs.len()
     }
 }
 
@@ -118,19 +187,28 @@ mod tests {
     fn words_are_whole_eojeol_not_fragments() {
         let mut corpus = CorpusCounts::default();
         corpus.read_sentence("2026년에 Windows는 나왔다.", false);
-        assert_eq!(corpus.counts.get("나왔다"), Some(&1));
+        assert_eq!(corpus.count("나왔다"), Some(1));
         // 숫자가 섞인 어절은 통째로 버린다. 스크립트가 섞인 어절은 온전히 남으므로
         // ("Windows는") 표제어 문자 집합 필터가 뒤에서 걸러 낸다 — 어느 쪽이든 조사
         // 파편은 생기지 않는다.
         for fragment in ["년에", "는", "2026년에"] {
-            assert_eq!(corpus.counts.get(fragment), None, "파편이 남음: {fragment}");
+            assert_eq!(corpus.count(fragment), None, "파편이 남음: {fragment}");
         }
         // 버린 어절은 사슬을 끊는다
-        assert_eq!(corpus.pairs.len(), 1);
-        assert!(
-            corpus
-                .pairs
-                .contains_key(&("Windows는".to_string(), "나왔다".to_string()))
-        );
+        assert_eq!(corpus.pair_kinds(), 1);
+        assert_eq!(corpus.pair_count("Windows는", "나왔다"), Some(1));
+    }
+
+    /// 같은 낱말이 같은 번호로 모이는가 — 번호가 어긋나면 짝이 다른 낱말을 가리킨다.
+    #[test]
+    fn repeated_words_share_a_number() {
+        let mut corpus = CorpusCounts::default();
+        corpus.read_sentence("바람 바람 소리", false);
+        assert_eq!(corpus.count("바람"), Some(2));
+        assert_eq!(corpus.pair_count("바람", "바람"), Some(1));
+        assert_eq!(corpus.pair_count("바람", "소리"), Some(1));
+        let signal = corpus.finish(1);
+        assert_eq!(signal.observed.len(), 2);
+        assert_eq!(signal.bigrams.len(), 2);
     }
 }

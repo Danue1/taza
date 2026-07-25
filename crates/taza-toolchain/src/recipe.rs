@@ -3,6 +3,7 @@
 
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
+use taza_engine::contract::CandidateGroup;
 use taza_engine::suggest::KeyEncoding;
 
 #[derive(Debug, Deserialize)]
@@ -275,6 +276,25 @@ pub enum Role {
     Discovery,
 }
 
+/// 곁들일 것의 갈래 — 파일 형식이 같고 갈래만 다르므로 레시피가 밝힌다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum AnnotationGroupName {
+    Emoji,
+    Symbol,
+    Emoticon,
+}
+
+impl From<AnnotationGroupName> for CandidateGroup {
+    fn from(name: AnnotationGroupName) -> Self {
+        match name {
+            AnnotationGroupName::Emoji => CandidateGroup::Emoji,
+            AnnotationGroupName::Symbol => CandidateGroup::Symbol,
+            AnnotationGroupName::Emoticon => CandidateGroup::Emoticon,
+        }
+    }
+}
+
 /// 원천 파일에서 (표제어, 신호)를 뽑아내는 방법. 원천 형식마다 하나씩 늘어난다.
 #[derive(Debug, Deserialize)]
 #[serde(tag = "format", rename_all = "kebab-case")]
@@ -325,8 +345,15 @@ pub enum Extraction {
         #[serde(default = "default_minimum_count")]
         minimum_count: u64,
     },
-    /// CLDR 이모지 주석 — 이모지마다 그것을 부르는 낱말이 달려 있다.
+    /// CLDR 주석 — 이모지·기호마다 그것을 부르는 낱말이 달려 있다. 갈래(이모지/기호)는
+    /// 코드포인트가 이모지 표현인지로 갈리므로 레시피가 밝히지 않는다.
     CldrAnnotations,
+    /// 곁들일 것 목록 (`곁들일것<TAB>낱말,낱말,…`). 공개 원천이 없는 갈래(얼굴 문자)를
+    /// 손으로 갖춰 싣는 통로다. `#`로 시작하는 줄은 주석이다.
+    AnnotationList {
+        /// 이 파일이 담은 갈래
+        group: AnnotationGroupName,
+    },
     /// 우리말샘 사전 XML. 110만 표제어 가운데 방언·북한어·옛말이 상당수라 그대로 받으면
     /// 표준 어휘를 예산에서 밀어낸다 — 사전이 스스로 구분해 둔 갈래로 고른다.
     Urimalsam {

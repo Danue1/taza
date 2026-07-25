@@ -552,6 +552,11 @@ fileprivate struct FfiConverterString: FfiConverter {
 public protocol KeyboardSessionProtocol: AnyObject, Sendable {
     
     /**
+     * 통합 검색면 내용 — 검색어가 비면 자주 쓰는 것과 갈래별 목록이 온다.
+     */
+    func annotationPanel(query: String)  -> FfiAnnotationPanel
+    
+    /**
      * 스페이스바를 길게 눌러 끄는 커서 이동. 셸은 포인터 x(정규화)만 흘려보내고
      * 몇 칸 움직일지는 코어가 판정한다.
      */
@@ -610,6 +615,11 @@ public protocol KeyboardSessionProtocol: AnyObject, Sendable {
      * 길게 눌러 연 팝업에서 고른 변형 문자 — 일반 키 입력과 같은 경로로 흐른다.
      */
     func selectAlternate(alternate: String, context: FfiEditorContext)  -> [FfiEffect]
+    
+    /**
+     * 검색면에서 고른 것을 넣는다 — 진행 중 조합 확정과 최근 사용 기록은 코어가 한다.
+     */
+    func selectAnnotation(group: FfiCandidateGroup, text: String, context: FfiEditorContext)  -> [FfiEffect]
     
     /**
      * 표시 환경 주입 — 셸이 자기 크기를 알게 될 때(첫 배치, 회전, 분할) 부른다.
@@ -693,6 +703,17 @@ public convenience init(languageTag: String)throws  {
 
     
 
+    
+    /**
+     * 통합 검색면 내용 — 검색어가 비면 자주 쓰는 것과 갈래별 목록이 온다.
+     */
+open func annotationPanel(query: String) -> FfiAnnotationPanel  {
+    return try!  FfiConverterTypeFfiAnnotationPanel_lift(try! rustCall() {
+    uniffi_taza_ffi_fn_method_keyboardsession_annotation_panel(self.uniffiClonePointer(),
+        FfiConverterString.lower(query),$0
+    )
+})
+}
     
     /**
      * 스페이스바를 길게 눌러 끄는 커서 이동. 셸은 포인터 x(정규화)만 흘려보내고
@@ -827,6 +848,19 @@ open func selectAlternate(alternate: String, context: FfiEditorContext) -> [FfiE
 }
     
     /**
+     * 검색면에서 고른 것을 넣는다 — 진행 중 조합 확정과 최근 사용 기록은 코어가 한다.
+     */
+open func selectAnnotation(group: FfiCandidateGroup, text: String, context: FfiEditorContext) -> [FfiEffect]  {
+    return try!  FfiConverterSequenceTypeFfiEffect.lift(try! rustCall() {
+    uniffi_taza_ffi_fn_method_keyboardsession_select_annotation(self.uniffiClonePointer(),
+        FfiConverterTypeFfiCandidateGroup_lower(group),
+        FfiConverterString.lower(text),
+        FfiConverterTypeFfiEditorContext_lower(context),$0
+    )
+})
+}
+    
+    /**
      * 표시 환경 주입 — 셸이 자기 크기를 알게 될 때(첫 배치, 회전, 분할) 부른다.
      * 이후 프레임의 치수는 이 값을 따른다.
      */
@@ -914,15 +948,234 @@ public func FfiConverterTypeKeyboardSession_lower(_ value: KeyboardSession) -> U
 
 
 
-public struct FfiCandidate {
-    public var text: String
-    public var kind: FfiCandidateKind
+public struct FfiAnnotationPanel {
+    public var groups: [FfiAnnotationPanelGroup]
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(text: String, kind: FfiCandidateKind) {
+    public init(groups: [FfiAnnotationPanelGroup]) {
+        self.groups = groups
+    }
+}
+
+#if compiler(>=6)
+extension FfiAnnotationPanel: Sendable {}
+#endif
+
+
+extension FfiAnnotationPanel: Equatable, Hashable {
+    public static func ==(lhs: FfiAnnotationPanel, rhs: FfiAnnotationPanel) -> Bool {
+        if lhs.groups != rhs.groups {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(groups)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiAnnotationPanel: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiAnnotationPanel {
+        return
+            try FfiAnnotationPanel(
+                groups: FfiConverterSequenceTypeFfiAnnotationPanelGroup.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FfiAnnotationPanel, into buf: inout [UInt8]) {
+        FfiConverterSequenceTypeFfiAnnotationPanelGroup.write(value.groups, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiAnnotationPanel_lift(_ buf: RustBuffer) throws -> FfiAnnotationPanel {
+    return try FfiConverterTypeFfiAnnotationPanel.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiAnnotationPanel_lower(_ value: FfiAnnotationPanel) -> RustBuffer {
+    return FfiConverterTypeFfiAnnotationPanel.lower(value)
+}
+
+
+/**
+ * 검색면의 한 그룹 — 셸은 헤더(label)와 항목만 그린다. `group`이 없으면 갈래가 섞인
+ * 그룹(자주 쓰는)이다.
+ */
+public struct FfiAnnotationPanelGroup {
+    public var group: FfiCandidateGroup?
+    public var label: String
+    public var items: [FfiAnnotationPanelItem]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(group: FfiCandidateGroup?, label: String, items: [FfiAnnotationPanelItem]) {
+        self.group = group
+        self.label = label
+        self.items = items
+    }
+}
+
+#if compiler(>=6)
+extension FfiAnnotationPanelGroup: Sendable {}
+#endif
+
+
+extension FfiAnnotationPanelGroup: Equatable, Hashable {
+    public static func ==(lhs: FfiAnnotationPanelGroup, rhs: FfiAnnotationPanelGroup) -> Bool {
+        if lhs.group != rhs.group {
+            return false
+        }
+        if lhs.label != rhs.label {
+            return false
+        }
+        if lhs.items != rhs.items {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(group)
+        hasher.combine(label)
+        hasher.combine(items)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiAnnotationPanelGroup: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiAnnotationPanelGroup {
+        return
+            try FfiAnnotationPanelGroup(
+                group: FfiConverterOptionTypeFfiCandidateGroup.read(from: &buf), 
+                label: FfiConverterString.read(from: &buf), 
+                items: FfiConverterSequenceTypeFfiAnnotationPanelItem.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FfiAnnotationPanelGroup, into buf: inout [UInt8]) {
+        FfiConverterOptionTypeFfiCandidateGroup.write(value.group, into: &buf)
+        FfiConverterString.write(value.label, into: &buf)
+        FfiConverterSequenceTypeFfiAnnotationPanelItem.write(value.items, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiAnnotationPanelGroup_lift(_ buf: RustBuffer) throws -> FfiAnnotationPanelGroup {
+    return try FfiConverterTypeFfiAnnotationPanelGroup.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiAnnotationPanelGroup_lower(_ value: FfiAnnotationPanelGroup) -> RustBuffer {
+    return FfiConverterTypeFfiAnnotationPanelGroup.lower(value)
+}
+
+
+/**
+ * 통합 검색면에 담기는 항목 하나.
+ */
+public struct FfiAnnotationPanelItem {
+    public var group: FfiCandidateGroup
+    public var text: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(group: FfiCandidateGroup, text: String) {
+        self.group = group
+        self.text = text
+    }
+}
+
+#if compiler(>=6)
+extension FfiAnnotationPanelItem: Sendable {}
+#endif
+
+
+extension FfiAnnotationPanelItem: Equatable, Hashable {
+    public static func ==(lhs: FfiAnnotationPanelItem, rhs: FfiAnnotationPanelItem) -> Bool {
+        if lhs.group != rhs.group {
+            return false
+        }
+        if lhs.text != rhs.text {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(group)
+        hasher.combine(text)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiAnnotationPanelItem: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiAnnotationPanelItem {
+        return
+            try FfiAnnotationPanelItem(
+                group: FfiConverterTypeFfiCandidateGroup.read(from: &buf), 
+                text: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FfiAnnotationPanelItem, into buf: inout [UInt8]) {
+        FfiConverterTypeFfiCandidateGroup.write(value.group, into: &buf)
+        FfiConverterString.write(value.text, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiAnnotationPanelItem_lift(_ buf: RustBuffer) throws -> FfiAnnotationPanelItem {
+    return try FfiConverterTypeFfiAnnotationPanelItem.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiAnnotationPanelItem_lower(_ value: FfiAnnotationPanelItem) -> RustBuffer {
+    return FfiConverterTypeFfiAnnotationPanelItem.lower(value)
+}
+
+
+public struct FfiCandidate {
+    public var text: String
+    public var kind: FfiCandidateKind
+    public var group: FfiCandidateGroup
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(text: String, kind: FfiCandidateKind, group: FfiCandidateGroup) {
         self.text = text
         self.kind = kind
+        self.group = group
     }
 }
 
@@ -939,12 +1192,16 @@ extension FfiCandidate: Equatable, Hashable {
         if lhs.kind != rhs.kind {
             return false
         }
+        if lhs.group != rhs.group {
+            return false
+        }
         return true
     }
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine(text)
         hasher.combine(kind)
+        hasher.combine(group)
     }
 }
 
@@ -958,13 +1215,15 @@ public struct FfiConverterTypeFfiCandidate: FfiConverterRustBuffer {
         return
             try FfiCandidate(
                 text: FfiConverterString.read(from: &buf), 
-                kind: FfiConverterTypeFfiCandidateKind.read(from: &buf)
+                kind: FfiConverterTypeFfiCandidateKind.read(from: &buf), 
+                group: FfiConverterTypeFfiCandidateGroup.read(from: &buf)
         )
     }
 
     public static func write(_ value: FfiCandidate, into buf: inout [UInt8]) {
         FfiConverterString.write(value.text, into: &buf)
         FfiConverterTypeFfiCandidateKind.write(value.kind, into: &buf)
+        FfiConverterTypeFfiCandidateGroup.write(value.group, into: &buf)
     }
 }
 
@@ -1489,12 +1748,22 @@ public func FfiConverterTypeFfiKeyBounds_lower(_ value: FfiKeyBounds) -> RustBuf
 public struct FfiKeyboardFrame {
     public var rows: [[FfiFrameKey]]
     public var metrics: FfiFrameMetrics
+    /**
+     * 키 위에 놓이는 통합 검색면이 차지하는 높이(키보드 높이 기준 정규화값). 0이면
+     * 패널이 없는 레이어다 — 내용은 `annotation_panel`로 따로 받는다.
+     */
+    public var panelHeightRatio: Float
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(rows: [[FfiFrameKey]], metrics: FfiFrameMetrics) {
+    public init(rows: [[FfiFrameKey]], metrics: FfiFrameMetrics, 
+        /**
+         * 키 위에 놓이는 통합 검색면이 차지하는 높이(키보드 높이 기준 정규화값). 0이면
+         * 패널이 없는 레이어다 — 내용은 `annotation_panel`로 따로 받는다.
+         */panelHeightRatio: Float) {
         self.rows = rows
         self.metrics = metrics
+        self.panelHeightRatio = panelHeightRatio
     }
 }
 
@@ -1511,12 +1780,16 @@ extension FfiKeyboardFrame: Equatable, Hashable {
         if lhs.metrics != rhs.metrics {
             return false
         }
+        if lhs.panelHeightRatio != rhs.panelHeightRatio {
+            return false
+        }
         return true
     }
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine(rows)
         hasher.combine(metrics)
+        hasher.combine(panelHeightRatio)
     }
 }
 
@@ -1530,13 +1803,15 @@ public struct FfiConverterTypeFfiKeyboardFrame: FfiConverterRustBuffer {
         return
             try FfiKeyboardFrame(
                 rows: FfiConverterSequenceSequenceTypeFfiFrameKey.read(from: &buf), 
-                metrics: FfiConverterTypeFfiFrameMetrics.read(from: &buf)
+                metrics: FfiConverterTypeFfiFrameMetrics.read(from: &buf), 
+                panelHeightRatio: FfiConverterFloat.read(from: &buf)
         )
     }
 
     public static func write(_ value: FfiKeyboardFrame, into buf: inout [UInt8]) {
         FfiConverterSequenceSequenceTypeFfiFrameKey.write(value.rows, into: &buf)
         FfiConverterTypeFfiFrameMetrics.write(value.metrics, into: &buf)
+        FfiConverterFloat.write(value.panelHeightRatio, into: &buf)
     }
 }
 
@@ -1818,6 +2093,93 @@ public func FfiConverterTypeFfiUserPreferences_lift(_ buf: RustBuffer) throws ->
 public func FfiConverterTypeFfiUserPreferences_lower(_ value: FfiUserPreferences) -> RustBuffer {
     return FfiConverterTypeFfiUserPreferences.lower(value)
 }
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * 후보 바에서 이 후보가 서는 자리 — 셸은 갈래별로 묶어 인라인으로 늘어놓는다.
+ */
+
+public enum FfiCandidateGroup {
+    
+    case word
+    case emoji
+    case symbol
+    case emoticon
+}
+
+
+#if compiler(>=6)
+extension FfiCandidateGroup: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiCandidateGroup: FfiConverterRustBuffer {
+    typealias SwiftType = FfiCandidateGroup
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiCandidateGroup {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .word
+        
+        case 2: return .emoji
+        
+        case 3: return .symbol
+        
+        case 4: return .emoticon
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: FfiCandidateGroup, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .word:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .emoji:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .symbol:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .emoticon:
+            writeInt(&buf, Int32(4))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiCandidateGroup_lift(_ buf: RustBuffer) throws -> FfiCandidateGroup {
+    return try FfiConverterTypeFfiCandidateGroup.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiCandidateGroup_lower(_ value: FfiCandidateGroup) -> RustBuffer {
+    return FfiConverterTypeFfiCandidateGroup.lower(value)
+}
+
+
+extension FfiCandidateGroup: Equatable, Hashable {}
+
+
+
+
+
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
@@ -2709,6 +3071,30 @@ fileprivate struct FfiConverterOptionString: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionTypeFfiCandidateGroup: FfiConverterRustBuffer {
+    typealias SwiftType = FfiCandidateGroup?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeFfiCandidateGroup.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeFfiCandidateGroup.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceString: FfiConverterRustBuffer {
     typealias SwiftType = [String]
 
@@ -2726,6 +3112,56 @@ fileprivate struct FfiConverterSequenceString: FfiConverterRustBuffer {
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
             seq.append(try FfiConverterString.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeFfiAnnotationPanelGroup: FfiConverterRustBuffer {
+    typealias SwiftType = [FfiAnnotationPanelGroup]
+
+    public static func write(_ value: [FfiAnnotationPanelGroup], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeFfiAnnotationPanelGroup.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [FfiAnnotationPanelGroup] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [FfiAnnotationPanelGroup]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeFfiAnnotationPanelGroup.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeFfiAnnotationPanelItem: FfiConverterRustBuffer {
+    typealias SwiftType = [FfiAnnotationPanelItem]
+
+    public static func write(_ value: [FfiAnnotationPanelItem], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeFfiAnnotationPanelItem.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [FfiAnnotationPanelItem] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [FfiAnnotationPanelItem]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeFfiAnnotationPanelItem.read(from: &buf))
         }
         return seq
     }
@@ -2900,6 +3336,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_taza_ffi_checksum_func_supported_pack_format_version() != 50850) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_taza_ffi_checksum_method_keyboardsession_annotation_panel() != 50853) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_taza_ffi_checksum_method_keyboardsession_begin_cursor_drag() != 2567) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -2937,6 +3376,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_taza_ffi_checksum_method_keyboardsession_select_alternate() != 49148) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_taza_ffi_checksum_method_keyboardsession_select_annotation() != 8739) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_taza_ffi_checksum_method_keyboardsession_set_metrics() != 53134) {

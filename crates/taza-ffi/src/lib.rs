@@ -12,8 +12,8 @@ pub use install::{
 use std::sync::{Arc, Mutex};
 
 use taza_engine::contract::{
-    Candidate, CandidateKind, EditorContext, Effect, FieldKind, InputEvent, KeySignal,
-    UserPreferences,
+    Candidate, CandidateGroup, CandidateKind, EditorContext, Effect, FieldKind, InputEvent,
+    KeySignal, UserPreferences,
 };
 use taza_engine::engine::{Engine, PackBytes};
 use taza_engine::keyboard::{FormFactor, KeyRole, KeyboardMetrics, ShellRequest};
@@ -90,10 +90,20 @@ pub enum FfiCandidateKind {
     Correction,
 }
 
+/// 후보 바에서 이 후보가 서는 자리 — 셸은 갈래별로 묶어 인라인으로 늘어놓는다.
+#[derive(uniffi::Enum)]
+pub enum FfiCandidateGroup {
+    Word,
+    Emoji,
+    Symbol,
+    Emoticon,
+}
+
 #[derive(uniffi::Record)]
 pub struct FfiCandidate {
     pub text: String,
     pub kind: FfiCandidateKind,
+    pub group: FfiCandidateGroup,
 }
 
 #[derive(uniffi::Enum)]
@@ -104,6 +114,27 @@ pub enum FfiEffect {
     DeleteBackward { code_points: u32 },
     UpdateCandidates { candidates: Vec<FfiCandidate> },
     MoveCursor { offset: i32 },
+}
+
+/// 통합 검색면에 담기는 항목 하나.
+#[derive(uniffi::Record)]
+pub struct FfiAnnotationPanelItem {
+    pub group: FfiCandidateGroup,
+    pub text: String,
+}
+
+/// 검색면의 한 그룹 — 셸은 헤더(label)와 항목만 그린다. `group`이 없으면 갈래가 섞인
+/// 그룹(자주 쓰는)이다.
+#[derive(uniffi::Record)]
+pub struct FfiAnnotationPanelGroup {
+    pub group: Option<FfiCandidateGroup>,
+    pub label: String,
+    pub items: Vec<FfiAnnotationPanelItem>,
+}
+
+#[derive(uniffi::Record)]
+pub struct FfiAnnotationPanel {
+    pub groups: Vec<FfiAnnotationPanelGroup>,
 }
 
 #[derive(uniffi::Record)]
@@ -163,6 +194,9 @@ pub struct FfiFrameMetrics {
 pub struct FfiKeyboardFrame {
     pub rows: Vec<Vec<FfiFrameKey>>,
     pub metrics: FfiFrameMetrics,
+    /// 키 위에 놓이는 통합 검색면이 차지하는 높이(키보드 높이 기준 정규화값). 0이면
+    /// 패널이 없는 레이어다 — 내용은 `annotation_panel`로 따로 받는다.
+    pub panel_height_ratio: f32,
 }
 
 #[derive(uniffi::Record)]
@@ -211,6 +245,16 @@ fn convert_candidate(candidate: Candidate) -> FfiCandidate {
             CandidateKind::Conversion => FfiCandidateKind::Conversion,
             CandidateKind::Correction => FfiCandidateKind::Correction,
         },
+        group: convert_candidate_group(candidate.group),
+    }
+}
+
+fn convert_candidate_group(group: CandidateGroup) -> FfiCandidateGroup {
+    match group {
+        CandidateGroup::Word => FfiCandidateGroup::Word,
+        CandidateGroup::Emoji => FfiCandidateGroup::Emoji,
+        CandidateGroup::Symbol => FfiCandidateGroup::Symbol,
+        CandidateGroup::Emoticon => FfiCandidateGroup::Emoticon,
     }
 }
 
@@ -437,7 +481,52 @@ impl KeyboardSession {
                 .map(|row| row.into_iter().map(convert_frame_key).collect())
                 .collect(),
             metrics: convert_frame_metrics(frame.metrics),
+            panel_height_ratio: frame.panel_height_ratio,
         }
+    }
+
+    /// 통합 검색면 내용 — 검색어가 비면 자주 쓰는 것과 갈래별 목록이 온다.
+    pub fn annotation_panel(&self, query: String) -> FfiAnnotationPanel {
+        let panel = self.engine.lock().unwrap().annotation_panel(&query);
+        FfiAnnotationPanel {
+            groups: panel
+                .groups
+                .into_iter()
+                .map(|group| FfiAnnotationPanelGroup {
+                    group: group.group.map(convert_candidate_group),
+                    label: group.label,
+                    items: group
+                        .items
+                        .into_iter()
+                        .map(|item| FfiAnnotationPanelItem {
+                            group: convert_candidate_group(item.group),
+                            text: item.text,
+                        })
+                        .collect(),
+                })
+                .collect(),
+        }
+    }
+
+    /// 검색면에서 고른 것을 넣는다 — 진행 중 조합 확정과 최근 사용 기록은 코어가 한다.
+    pub fn select_annotation(
+        &self,
+        group: FfiCandidateGroup,
+        text: String,
+        context: FfiEditorContext,
+    ) -> Vec<FfiEffect> {
+        let group = match group {
+            FfiCandidateGroup::Word => CandidateGroup::Word,
+            FfiCandidateGroup::Emoji => CandidateGroup::Emoji,
+            FfiCandidateGroup::Symbol => CandidateGroup::Symbol,
+            FfiCandidateGroup::Emoticon => CandidateGroup::Emoticon,
+        };
+        let effects =
+            self.engine
+                .lock()
+                .unwrap()
+                .select_annotation(group, &text, &convert_context(&context));
+        effects.into_iter().map(convert_effect).collect()
     }
 
     /// 개인화 상태 직렬화 — 셸이 컨테이너 저장소(App Group 등)에 보관한다.
@@ -445,7 +534,11 @@ impl KeyboardSession {
         let snapshot = self.engine.lock().unwrap().personalization_snapshot();
         let mut lines = vec![snapshot.clock.to_string()];
         for (word, count, last_used) in snapshot.entries {
-            lines.push(format!("{word}\t{count}\t{last_used}"));
+            lines.push(format!("w\t{word}\t{count}\t{last_used}"));
+        }
+        for (group, text) in snapshot.recent_annotations {
+            let Some(tag) = group.tag() else { continue };
+            lines.push(format!("a\t{tag}\t{text}"));
         }
         lines
     }
@@ -464,19 +557,31 @@ impl KeyboardSession {
             return;
         };
         let mut entries = Vec::new();
+        let mut recent_annotations = Vec::new();
         for line in entry_lines {
-            let fields: Vec<&str> = line.split('\t').collect();
-            let [word, count, last_used] = fields.as_slice() else {
-                continue;
-            };
-            let (Ok(count), Ok(last_used)) = (count.parse(), last_used.parse()) else {
-                continue;
-            };
-            entries.push((word.to_string(), count, last_used));
+            match line.split('\t').collect::<Vec<&str>>().as_slice() {
+                ["w", word, count, last_used] => {
+                    let (Ok(count), Ok(last_used)) = (count.parse(), last_used.parse()) else {
+                        continue;
+                    };
+                    entries.push((word.to_string(), count, last_used));
+                }
+                ["a", tag, text] => {
+                    let Some(group) = tag.parse().ok().and_then(CandidateGroup::from_tag) else {
+                        continue;
+                    };
+                    recent_annotations.push((group, text.to_string()));
+                }
+                _ => continue,
+            }
         }
         self.engine
             .lock()
             .unwrap()
-            .restore_personalization(PersonalizationState { entries, clock });
+            .restore_personalization(PersonalizationState {
+                entries,
+                clock,
+                recent_annotations,
+            });
     }
 }

@@ -104,14 +104,20 @@ fn is_hangul_script(character: char) -> bool {
     matches!(character, '\u{1100}'..='\u{11FF}' | '\u{3130}'..='\u{318F}' | '\u{AC00}'..='\u{D7A3}')
 }
 
-/// 각 행의 정규화 높이 — 행별 상대 높이를 합이 1이 되도록 나눈다. 값이 비어 있는
+/// 레이어가 차지하는 높이 — 표준 행 몇 개분인가. 패널(통합 검색면)도 자기 높이를 갖는다.
+fn layer_rows(layout: &KeyboardLayout) -> f32 {
+    layout.panel_rows.max(0.0)
+        + layout
+            .rows
+            .iter()
+            .map(|row| row.height_ratio.max(0.0))
+            .sum::<f32>()
+}
+
+/// 각 행의 정규화 높이 — 행별 상대 높이를 레이어 전체 높이로 나눈다. 값이 비어 있는
 /// 레이아웃(높이를 지정하지 않은 팩)은 균등 배분으로 되돌린다.
 pub(crate) fn row_heights(layout: &KeyboardLayout) -> Vec<f32> {
-    let total: f32 = layout
-        .rows
-        .iter()
-        .map(|row| row.height_ratio.max(0.0))
-        .sum();
+    let total = layer_rows(layout);
     if total <= 0.0 {
         return vec![1.0 / layout.rows.len() as f32; layout.rows.len()];
     }
@@ -122,13 +128,23 @@ pub(crate) fn row_heights(layout: &KeyboardLayout) -> Vec<f32> {
         .collect()
 }
 
+/// 키 위에 놓이는 패널이 차지하는 몫(정규화). 0이면 키만 있는 레이어다.
+pub(crate) fn panel_height_ratio(layout: &KeyboardLayout) -> f32 {
+    let total = layer_rows(layout);
+    if total <= 0.0 {
+        return 0.0;
+    }
+    layout.panel_rows.max(0.0) / total
+}
+
 /// 한 행의 키 기하 — 언어·상태와 무관한 순수 배치 계산이라 레이아웃만 있으면 된다.
 /// (오타 합성 같은 오프라인 도구가 세션 없이 쓰는 통로)
 pub fn row_bounds(layout: &KeyboardLayout, row_index: usize) -> Vec<KeyBounds> {
     let heights = row_heights(layout);
     let row = &layout.rows[row_index];
     let height = heights[row_index];
-    let y: f32 = heights[..row_index].iter().sum();
+    // 패널이 있는 레이어에서는 키 행이 패널 아래에서 시작한다
+    let y: f32 = panel_height_ratio(layout) + heights[..row_index].iter().sum::<f32>();
     let total_ratio: f32 = row.keys.iter().map(|key| key.width_ratio).sum();
     // 행 폭이 1 미만이면 좌우 여백을 균등 분배해 가운데 정렬
     let mut x = (1.0 - total_ratio.min(1.0)) / 2.0;
@@ -178,6 +194,9 @@ impl KeyBounds {
 pub struct KeyboardFrame {
     pub rows: Vec<Vec<FrameKey>>,
     pub metrics: FrameMetrics,
+    /// 키 위에 놓이는 패널(통합 검색면)이 차지하는 높이 — 키보드 높이 기준 정규화값.
+    /// 0이면 패널이 없는 레이어다. 패널 안의 내용은 `Engine::annotation_panel`이 낸다.
+    pub panel_height_ratio: f32,
 }
 
 /// 셸이 길게 누르기 같은 플랫폼 관습을 붙일 때 쓰는 키의 갈래. 셸은 이 값으로만
@@ -264,12 +283,7 @@ impl Keyboard {
     pub fn frame_metrics(&self) -> FrameMetrics {
         let form_factor = self.metrics.form_factor;
         // 행 높이는 표준 행 대비 배수이므로, 그 합이 곧 몇 행치 높이인지가 된다
-        let rows: f32 = self
-            .layout()
-            .rows
-            .iter()
-            .map(|row| row.height_ratio.max(0.0))
-            .sum();
+        let rows = layer_rows(self.layout());
         FrameMetrics {
             grid_height: form_factor.key_row_height_points() * rows,
             candidate_bar_height: form_factor.candidate_bar_height_points(),
@@ -302,7 +316,9 @@ impl Keyboard {
                 if uses_hangul { "한글" } else { "ABC" }.to_string()
             }
             1 => "123".to_string(),
-            _ => "#+=".to_string(),
+            2 => "#+=".to_string(),
+            // 통합 검색면 — 순정 이모지 키와 같은 웃는 얼굴
+            _ => "☺".to_string(),
         }
     }
 
@@ -337,7 +353,8 @@ impl Keyboard {
             KeyAction::LayerSwitch { target } => match target {
                 0 => "letters".to_string(),
                 1 => "numbers".to_string(),
-                _ => "symbols".to_string(),
+                2 => "symbols".to_string(),
+                _ => "emoji".to_string(),
             },
             KeyAction::LanguageSwitch => {
                 format!("language, {}", self.language.display_name)
@@ -391,6 +408,7 @@ impl Keyboard {
         KeyboardFrame {
             rows,
             metrics: self.frame_metrics(),
+            panel_height_ratio: panel_height_ratio(self.layout()),
         }
     }
 

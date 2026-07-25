@@ -1,9 +1,11 @@
 //! 레이아웃 섹션의 텍스트 DSL 파서와 직렬화.
 //!
-//! 레이아웃 문법: 한 줄 = 한 행, `---` 줄 = 레이어 구분(0=문자, 1=심볼1, 2=심볼2).
+//! 레이아웃 문법: 한 줄 = 한 행, `---` 줄 = 레이어 구분(0=문자, 1=심볼1, 2=심볼2,
+//! 3=통합 검색면). `panel *<수>` 줄은 그 레이어의 키 위에 놓이는 패널 높이(표준 행 대비
+//! 배수)를 선언한다 — 통합 검색면이 이 줄로 자기 자리를 잡는다.
 //! 공백 구분 토큰 `표기[:시프트표기][[변형문자들]][*폭비율]`. 대괄호 안 글자들은
 //! 길게 눌러 고르는 변형이다. 제어 키는 이름으로: `shift`, `backspace`, `space`,
-//! `enter`, `language`(다음 언어), `layer0`/`layer1`/`layer2`(레이어 전환).
+//! `enter`, `language`(다음 언어), `layer0`~`layer3`(레이어 전환).
 //! 기본 폭 0.1. 행 맨 앞의 `*<수>` 토큰은 그 행의 높이(표준 행 대비 배수, 기본 1.0)다.
 //! ```text
 //! ㅂ:ㅃ ㅈ:ㅉ ㄷ:ㄸ ㄱ:ㄲ ㅅ:ㅆ ㅛ ㅕ ㅑ ㅐ:ㅒ ㅔ:ㅖ
@@ -24,6 +26,7 @@ const DEFAULT_ROW_HEIGHT: f32 = 1.0;
 pub fn parse(text: &str) -> Result<KeyboardLayoutSet, String> {
     let mut layers = Vec::new();
     let mut rows = Vec::new();
+    let mut panel_rows = 0.0f32;
     for (line_number, line) in text.lines().enumerate() {
         let line = line.trim();
         if line.is_empty() || line.starts_with('#') {
@@ -35,7 +38,16 @@ pub fn parse(text: &str) -> Result<KeyboardLayoutSet, String> {
             }
             layers.push(KeyboardLayout {
                 rows: std::mem::take(&mut rows),
+                panel_rows: std::mem::take(&mut panel_rows),
             });
+            continue;
+        }
+        if let Some(height) = line.strip_prefix("panel ") {
+            panel_rows = height
+                .trim()
+                .strip_prefix('*')
+                .and_then(|value| value.parse::<f32>().ok())
+                .ok_or_else(|| format!("{}행: 패널 높이를 읽지 못했음", line_number + 1))?;
             continue;
         }
         let mut keys = Vec::new();
@@ -76,6 +88,7 @@ pub fn parse(text: &str) -> Result<KeyboardLayoutSet, String> {
                 "layer0" => KeyAction::LayerSwitch { target: 0 },
                 "layer1" => KeyAction::LayerSwitch { target: 1 },
                 "layer2" => KeyAction::LayerSwitch { target: 2 },
+                "layer3" => KeyAction::LayerSwitch { target: 3 },
                 characters => {
                     let (base, shifted) = match characters.split_once(':') {
                         Some((base, shifted)) if !base.is_empty() && !shifted.is_empty() => {
@@ -108,7 +121,7 @@ pub fn parse(text: &str) -> Result<KeyboardLayoutSet, String> {
         rows.push(LayoutRow { keys, height_ratio });
     }
     if !rows.is_empty() {
-        layers.push(KeyboardLayout { rows });
+        layers.push(KeyboardLayout { rows, panel_rows });
     }
     if layers.is_empty() {
         return Err("레이아웃에 행이 없음".to_string());
@@ -121,6 +134,8 @@ pub fn serialize(layout_set: &KeyboardLayoutSet) -> Vec<u8> {
     assert!(layout_set.layers.len() <= u8::MAX as usize);
     let mut output = vec![layout_set.layers.len() as u8];
     for layer in &layout_set.layers {
+        let panel_per_mille = (layer.panel_rows * 1000.0).round() as u16;
+        output.extend_from_slice(&panel_per_mille.to_le_bytes());
         assert!(layer.rows.len() <= u8::MAX as usize);
         output.push(layer.rows.len() as u8);
         for row in &layer.rows {

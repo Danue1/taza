@@ -1,9 +1,10 @@
 //! 정규화된 점수표 + 레이아웃 + 원천 기록을 언어팩 바이너리로 조립한다.
 
-use crate::emoji::EmojiBuilder;
+use crate::annotation::{AnnotationBuilder, AnnotationCatalogBuilder};
 use crate::lexicon::LexiconBuilder;
 use crate::metadata::MetadataBuilder;
 use crate::ngram::NgramModelBuilder;
+use crate::parse::Annotation;
 use crate::recipe::{LexiconEncoding, Recipe, Source};
 use crate::{PackWriter, layout};
 use taza_engine::pack::SectionKind;
@@ -16,8 +17,9 @@ pub struct AssembledPack {
     pub lexicon_bytes: usize,
     pub bigram_count: usize,
     pub language_model_bytes: usize,
-    pub emoji_key_count: usize,
-    pub emoji_bytes: usize,
+    pub annotation_key_count: usize,
+    pub annotation_bytes: usize,
+    pub catalog_item_count: usize,
 }
 
 /// 표제어를 팩의 저장 인코딩으로 옮긴다. 한글 자모 인코딩에서 분해할 수 없는 표제어는
@@ -31,7 +33,7 @@ pub fn assemble(
     sources: &[&Source],
     words: &[(String, u32)],
     bigrams: &[(String, String, u32)],
-    emoji: &[(String, String)],
+    annotations: &[Annotation],
     affixes: &[String],
     layout_text: Option<&str>,
 ) -> Result<AssembledPack, String> {
@@ -64,22 +66,32 @@ pub fn assemble(
     let language_model_section = (bigram_count > 0).then(|| language_model.build());
     let language_model_bytes = language_model_section.as_ref().map_or(0, Vec::len);
 
-    // 이모지 키도 lexicon과 같은 조회 키 공간에 있어야 지금 치고 있는 어절로 물어볼 수 있다.
-    // 표제어가 아닌 낱말에 달린 이모지는 내놓을 길이 없으므로 담지 않는다.
+    // 곁들일 것의 키도 lexicon과 같은 조회 키 공간에 있어야 지금 치고 있는 어절로 물어볼
+    // 수 있다. 표제어가 아닌 낱말에 달린 것은 내놓을 길이 없으므로 담지 않는다.
     let in_lexicon: std::collections::HashSet<&str> =
         words.iter().map(|(word, _)| word.as_str()).collect();
-    let mut emoji_table = EmojiBuilder::new();
-    for (word, glyph) in emoji {
-        if !in_lexicon.contains(word.as_str()) {
+    let mut annotation_table = AnnotationBuilder::new();
+    for annotation in annotations {
+        if !in_lexicon.contains(annotation.word.as_str()) {
             continue;
         }
-        if let Some(encoded) = encode(word, recipe.lexicon.encoding) {
-            emoji_table.insert(&encoded, glyph);
+        if let Some(encoded) = encode(&annotation.word, recipe.lexicon.encoding) {
+            annotation_table.insert(&encoded, annotation.group, &annotation.text);
         }
     }
-    let emoji_key_count = emoji_table.key_count();
-    let emoji_section = (emoji_key_count > 0).then(|| emoji_table.build());
-    let emoji_bytes = emoji_section.as_ref().map_or(0, Vec::len);
+    // 검색하지 않았을 때 보이는 목록은 표(조회 키 순서)에서 만들 수 없다 — 원천에 나온
+    // 순서를 갈래별로 따로 싣는다. 표제어 여부는 묻지 않는다: 검색면은 낱말을 치는 자리가
+    // 아니라 갈래를 훑는 자리이므로, 사전에 없는 낱말로만 불리는 것도 목록에는 서야 한다.
+    let mut catalog = AnnotationCatalogBuilder::new();
+    for annotation in annotations {
+        catalog.insert(annotation.group, &annotation.text);
+    }
+    let catalog_item_count = catalog.item_count();
+    let catalog_section = (catalog_item_count > 0).then(|| catalog.build());
+
+    let annotation_key_count = annotation_table.key_count();
+    let annotation_section = (annotation_key_count > 0).then(|| annotation_table.build());
+    let annotation_bytes = annotation_section.as_ref().map_or(0, Vec::len);
 
     let mut metadata = MetadataBuilder::new();
     metadata.set(keys::PACK_VERSION, recipe.pack_version.to_string());
@@ -110,8 +122,11 @@ pub fn assemble(
     if let Some(section) = language_model_section {
         writer.add_section(SectionKind::NgramModel, section);
     }
-    if let Some(section) = emoji_section {
-        writer.add_section(SectionKind::Emoji, section);
+    if let Some(section) = annotation_section {
+        writer.add_section(SectionKind::Annotation, section);
+    }
+    if let Some(section) = catalog_section {
+        writer.add_section(SectionKind::AnnotationCatalog, section);
     }
     if let Some(layout_text) = layout_text {
         writer.add_section(
@@ -126,8 +141,9 @@ pub fn assemble(
         lexicon_bytes,
         bigram_count,
         language_model_bytes,
-        emoji_key_count,
-        emoji_bytes,
+        annotation_key_count,
+        annotation_bytes,
+        catalog_item_count,
     })
 }
 

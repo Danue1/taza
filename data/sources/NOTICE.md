@@ -2,7 +2,7 @@
 
 이 문서는 `taza-packs`가 `data/recipes/*.toml`에서 생성한다 — 손으로 고치지 않는다.
 
-## english (en) — 판 1
+## english (en) — 판 2
 
 표제어 80000개
 
@@ -18,7 +18,7 @@
 > Word frequencies derived from the Tatoeba Project English sentence export (https://tatoeba.org), licensed CC-BY 2.0 FR.
 > Emoji annotations from Unicode CLDR 48.2 (https://cldr.unicode.org), Copyright © 1991-2025 Unicode, Inc., licensed under the Unicode License v3.
 
-## korean (ko) — 판 1
+## korean (ko) — 판 2
 
 표제어 120000개
 
@@ -29,6 +29,7 @@
 - Korean Wikipedia 20260701 (CC BY-SA 4.0)
 - 우리말샘 20260702 (CC BY-SA 2.0 KR)
 - CLDR 이모지 주석 (ko) 48.2 (Unicode-3.0)
+- 타자 얼굴 문자 목록 (ko) 1 (MIT)
 
 ### 저작자 표시
 
@@ -37,6 +38,7 @@
 > Word frequencies derived from the Korean Wikipedia article dump of 2026-07-01 (https://ko.wikipedia.org), licensed CC BY-SA 4.0.
 > Headwords from 우리말샘 (https://opendict.korean.go.kr), 국립국어원, licensed CC BY-SA 2.0 KR.
 > Emoji annotations from Unicode CLDR 48.2 (https://cldr.unicode.org), Copyright © 1991-2025 Unicode, Inc., licensed under the Unicode License v3.
+> Emoticon annotations curated for taza.
 
 ## 재현
 

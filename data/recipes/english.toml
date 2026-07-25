@@ -12,7 +12,7 @@ display_name = "English"
 keycap_label = "A"
 layout_name = "QWERTY"
 composer_skeleton = "latin"
-pack_version = 1
+pack_version = 2
 
 [lexicon]
 encoding = "utf8"

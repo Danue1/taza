@@ -8,11 +8,22 @@ use super::{KeyAction, KeyboardLayout, KeyboardLayoutSet, LayoutKey, LayoutRow};
 const STANDARD_ROW_HEIGHT: f32 = 1.0;
 const LETTER_WIDTH: f32 = 0.1;
 const CONTROL_WIDTH: f32 = 0.15;
-/// 하단 행: 심볼 · 언어 · 스페이스 · 엔터
-const LAYER_KEY_WIDTH: f32 = 0.125;
-const LANGUAGE_KEY_WIDTH: f32 = 0.125;
-const SPACE_WIDTH: f32 = 0.45;
-const ENTER_WIDTH: f32 = 0.3;
+/// 하단 행: 심볼 · 이모지 · 언어 · 스페이스 · 엔터
+const LAYER_KEY_WIDTH: f32 = 0.115;
+const PANEL_KEY_WIDTH: f32 = 0.115;
+const LANGUAGE_KEY_WIDTH: f32 = 0.115;
+const SPACE_WIDTH: f32 = 0.375;
+const ENTER_WIDTH: f32 = 0.28;
+/// 통합 검색면 하단 행: 문자 복귀 · 스페이스 · 삭제 · 엔터
+const PANEL_RETURN_WIDTH: f32 = 0.2;
+const PANEL_SPACE_WIDTH: f32 = 0.45;
+const PANEL_BACKSPACE_WIDTH: f32 = 0.15;
+const PANEL_ENTER_WIDTH: f32 = 0.2;
+/// 통합 검색면 패널이 차지하는 높이 — 표준 행 셋. 하단 행까지 더하면 문자면과 같은 높이가
+/// 되어 레이어를 넘나들 때 키보드가 커지거나 작아지지 않는다.
+const PANEL_ROWS: f32 = 3.0;
+/// 통합 검색면 레이어 번호 — 팩 데이터의 `layer3`과 같은 자리다.
+const PANEL_LAYER: u8 = 3;
 /// 심볼면 셋째 행 — 순정은 양끝(#+=·⌫)을 가장자리에 붙이고 가운데 5키를 넓게 편다
 const SYMBOL_PUNCTUATION_WIDTH: f32 = 0.14;
 
@@ -114,7 +125,8 @@ fn symbol_row_with_width(characters: &str, width_ratio: f32) -> LayoutRow {
         .collect())
 }
 
-/// 하단 행 — 순서는 심볼 · 언어 · 스페이스 · 엔터로 고정한다.
+/// 하단 행 — 순서는 심볼 · 이모지 · 언어 · 스페이스 · 엔터로 고정한다. 이모지 키는 낱말을
+/// 치지 않고도 통합 검색면(이모지·기호·얼굴 문자)에 한 번에 닿는 길이다.
 fn bottom_row(switch_target: u8) -> LayoutRow {
     row(vec![
         control_key(
@@ -122,6 +134,12 @@ fn bottom_row(switch_target: u8) -> LayoutRow {
                 target: switch_target,
             },
             LAYER_KEY_WIDTH,
+        ),
+        control_key(
+            KeyAction::LayerSwitch {
+                target: PANEL_LAYER,
+            },
+            PANEL_KEY_WIDTH,
         ),
         control_key(KeyAction::LanguageSwitch, LANGUAGE_KEY_WIDTH),
         control_key(KeyAction::Space, SPACE_WIDTH),
@@ -145,6 +163,7 @@ fn symbols_first_layer() -> KeyboardLayout {
     third.extend(symbol_row_with_width(".,?!'", SYMBOL_PUNCTUATION_WIDTH).keys);
     third.push(control_key(KeyAction::Backspace, CONTROL_WIDTH));
     KeyboardLayout {
+        panel_rows: 0.0,
         rows: vec![
             symbol_row("1234567890"),
             symbol_row("-/:;()$&@\""),
@@ -163,6 +182,7 @@ fn symbols_second_layer() -> KeyboardLayout {
     third.extend(symbol_row_with_width(".,?!'", SYMBOL_PUNCTUATION_WIDTH).keys);
     third.push(control_key(KeyAction::Backspace, CONTROL_WIDTH));
     KeyboardLayout {
+        panel_rows: 0.0,
         rows: vec![
             symbol_row("[]{}#%^*+="),
             symbol_row("_\\|~<>€£¥·"),
@@ -172,14 +192,34 @@ fn symbols_second_layer() -> KeyboardLayout {
     }
 }
 
+/// 통합 검색면 — 키는 하단 행 하나뿐이고 나머지 자리는 패널이 갖는다. 패널을 무엇으로
+/// 채우는지는 검색어·최근 사용에 따라 달라지므로 배열이 아니라 코어가 정한다.
+fn annotation_panel_layer() -> KeyboardLayout {
+    KeyboardLayout {
+        rows: vec![row(vec![
+            control_key(KeyAction::LayerSwitch { target: 0 }, PANEL_RETURN_WIDTH),
+            control_key(KeyAction::Space, PANEL_SPACE_WIDTH),
+            control_key(KeyAction::Backspace, PANEL_BACKSPACE_WIDTH),
+            control_key(KeyAction::Enter, PANEL_ENTER_WIDTH),
+        ])],
+        panel_rows: PANEL_ROWS,
+    }
+}
+
 fn with_symbol_layers(letters: KeyboardLayout) -> KeyboardLayoutSet {
     KeyboardLayoutSet {
-        layers: vec![letters, symbols_first_layer(), symbols_second_layer()],
+        layers: vec![
+            letters,
+            symbols_first_layer(),
+            symbols_second_layer(),
+            annotation_panel_layer(),
+        ],
     }
 }
 
 pub fn qwerty() -> KeyboardLayoutSet {
     with_symbol_layers(KeyboardLayout {
+        panel_rows: 0.0,
         rows: vec![
             latin_row("qwertyuiop"),
             latin_row("asdfghjkl"),
@@ -191,6 +231,7 @@ pub fn qwerty() -> KeyboardLayoutSet {
 
 pub fn dubeolsik() -> KeyboardLayoutSet {
     with_symbol_layers(KeyboardLayout {
+        panel_rows: 0.0,
         rows: vec![
             hangul_row(&[
                 ('ㅂ', 'ㅃ'),

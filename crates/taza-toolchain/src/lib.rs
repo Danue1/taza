@@ -9,9 +9,9 @@
 //! `taza-packs`가 이 순서를 그대로 실행하고, `taza-packc`는 이미 만들어진 TSV를
 //! 팩으로 굽는 낮은 층 도구다.
 
+pub mod annotation;
 pub mod assemble;
 pub mod distribute;
-pub mod emoji;
 pub mod lang;
 pub mod layout;
 pub mod lexicon;

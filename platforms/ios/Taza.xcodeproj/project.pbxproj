@@ -15,6 +15,7 @@
 		26A0513E4B66D6CE6DB73F41 /* TazaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED73162F9E8CB714176E666F /* TazaApp.swift */; };
 		3019F5A031B7115115BC292F /* TazaTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41F6BF764826351F53195B38 /* TazaTheme.swift */; };
 		30BDB01EA0873C1877520D3A /* TazaTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41F6BF764826351F53195B38 /* TazaTheme.swift */; };
+		344E5A6FE0D3EC8B51350CF7 /* AnnotationPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD7F2DCB31A1034059A9104A /* AnnotationPanelView.swift */; };
 		369E46DF161F9B435DF3F758 /* PackDistribution.swift in Sources */ = {isa = PBXBuildFile; fileRef = 884F7F9DE893001ADF7495D9 /* PackDistribution.swift */; };
 		3E0BC546CC1D731D0B6A3450 /* KeyboardViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E277A6F3562678279800454E /* KeyboardViewController.swift */; };
 		4F214DC30D753E60B9747574 /* LanguagePreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB583ACD6DB1BB697B271FC5 /* LanguagePreferences.swift */; };
@@ -22,6 +23,7 @@
 		5E4263D489496E09E4383A59 /* PackStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEBE767DBD452E15506A5A63 /* PackStore.swift */; };
 		6960AF473D2FC302038FF650 /* PackLibraryModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4957B682B5A359C74E1326BE /* PackLibraryModel.swift */; };
 		6C91C12D78ED96C9BCFBBC2A /* TypingPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA49C9A39372AED3BDF64BD5 /* TypingPreferences.swift */; };
+		7B32B855DCE6354F7F23188E /* AnnotationPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD7F2DCB31A1034059A9104A /* AnnotationPanelView.swift */; };
 		857A56BEC78B89D7F063E6BB /* LearningStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A599D679961790DCA7854EE /* LearningStore.swift */; };
 		8E5AF29409A34ECA1642E37B /* taza_ffi.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09D758E33FF50C0D459ED005 /* taza_ffi.swift */; };
 		985D52154ACD24EF1991EB7F /* KeyCapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D73EC3E65D47C2BDD32ACE91 /* KeyCapView.swift */; };
@@ -80,6 +82,7 @@
 		A063705662AC7D869C6B9CA8 /* CandidateBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateBarView.swift; sourceTree = "<group>"; };
 		AEBE767DBD452E15506A5A63 /* PackStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackStore.swift; sourceTree = "<group>"; };
 		B2D44F944B1A5EDD1842A418 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		BD7F2DCB31A1034059A9104A /* AnnotationPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationPanelView.swift; sourceTree = "<group>"; };
 		D2F92E8CE1713F64464B2F31 /* TazaKeyboard.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = TazaKeyboard.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		D73EC3E65D47C2BDD32ACE91 /* KeyCapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyCapView.swift; sourceTree = "<group>"; };
 		DCB46D787A274326D1E6E049 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -143,6 +146,7 @@
 			isa = PBXGroup;
 			children = (
 				F4B96DBD027FDAC753ED1C22 /* AlternatesPopupView.swift */,
+				BD7F2DCB31A1034059A9104A /* AnnotationPanelView.swift */,
 				A063705662AC7D869C6B9CA8 /* CandidateBarView.swift */,
 				231812FDBF992843227998D5 /* KeyboardGridView.swift */,
 				D73EC3E65D47C2BDD32ACE91 /* KeyCapView.swift */,
@@ -305,6 +309,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				06BA5BE0A5AA3486C935ED67 /* AlternatesPopupView.swift in Sources */,
+				7B32B855DCE6354F7F23188E /* AnnotationPanelView.swift in Sources */,
 				E8EFF20B9BD72F4F70F27FD8 /* CandidateBarView.swift in Sources */,
 				D9BC3D52CB9C0EEABAD2DD39 /* KeyCapView.swift in Sources */,
 				E973811921C023B99C178023 /* KeyboardGridView.swift in Sources */,
@@ -325,6 +330,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				1AC4ED72A4D1ABD55DBDFFF1 /* AlternatesPopupView.swift in Sources */,
+				344E5A6FE0D3EC8B51350CF7 /* AnnotationPanelView.swift in Sources */,
 				BBE5DF3D9481195887C2E4A9 /* CandidateBarView.swift in Sources */,
 				985D52154ACD24EF1991EB7F /* KeyCapView.swift in Sources */,
 				B8BAAABBD9299848CAA18DCB /* KeyboardGridView.swift in Sources */,

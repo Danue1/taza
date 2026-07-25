@@ -3,8 +3,8 @@
 use super::Signal;
 use super::corpus::{CorpusCounts, DISCARDED_MARK};
 use crate::lang::LanguageProfile;
-use bzip2::read::BzDecoder;
-use std::io::{BufRead, BufReader};
+use crate::source::container;
+use std::io::BufRead;
 use std::path::Path;
 
 /// MediaWiki XML 덤프(bzip2)의 본문 문서에서 낱말 빈도와 이웃 짝을 센다.
@@ -12,22 +12,34 @@ use std::path::Path;
 /// 문장 코퍼스보다 훨씬 크지만 문어체 쪽으로 기울어 있다 — 구어체 원천과 함께 쓰고
 /// weight로 균형을 잡는 것을 전제한 원천이다.
 pub fn parse(path: &Path, language: &str, minimum_count: u64) -> Result<Signal, String> {
-    let file = std::fs::File::open(path)
-        .map_err(|error| format!("{} 열기 실패: {error}", path.display()))?;
-    let reader = BufReader::new(BzDecoder::new(file));
+    let mut reader = container::open_bzip2(path)?;
     let cased = LanguageProfile::of(language).cased();
 
     let mut corpus = CorpusCounts::default();
     let mut article = false;
     let mut wikitext = String::new();
     let mut collecting = false;
-    for line in reader.lines() {
-        let line = line.map_err(|error| format!("{} 읽기 실패: {error}", path.display()))?;
+    /// 본문이 끝나는 자리를 알리는 표지
+    const CLOSING: &str = "</text>";
+    // 이미 닫는 표지를 찾아본 데까지의 길이
+    let mut scanned = 0usize;
+    // 덤프는 줄이 수억 개다 — 줄마다 새 문자열을 만들지 않고 한 벌을 되쓴다.
+    let mut buffer = String::new();
+    loop {
+        buffer.clear();
+        let read = reader
+            .read_line(&mut buffer)
+            .map_err(|error| format!("{} 읽기 실패: {error}", path.display()))?;
+        if read == 0 {
+            break;
+        }
+        let line = buffer.trim_end_matches(['\n', '\r']);
         let trimmed = line.trim_start();
         if trimmed.starts_with("<page>") {
             article = false;
             collecting = false;
             wikitext.clear();
+            scanned = 0;
         }
         // 본문 이름공간(0)만 — 분류·틀·토론 문서는 사람이 치는 글이 아니다
         if let Some(rest) = trimmed.strip_prefix("<ns>") {
@@ -56,9 +68,18 @@ pub fn parse(path: &Path, language: &str, minimum_count: u64) -> Result<Signal, 
             wikitext.push_str(&line[opening + close + 1..]);
         } else {
             wikitext.push('\n');
-            wikitext.push_str(&line);
+            wikitext.push_str(line);
         }
-        let Some(end) = wikitext.find("</text>") else {
+        // 닫는 표지는 방금 붙인 자리에서만 찾는다 — 줄마다 문서를 처음부터 다시 훑으면
+        // 긴 문서에서 훑는 양이 길이의 제곱으로 늘어난다. 표지가 줄 경계에 걸쳐 있을 수
+        // 있으므로 표지 길이만큼 앞에서 시작한다.
+        let scan_from = scanned.saturating_sub(CLOSING.len());
+        let found = wikitext.as_bytes()[scan_from..]
+            .windows(CLOSING.len())
+            .position(|window| window == CLOSING.as_bytes())
+            .map(|at| at + scan_from);
+        let Some(end) = found else {
+            scanned = wikitext.len();
             continue;
         };
         wikitext.truncate(end);
@@ -69,9 +90,10 @@ pub fn parse(path: &Path, language: &str, minimum_count: u64) -> Result<Signal, 
         collecting = false;
         article = false;
         wikitext.clear();
+        scanned = 0;
         corpus.prune_if_large();
     }
-    if corpus.counts.is_empty() {
+    if corpus.is_empty() {
         return Err(format!("{}: 본문 문서를 읽지 못했음", path.display()));
     }
     Ok(corpus.finish(minimum_count))
@@ -97,6 +119,18 @@ fn strip_wikitext(text: &str) -> String {
     let mut stripped = String::with_capacity(text.len());
     let mut index = 0usize;
     while index < bytes.len() {
+        // 마크업이 시작될 수 있는 글자에서만 표지를 맞춰 본다. 본문의 대부분은 그런
+        // 글자가 아니므로, 그 사이를 통째로 옮기는 것이 글자마다 표지 목록을 훑는
+        // 것보다 훨씬 싸다 — 이 반복문이 파이프라인에서 가장 뜨거운 자리다.
+        let plain = bytes[index..]
+            .iter()
+            .position(|byte| matches!(byte, b'{' | b'[' | b'<' | b'=' | b'\n'))
+            .unwrap_or(bytes.len() - index);
+        if plain > 0 {
+            stripped.push_str(&text[index..index + plain]);
+            index += plain;
+            continue;
+        }
         let rest = &text[index..];
         // `== 외부 링크 ==` 같은 절 제목은 문서마다 똑같이 되풀이되는 정형구다
         if (index == 0 || bytes[index - 1] == b'\n') && rest.starts_with("==") {
@@ -202,9 +236,9 @@ mod tests {
     fn discarded_markup_breaks_the_neighbour_chain() {
         let mut corpus = CorpusCounts::default();
         corpus.read_sentence(&strip_wikitext("앞말 {{틀}} 뒷말"), false);
-        assert_eq!(corpus.counts.get("앞말"), Some(&1));
-        assert_eq!(corpus.counts.get("뒷말"), Some(&1));
-        assert!(corpus.pairs.is_empty());
+        assert_eq!(corpus.count("앞말"), Some(1));
+        assert_eq!(corpus.count("뒷말"), Some(1));
+        assert_eq!(corpus.pair_kinds(), 0);
     }
 
     /// 어절에 딱 붙은 마크업은 그 어절을 통째로 버린다 — 남기면 조사만 홀로 살아남아
@@ -213,8 +247,8 @@ mod tests {
     fn markup_inside_an_eojeol_discards_it() {
         let mut corpus = CorpusCounts::default();
         corpus.read_sentence(&strip_wikitext("{{일본어|平和}}라고 불렀다"), false);
-        assert_eq!(corpus.counts.get("라고"), None);
-        assert_eq!(corpus.counts.get("불렀다"), Some(&1));
+        assert_eq!(corpus.count("라고"), None);
+        assert_eq!(corpus.count("불렀다"), Some(1));
     }
 
     /// 세로줄 없는 링크는 대상이 곧 화면에 보이는 글이다. 대괄호를 남기면 뒤에 붙은
@@ -223,7 +257,7 @@ mod tests {
     fn bare_links_keep_their_text() {
         let mut corpus = CorpusCounts::default();
         corpus.read_sentence(&strip_wikitext("[[한국어]]는 아름답다"), false);
-        assert_eq!(corpus.counts.get("한국어는"), Some(&1));
+        assert_eq!(corpus.count("한국어는"), Some(1));
     }
 
     #[test]

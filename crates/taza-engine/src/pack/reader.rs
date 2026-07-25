@@ -1,4 +1,4 @@
-use crate::pack::emoji::EmojiTable;
+use crate::pack::annotation::{AnnotationCatalog, AnnotationTable};
 use crate::pack::layout::KeyboardLayoutSet;
 use crate::pack::lexicon::Lexicon;
 use crate::pack::metadata::Metadata;
@@ -127,9 +127,16 @@ impl<'bytes> Pack<'bytes> {
         self.section(SectionKind::NgramModel).map(NgramModel::new)
     }
 
-    /// 낱말 → 이모지 표. 이모지를 싣지 않은 팩에는 없다.
-    pub fn emoji(&self) -> Option<EmojiTable<'bytes>> {
-        self.section(SectionKind::Emoji).map(EmojiTable::new)
+    /// 낱말에 곁들이는 이모지·기호·얼굴 문자 표. 싣지 않은 팩에는 없다.
+    pub fn annotations(&self) -> Option<AnnotationTable<'bytes>> {
+        self.section(SectionKind::Annotation)
+            .map(AnnotationTable::new)
+    }
+
+    /// 곁들일 것들의 갈래별 표시 순서. 검색면이 검색어 없이 여는 첫 화면이다.
+    pub fn annotation_catalog(&self) -> Option<AnnotationCatalog<'bytes>> {
+        self.section(SectionKind::AnnotationCatalog)
+            .map(AnnotationCatalog::new)
     }
 
     pub fn layout(&self) -> Option<KeyboardLayoutSet> {

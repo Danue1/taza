@@ -146,10 +146,74 @@ pub enum CandidateKind {
     Correction,
 }
 
+/// 후보 바에서 이 후보가 서는 자리. 셸은 갈래별로 묶어(그룹 단위) 한 줄에 인라인으로
+/// 늘어놓고, 통합 검색도 같은 갈래로 결과를 나눈다. `kind`가 "어떻게 얻은 후보인가"라면
+/// 이쪽은 "무엇으로서 보이는가"다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CandidateGroup {
+    Word,
+    Emoji,
+    Symbol,
+    /// (^_^)·orz처럼 글자로 그린 얼굴
+    Emoticon,
+}
+
+impl CandidateGroup {
+    /// annotation 섹션의 와이어 태그. 낱말은 그 표에 담기지 않으므로 태그가 없다.
+    pub fn tag(self) -> Option<u8> {
+        match self {
+            CandidateGroup::Word => None,
+            CandidateGroup::Emoji => Some(1),
+            CandidateGroup::Symbol => Some(2),
+            CandidateGroup::Emoticon => Some(3),
+        }
+    }
+
+    pub fn from_tag(tag: u8) -> Option<Self> {
+        match tag {
+            1 => Some(CandidateGroup::Emoji),
+            2 => Some(CandidateGroup::Symbol),
+            3 => Some(CandidateGroup::Emoticon),
+            _ => None,
+        }
+    }
+
+    /// 후보 바·검색 결과에 나오는 순서. 낱말이 먼저이고 곁들이는 것이 뒤따른다.
+    pub const DISPLAY_ORDER: [CandidateGroup; 4] = [
+        CandidateGroup::Word,
+        CandidateGroup::Emoji,
+        CandidateGroup::Symbol,
+        CandidateGroup::Emoticon,
+    ];
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Candidate {
     pub text: String,
     pub kind: CandidateKind,
+    pub group: CandidateGroup,
+}
+
+/// 통합 검색면(이모지·기호·얼굴 문자)에 담기는 항목 하나.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AnnotationPanelItem {
+    pub group: CandidateGroup,
+    pub text: String,
+}
+
+/// 검색면의 한 그룹. 그룹 단위로 인라인 배치되므로 셸은 헤더와 항목만 그린다.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AnnotationPanelGroup {
+    /// 이 그룹의 갈래. 최근 사용처럼 갈래가 섞이는 그룹은 None이다.
+    pub group: Option<CandidateGroup>,
+    pub label: String,
+    pub items: Vec<AnnotationPanelItem>,
+}
+
+/// 검색면 내용. 검색어가 없으면 자주 쓰는 것과 갈래별 표시 순서가 담긴다.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct AnnotationPanel {
+    pub groups: Vec<AnnotationPanelGroup>,
 }
 
 /// 합성기가 후보 바에 요청하는 것. 랭킹은 언어와 직교한 `suggest`가 하므로 합성기는

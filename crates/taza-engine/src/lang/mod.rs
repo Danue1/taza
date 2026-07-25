@@ -33,9 +33,9 @@ pub enum ComposerSkeleton {
 /// 후보 개수 상한 — 후보 바에 실제로 들어가는 수라 골격과 무관하다.
 const SUGGESTION_LIMIT: usize = 3;
 
-/// 어절 하나에 곁들일 이모지 수. 순정 키보드가 그렇듯 하나면 족하다 — 후보 바는 낱말을
-/// 고르는 자리이고 이모지는 그 곁에 붙는 것이다.
-const EMOJI_SUGGESTION_LIMIT: usize = 1;
+/// 어절 하나에 곁들일 항목 수(갈래마다). 후보 바는 낱말을 고르는 자리이고 이모지·기호·
+/// 얼굴 문자는 그 곁에 붙는 것이므로, 갈래마다 한 자리씩만 준다.
+const ANNOTATION_SUGGESTION_LIMIT: usize = 1;
 
 impl ComposerSkeleton {
     pub fn tag(self) -> &'static str {
@@ -162,7 +162,7 @@ impl LanguageDescriptor {
             encoding: self.encoding,
             autocorrect: self.skeleton.autocorrects(),
             limit: SUGGESTION_LIMIT,
-            emoji_limit: EMOJI_SUGGESTION_LIMIT,
+            annotation_limit: ANNOTATION_SUGGESTION_LIMIT,
         }
     }
 

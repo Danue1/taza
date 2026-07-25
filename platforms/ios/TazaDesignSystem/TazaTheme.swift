@@ -104,7 +104,31 @@ public enum TazaTheme {
 
         /// 스페이스바의 현재 언어 표기 — 순정처럼 작고 흐리게
         public static let spaceLabel = UIFont.systemFont(ofSize: 13)
-        public static let candidate = UIFont.systemFont(ofSize: 17)
+
+        /// 후보 바 글꼴 — 낱말은 순정 예측 바와 같은 17pt이고, 곁들이는 것은 갈래마다
+        /// 눈에 잡히는 크기가 달라 따로 잡는다(이모지는 크게, 글자로 그린 얼굴은 작게).
+        public static func candidate(group: CandidateModel.Group) -> UIFont {
+            switch group {
+            case .word: UIFont.systemFont(ofSize: 17)
+            case .emoji: UIFont.systemFont(ofSize: 24)
+            case .symbol: UIFont.systemFont(ofSize: 21)
+            case .emoticon: UIFont.systemFont(ofSize: 15)
+            }
+        }
+
+        /// 통합 검색면 글꼴 — 훑어보는 자리라 후보 바보다 크게 잡는다.
+        public static func panelItem(group: CandidateModel.Group) -> UIFont {
+            switch group {
+            case .word: UIFont.systemFont(ofSize: 20)
+            case .emoji: UIFont.systemFont(ofSize: 30)
+            case .symbol: UIFont.systemFont(ofSize: 24)
+            case .emoticon: UIFont.systemFont(ofSize: 15)
+            }
+        }
+
+        public static let panelGroupLabel = UIFont.systemFont(ofSize: 12, weight: .semibold)
+        public static let panelRail = UIFont.systemFont(ofSize: 13)
+
         public static let popupItem = UIFont.systemFont(ofSize: 16)
         public static let popupItemSelected = UIFont.systemFont(ofSize: 16, weight: .semibold)
     }

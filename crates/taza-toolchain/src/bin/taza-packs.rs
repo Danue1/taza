@@ -16,6 +16,7 @@ use std::process::ExitCode;
 use taza_toolchain::assemble;
 use taza_toolchain::distribute::{self, CatalogEntry};
 use taza_toolchain::normalize::{SourceSignal, normalize, normalize_bigrams};
+use taza_toolchain::parse::Annotation;
 use taza_toolchain::recipe::Recipe;
 use taza_toolchain::source::acquire::hex_digest;
 use taza_toolchain::source::{self, Prepared};
@@ -93,11 +94,29 @@ fn build(recipe_path: &Path, options: &Options) -> Result<CatalogEntry, String> 
     println!("[{}] {} 원천", recipe.name, recipe.sources.len());
 
     let cache = options.data_directory.join("cache");
+    // 원천들은 서로를 보지 않으므로 함께 훑는다 — 파이프라인 시간의 거의 전부가 이
+    // 단계이고, 큰 말뭉치 하나가 도는 동안 나머지 실이 놀 이유가 없다.
+    let prepared: Vec<Result<Prepared, String>> = std::thread::scope(|scope| {
+        let handles: Vec<_> = recipe
+            .sources
+            .iter()
+            .map(|source| {
+                let (cache, language) = (&cache, &recipe.language);
+                scope.spawn(move || source::prepare(source, language, cache, !options.no_cache))
+            })
+            .collect();
+        handles
+            .into_iter()
+            .map(|handle| {
+                handle
+                    .join()
+                    .unwrap_or_else(|_| Err("원천 처리가 끝나지 못했음".to_string()))
+            })
+            .collect()
+    });
     let mut extracted = Vec::new();
-    for source in &recipe.sources {
-        let Prepared::Extracted { signal, from_cache } =
-            source::prepare(source, &recipe.language, &cache, !options.no_cache)?
-        else {
+    for (source, prepared) in recipe.sources.iter().zip(prepared) {
+        let Prepared::Extracted { signal, from_cache } = prepared? else {
             continue;
         };
         println!(
@@ -124,13 +143,19 @@ fn build(recipe_path: &Path, options: &Options) -> Result<CatalogEntry, String> 
             affixes: &signal.affixes,
         })
         .collect();
-    // 이모지는 원천이 표시 형태로 낸다 — 조회 키로 옮기는 것은 조립 단계의 몫이다
-    let mut emoji: Vec<(String, String)> = extracted
+    // 곁들일 것은 원천이 표시 형태로 낸다 — 조회 키로 옮기는 것은 조립 단계의 몫이다
+    let mut annotations: Vec<Annotation> = extracted
         .iter()
-        .flat_map(|(_, signal)| signal.emoji.iter().cloned())
+        .flat_map(|(_, signal)| signal.annotations.iter().cloned())
         .collect();
-    emoji.sort_unstable();
-    emoji.dedup();
+    annotations.sort_by(|left, right| {
+        (&left.word, left.group.tag(), &left.text).cmp(&(
+            &right.word,
+            right.group.tag(),
+            &right.text,
+        ))
+    });
+    annotations.dedup();
     // 원천이 밝힌 접사는 팩에 실려 코어가 학습 어휘의 결합형을 제안하는 데 쓰인다
     let mut affixes: Vec<String> = extracted
         .iter()
@@ -223,7 +248,7 @@ fn build(recipe_path: &Path, options: &Options) -> Result<CatalogEntry, String> 
         &used,
         &words,
         &bigrams,
-        &emoji,
+        &annotations,
         &affixes,
         layout_text.as_deref(),
     )?;
@@ -234,12 +259,13 @@ fn build(recipe_path: &Path, options: &Options) -> Result<CatalogEntry, String> 
     std::fs::write(&pack_path, &assembled.bytes)
         .map_err(|error| format!("{} 쓰기 실패: {error}", pack_path.display()))?;
     println!(
-        "  팩: 표제어 {} / lexicon {} KB / 언어모델 {} KB / 이모지 {}낱말 {} KB / 전체 {} KB → {}",
+        "  팩: 표제어 {} / lexicon {} KB / 언어모델 {} KB / 곁들임 {}낱말 {} KB (목록 {}) / 전체 {} KB → {}",
         assembled.word_count,
         assembled.lexicon_bytes / 1024,
         assembled.language_model_bytes / 1024,
-        assembled.emoji_key_count,
-        assembled.emoji_bytes / 1024,
+        assembled.annotation_key_count,
+        assembled.annotation_bytes / 1024,
+        assembled.catalog_item_count,
         assembled.bytes.len() / 1024,
         pack_path.display()
     );

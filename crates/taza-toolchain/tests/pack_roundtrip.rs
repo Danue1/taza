@@ -145,12 +145,12 @@ fn rejects_invalid_input() {
     );
 }
 
-/// 이모지는 낱말 후보 뒤에 곁들여진다 — 낱말이 설 자리를 가져가지 않는다.
+/// 곁들일 것은 낱말 후보 뒤에 갈래 순서대로 붙는다 — 낱말이 설 자리를 가져가지 않는다.
 #[test]
-fn emoji_accompany_word_suggestions() {
-    use taza_engine::contract::CandidateKind;
+fn annotations_accompany_word_suggestions() {
+    use taza_engine::contract::CandidateGroup;
     use taza_engine::suggest::{KeyEncoding, Suggester, SuggestionPolicy, SuggestionSources};
-    use taza_toolchain::emoji::EmojiBuilder;
+    use taza_toolchain::annotation::AnnotationBuilder;
 
     let encoding = KeyEncoding::HangulJamoDubeolsik;
     // 조회 키는 낱말에서 뽑는다 — 손으로 적으면 자모 순서를 틀리기 쉽다
@@ -159,12 +159,13 @@ fn emoji_accompany_word_suggestions() {
     let mut lexicon = LexiconBuilder::new();
     lexicon.insert(&key("웃음"), 60000);
     lexicon.insert(&key("웃음소리"), 30000);
-    let mut emoji = EmojiBuilder::new();
-    emoji.insert(&key("웃음"), "😀");
+    let mut annotations = AnnotationBuilder::new();
+    annotations.insert(&key("웃음"), CandidateGroup::Emoji, "😀");
+    annotations.insert(&key("웃음"), CandidateGroup::Emoticon, "(^_^)");
 
     let mut writer = PackWriter::new("ko");
     writer.add_section(SectionKind::Lexicon, lexicon.build());
-    writer.add_section(SectionKind::Emoji, emoji.build());
+    writer.add_section(SectionKind::Annotation, annotations.build());
     let bytes = writer.finish();
     let pack = Pack::open(&bytes).unwrap();
 
@@ -172,7 +173,7 @@ fn emoji_accompany_word_suggestions() {
         encoding,
         autocorrect: false,
         limit: 3,
-        emoji_limit: 1,
+        annotation_limit: 1,
     });
     let sources = SuggestionSources {
         pack: Some(&pack),
@@ -182,25 +183,32 @@ fn emoji_accompany_word_suggestions() {
     };
 
     let suggestions = suggester.suggest(&key("웃음"), &sources);
-    let emoji_candidates: Vec<&str> = suggestions
+    let accompanying: Vec<(CandidateGroup, &str)> = suggestions
         .iter()
-        .filter(|suggestion| suggestion.kind == CandidateKind::Conversion)
-        .map(|suggestion| suggestion.text.as_str())
+        .filter(|suggestion| suggestion.group != CandidateGroup::Word)
+        .map(|suggestion| (suggestion.group, suggestion.text.as_str()))
         .collect();
-    assert_eq!(emoji_candidates, vec!["😀"]);
-    // 낱말이 먼저다 — 이모지는 뒤에 붙는다
-    assert_ne!(suggestions[0].kind, CandidateKind::Conversion);
+    // 갈래 순서대로 — 이모지가 먼저, 얼굴 문자가 뒤
+    assert_eq!(
+        accompanying,
+        vec![
+            (CandidateGroup::Emoji, "😀"),
+            (CandidateGroup::Emoticon, "(^_^)"),
+        ]
+    );
+    // 낱말이 먼저다 — 곁들이는 것은 뒤에 붙는다
+    assert_eq!(suggestions[0].group, CandidateGroup::Word);
     assert!(
         suggestions
             .iter()
             .any(|suggestion| suggestion.text == "웃음")
     );
 
-    // 어절이 완성되기 전에는 이모지가 튀어나오지 않는다
+    // 어절이 완성되기 전에는 튀어나오지 않는다
     let partial = suggester.suggest(&key("웃"), &sources);
     assert!(
         partial
             .iter()
-            .all(|suggestion| suggestion.kind != CandidateKind::Conversion)
+            .all(|suggestion| suggestion.group == CandidateGroup::Word)
     );
 }

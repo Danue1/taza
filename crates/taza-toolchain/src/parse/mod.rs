@@ -4,6 +4,7 @@
 //! 구했는지도 모른다(`source::acquire`의 몫이다). 형식 하나가 파일 하나이므로 원천이
 //! 늘어나는 일이 파일을 더하는 일이 된다.
 
+mod annotation_list;
 mod cldr;
 mod corpus;
 mod mecab;
@@ -16,6 +17,16 @@ mod word_list;
 
 use crate::recipe::Extraction;
 use std::path::Path;
+use taza_engine::contract::CandidateGroup;
+
+/// 낱말에 곁들일 것 하나 — 이모지·기호·얼굴 문자. 낱말은 아직 표시 형태이며, 팩에 담길
+/// 때 lexicon과 같은 조회 키로 인코딩된다.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Annotation {
+    pub word: String,
+    pub group: CandidateGroup,
+    pub text: String,
+}
 
 /// 한 원천에서 뽑은 신호.
 ///
@@ -33,9 +44,8 @@ pub struct Signal {
     /// 활용형이 뻗어 나오는 어간 — 형태소 사전만 낸다. 코퍼스에서 관측된 활용형을
     /// 표제어로 받아들일지 가리는 조건이 된다.
     pub stems: Vec<String>,
-    /// (낱말, 이모지) — 이모지 주석 원천만 낸다. 낱말은 아직 표시 형태이며, 팩에 담길
-    /// 때 lexicon과 같은 조회 키로 인코딩된다.
-    pub emoji: Vec<(String, String)>,
+    /// 낱말에 곁들일 것 — 주석 원천만 낸다.
+    pub annotations: Vec<Annotation>,
     /// 어절 뒤에 붙어 활용형을 만드는 접사. 팩에 실려 코어가 학습한 어휘의 결합형을
     /// 제안하는 데 쓴다 — 사전을 넓히는 것과 같은 목록이어야 둘이 어긋나지 않는다.
     pub affixes: Vec<String>,
@@ -50,9 +60,26 @@ impl Signal {
     }
 }
 
-/// 파서 판 번호. **파서의 동작을 바꾸면 반드시 올린다** — 올리지 않으면 낡은 추출 결과
-/// 캐시가 조용히 쓰여, 고친 것이 팩에 반영되지 않는다.
-pub const PARSER_VERSION: u32 = 2;
+/// 형식별 파서 판 번호. **파서의 동작을 바꾸면 그 형식의 번호를 반드시 올린다** —
+/// 올리지 않으면 낡은 추출 결과 캐시가 조용히 쓰여, 고친 것이 팩에 반영되지 않는다.
+///
+/// 형식마다 따로 세는 이유는 파서 하나를 손봤을 때 나머지 원천까지 다시 훑을 까닭이
+/// 없기 때문이다 — 위키백과 덤프 하나가 몇 분이고, 다른 원천은 그 사이 아무것도 달라진
+/// 것이 없다. 다만 `corpus`처럼 여러 형식이 함께 쓰는 코드를 고쳤다면 그것을 쓰는 형식의
+/// 번호를 모두 올려야 한다.
+pub fn parser_version(extraction: &Extraction) -> u32 {
+    match extraction {
+        Extraction::Scowl { .. } => 3,
+        Extraction::Tatoeba { .. } => 3,
+        Extraction::Wikipedia { .. } => 3,
+        Extraction::MecabKoDic { .. } => 3,
+        Extraction::NiklCorpus { .. } => 3,
+        Extraction::Urimalsam { .. } => 3,
+        Extraction::CldrAnnotations => 3,
+        Extraction::AnnotationList { .. } => 3,
+        Extraction::WordList { .. } => 3,
+    }
+}
 
 pub fn parse(extraction: &Extraction, path: &Path, language: &str) -> Result<Signal, String> {
     match extraction {
@@ -89,6 +116,7 @@ pub fn parse(extraction: &Extraction, path: &Path, language: &str) -> Result<Sig
             excluded_parts_of_speech,
         ),
         Extraction::CldrAnnotations => cldr::parse(path),
+        Extraction::AnnotationList { group } => annotation_list::parse(path, (*group).into()),
         Extraction::WordList {
             rank,
             minimum_count,

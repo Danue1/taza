@@ -221,7 +221,7 @@ fn layout_from_pack_roundtrip_drives_keyboard() {
 }
 
 #[test]
-fn bottom_row_order_is_symbols_language_space_enter() {
+fn bottom_row_order_is_symbols_emoji_language_space_enter() {
     let keyboard = Keyboard::new(
         layouts::qwerty(),
         LanguageDescriptor::builtin("en").unwrap(),
@@ -233,15 +233,57 @@ fn bottom_row_order_is_symbols_language_space_enter() {
         roles,
         vec![
             KeyRole::LayerSwitch,
+            KeyRole::LayerSwitch,
             KeyRole::LanguageSwitch,
             KeyRole::Space,
             KeyRole::Enter
         ]
     );
+    // 심볼 다음이 통합 검색면 진입 — 순정 이모지 키와 같은 웃는 얼굴
+    assert_eq!(bottom[0].label, "123");
+    assert_eq!(bottom[1].label, "☺");
+    assert_eq!(bottom[1].accessibility_label, "emoji");
     // 스페이스바는 순정 관례대로 현재 언어를 표기한다
-    assert_eq!(bottom[2].label, "English");
-    assert_eq!(bottom[1].label, "A");
-    assert_eq!(bottom[1].accessibility_label, "language, English");
+    assert_eq!(bottom[3].label, "English");
+    assert_eq!(bottom[2].label, "A");
+    assert_eq!(bottom[2].accessibility_label, "language, English");
+}
+
+/// 통합 검색면은 키 대신 패널이 자리를 갖는다 — 하단 행만 키로 남고, 키보드 전체 높이는
+/// 문자면과 같아야 레이어를 넘나들 때 키보드가 커지거나 작아지지 않는다.
+#[test]
+fn the_annotation_panel_layer_keeps_the_keyboard_height() {
+    let mut keyboard = Keyboard::new(
+        layouts::qwerty(),
+        LanguageDescriptor::builtin("en").unwrap(),
+    );
+    let letters = keyboard.frame();
+    assert_eq!(letters.panel_height_ratio, 0.0);
+
+    let bottom = letters.rows.last().unwrap();
+    let emoji_key = &bottom[1];
+    let (x, y) = (emoji_key.bounds.x + 0.01, emoji_key.bounds.y + 0.01);
+    assert!(keyboard.press_at(x, y).layout_changed);
+
+    let panel = keyboard.frame();
+    assert_eq!(panel.metrics.grid_height, letters.metrics.grid_height);
+    // 패널이 네 행 가운데 셋을 차지하고 하단 행만 키로 남는다
+    assert!((panel.panel_height_ratio - 0.75).abs() < 0.001);
+    assert_eq!(panel.rows.len(), 1);
+    let roles: Vec<KeyRole> = panel.rows[0].iter().map(|key| key.role).collect();
+    assert_eq!(
+        roles,
+        vec![
+            KeyRole::LayerSwitch,
+            KeyRole::Space,
+            KeyRole::Backspace,
+            KeyRole::Enter
+        ]
+    );
+    // 문자면 복귀 키는 순정 관례대로 스크립트에 맞는 라벨을 쓴다
+    assert_eq!(panel.rows[0][0].label, "ABC");
+    // 키 행은 패널 아래에서 시작한다
+    assert!((panel.rows[0][0].bounds.y - 0.75).abs() < 0.001);
 }
 
 #[test]

@@ -18,8 +18,11 @@ final class KeyboardViewController: UIInputViewController {
     private var appliedWidth: CGFloat = 0
     private var gridView: KeyboardGridView!
     private var candidateBar: CandidateBarView!
+    /// 통합 검색면 — 이모지 키로 들어가는 레이어에서만 보인다
+    private var panelView: AnnotationPanelView!
     private var heightConstraint: NSLayoutConstraint!
     private var candidateBarHeightConstraint: NSLayoutConstraint!
+    private var panelHeightConstraint: NSLayoutConstraint!
 
     private var languageMenu: PopupMenuView?
     private var alternatesPopup: AlternatesPopupView?
@@ -123,12 +126,22 @@ final class KeyboardViewController: UIInputViewController {
         view.addSubview(grid)
         gridView = grid
 
+        // 검색면은 키 그리드와 같은 자리를 쓴다 — 코어가 그 레이어의 키를 하단 행만 내려
+        // 주므로 패널이 위쪽을 덮어도 키와 겹치지 않는다.
+        let panel = AnnotationPanelView(frame: .zero)
+        panel.onSelect = { [weak self] group, text in self?.selectAnnotation(group, text) }
+        panel.isHidden = true
+        panel.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(panel)
+        panelView = panel
+
         heightConstraint = view.heightAnchor.constraint(equalToConstant: metrics.totalHeight)
         heightConstraint.priority = .init(999)
         heightConstraint.isActive = true
         candidateBarHeightConstraint = bar.heightAnchor.constraint(
             equalToConstant: metrics.candidateBarHeight
         )
+        panelHeightConstraint = panel.heightAnchor.constraint(equalToConstant: 0)
 
         NSLayoutConstraint.activate([
             bar.topAnchor.constraint(equalTo: view.topAnchor),
@@ -140,6 +153,11 @@ final class KeyboardViewController: UIInputViewController {
             grid.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             grid.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             grid.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+
+            panel.topAnchor.constraint(equalTo: grid.topAnchor),
+            panel.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            panel.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            panelHeightConstraint,
         ])
     }
 
@@ -180,6 +198,54 @@ final class KeyboardViewController: UIInputViewController {
         heightConstraint.constant = metrics.totalHeight
         gridView.update(metrics: metrics)
         gridView.setFrame(model(from: frame))
+        refreshPanel(frame: frame)
+    }
+
+    /// 검색면이 있는 레이어인지는 코어가 프레임에 실어 준다 — 셸은 자리를 잡고 내용을
+    /// 받아 그리기만 한다.
+    private func refreshPanel(frame: FfiKeyboardFrame) {
+        let ratio = CGFloat(frame.panelHeightRatio)
+        panelHeightConstraint.constant = metrics.gridHeight * ratio
+        panelView.isHidden = ratio <= 0
+        guard ratio > 0, let session = activeSession else { return }
+        // 검색어 없는 첫 화면 — 자주 쓰는 것과 갈래별 목록
+        panelView.setPanel(panelModel(from: session.annotationPanel(query: "")))
+        candidateBar.setCandidates([])
+    }
+
+    private func panelModel(from panel: FfiAnnotationPanel) -> AnnotationPanelModel {
+        AnnotationPanelModel(
+            groups: panel.groups.map { group in
+                AnnotationPanelModel.Group(
+                    group: group.group.map(candidateGroup),
+                    label: group.label,
+                    items: group.items.map { item in
+                        AnnotationPanelModel.Item(
+                            text: item.text,
+                            group: candidateGroup(item.group)
+                        )
+                    }
+                )
+            }
+        )
+    }
+
+    /// 검색면에서 고른 것 — 넣는 일과 최근 사용 기록은 코어가 한다.
+    private func selectAnnotation(_ group: CandidateModel.Group, _ text: String) {
+        guard let session = activeSession else { return }
+        let ffiGroup: FfiCandidateGroup = switch group {
+        case .word: .word
+        case .emoji: .emoji
+        case .symbol: .symbol
+        case .emoticon: .emoticon
+        }
+        apply(effects: session.selectAnnotation(
+            group: ffiGroup,
+            text: text,
+            context: currentContext()
+        ))
+        // 고른 것이 자주 쓰는 목록 맨 앞으로 올라오므로 판을 다시 받는다
+        panelView.setPanel(panelModel(from: session.annotationPanel(query: "")))
     }
 
     private func model(from frame: FfiKeyboardFrame) -> KeyboardFrameModel {
@@ -206,6 +272,21 @@ final class KeyboardViewController: UIInputViewController {
                 }
             }
         )
+    }
+
+    /// 후보 갈래를 디자인 시스템의 배치 단위로 옮긴다 — 어느 갈래가 어떤 자리를 갖는지는
+    /// 디자인 시스템이 알고, 셸은 이름만 맞춰 준다.
+    private func candidateModel(_ candidate: FfiCandidate) -> CandidateModel {
+        CandidateModel(text: candidate.text, group: candidateGroup(candidate.group))
+    }
+
+    private func candidateGroup(_ group: FfiCandidateGroup) -> CandidateModel.Group {
+        switch group {
+        case .word: .word
+        case .emoji: .emoji
+        case .symbol: .symbol
+        case .emoticon: .emoticon
+        }
     }
 
     private func appearance(for role: FfiKeyRole) -> KeyCapView.Appearance {
@@ -491,7 +572,7 @@ final class KeyboardViewController: UIInputViewController {
             case .deleteBackward(let codePoints):
                 deleteCharacters(Int(codePoints))
             case .updateCandidates(let candidates):
-                candidateBar.setCandidates(candidates.map(\.text))
+                candidateBar.setCandidates(candidates.map(candidateModel))
             case .moveCursor(let offset):
                 textDocumentProxy.adjustTextPosition(byCharacterOffset: Int(offset))
             }

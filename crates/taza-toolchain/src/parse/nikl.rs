@@ -25,7 +25,7 @@ pub fn parse(path: &Path, minimum_count: u64) -> Result<Signal, String> {
         corpus.prune_if_large();
         Ok(())
     })?;
-    if corpus.counts.is_empty() {
+    if corpus.is_empty() {
         return Err(format!("{}: 문장을 읽지 못했음", path.display()));
     }
     Ok(corpus.finish(minimum_count))
@@ -78,11 +78,11 @@ mod tests {
         });
         let mut corpus = CorpusCounts::default();
         read_nikl_value(&document, false, &mut corpus);
-        assert_eq!(corpus.counts.get("밈"), Some(&1));
-        assert_eq!(corpus.counts.get("밈이"), Some(&1));
-        assert_eq!(corpus.counts.get("유행한다"), Some(&2));
+        assert_eq!(corpus.count("밈"), Some(1));
+        assert_eq!(corpus.count("밈이"), Some(1));
+        assert_eq!(corpus.count("유행한다"), Some(2));
         // 형태소 조각은 문장이 아니다
-        assert_eq!(corpus.counts.get("유행"), None);
+        assert_eq!(corpus.count("유행"), None);
     }
 
     /// 문서 하나를 통째로 넣으면 마침표를 건너뛴 짝이 문맥으로 둔갑한다.
@@ -91,6 +91,6 @@ mod tests {
         let document = serde_json::json!({ "paragraph": [{ "form": "앞말이다. 뒷말이다" }] });
         let mut corpus = CorpusCounts::default();
         read_nikl_value(&document, false, &mut corpus);
-        assert!(corpus.pairs.is_empty());
+        assert_eq!(corpus.pair_kinds(), 0);
     }
 }

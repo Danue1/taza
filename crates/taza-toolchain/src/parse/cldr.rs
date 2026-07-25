@@ -1,4 +1,4 @@
-//! CLDR 이모지 주석 — 이모지마다 그것을 부르는 낱말들이 달려 있다.
+//! CLDR 주석 — 이모지·기호마다 그것을 부르는 낱말들이 달려 있다.
 //!
 //! ```xml
 //! <annotation cp="😀">미소 | 스마일 | 얼굴 | 웃음 | 활짝 웃는 얼굴</annotation>
@@ -8,10 +8,11 @@
 //! 어절 하나로 치는 낱말만 받는다. "활짝 웃는 얼굴"처럼 띄어 쓴 이름은 후보 바가
 //! 상대하는 단위가 아니다 — 사람은 어절을 치고, 그 어절에 이모지가 달려 있어야 한다.
 
-use super::Signal;
+use super::{Annotation, Signal};
 use crate::source::container;
 use std::io::BufRead;
 use std::path::Path;
+use taza_engine::contract::CandidateGroup;
 
 pub fn parse(path: &Path) -> Result<Signal, String> {
     let mut annotations = Vec::new();
@@ -21,8 +22,13 @@ pub fn parse(path: &Path) -> Result<Signal, String> {
             let Some((emoji, keywords)) = annotation(line.trim()) else {
                 continue;
             };
+            let group = group_of(emoji);
             for keyword in keywords {
-                annotations.push((keyword, emoji.to_string()));
+                annotations.push(Annotation {
+                    word: keyword,
+                    group,
+                    text: emoji.to_string(),
+                });
             }
         }
         Ok(())
@@ -31,9 +37,26 @@ pub fn parse(path: &Path) -> Result<Signal, String> {
         return Err(format!("{}: 이모지 주석을 읽지 못했음", path.display()));
     }
     Ok(Signal {
-        emoji: annotations,
+        annotations,
         ..Signal::default()
     })
+}
+
+/// 이모지로 볼 것인가, 기호로 볼 것인가. 이 파일에는 그림으로 보이는 이모지와 글로 짜인
+/// 기호(쉼표·말줄임표·통화 기호)가 같은 꼴로 섞여 있는데, 후보 바와 검색면은 둘을 다른
+/// 크기로 그리므로 갈라 두어야 한다. 변이 선택자·ZWJ가 붙었거나 이모지 표현이 기본인
+/// 코드포인트 구역이면 이모지다.
+fn group_of(text: &str) -> CandidateGroup {
+    if text.contains('\u{FE0F}') || text.contains('\u{200D}') {
+        return CandidateGroup::Emoji;
+    }
+    let Some(first) = text.chars().next() else {
+        return CandidateGroup::Symbol;
+    };
+    match first as u32 {
+        0x1F000..=0x1FAFF | 0x2600..=0x27BF | 0x2B00..=0x2BFF => CandidateGroup::Emoji,
+        _ => CandidateGroup::Symbol,
+    }
 }
 
 /// 한 줄에서 (이모지, 낱말들)을 뽑는다. `type="tts"`는 대표 이름 한 개뿐이라 낱말 목록과
@@ -83,6 +106,17 @@ mod tests {
         let (emoji, keywords) =
             annotation(r#"<annotation cp="🐱" type="tts">고양이</annotation>"#).unwrap();
         assert_eq!((emoji, keywords), ("🐱", vec!["고양이".to_string()]));
+    }
+
+    /// 그림으로 보이는 것과 글로 짜인 기호가 한 파일에 섞여 온다 — 갈래를 갈라 담는다.
+    #[test]
+    fn pictures_and_typographic_symbols_are_told_apart() {
+        assert_eq!(group_of("😀"), CandidateGroup::Emoji);
+        assert_eq!(group_of("⭐"), CandidateGroup::Emoji);
+        assert_eq!(group_of("❤️"), CandidateGroup::Emoji);
+        assert_eq!(group_of("…"), CandidateGroup::Symbol);
+        assert_eq!(group_of("₩"), CandidateGroup::Symbol);
+        assert_eq!(group_of("、"), CandidateGroup::Symbol);
     }
 
     #[test]

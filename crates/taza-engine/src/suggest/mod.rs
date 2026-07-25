@@ -10,7 +10,7 @@ mod search;
 pub use dictionary::{Dictionary, Entry, Query};
 pub use encoding::KeyEncoding;
 
-use crate::contract::{CandidateKind, Pack};
+use crate::contract::{CandidateGroup, CandidateKind, Pack};
 use crate::keyboard::KeySignal;
 use crate::personalization::PersonalizationStore;
 
@@ -33,9 +33,9 @@ pub struct SuggestionPolicy {
     /// 한글처럼 조합 자체가 표시 단위인 스크립트는 경계 교정 대신 후보 선택으로 고친다.
     pub autocorrect: bool,
     pub limit: usize,
-    /// 어절 하나에 곁들일 이모지 후보 수. 낱말 후보 뒤에 붙으므로 `limit`과 따로 둔다 —
-    /// 이모지가 낱말이 설 자리를 가져가서는 안 된다.
-    pub emoji_limit: usize,
+    /// 어절 하나에 곁들일 항목 수 — 갈래마다 따로 센다. 낱말 후보 뒤에 붙으므로 `limit`과
+    /// 따로 둔다 — 곁들이는 것이 낱말이 설 자리를 가져가서는 안 된다.
+    pub annotation_limit: usize,
 }
 
 /// 후보 하나. `key`는 학습·문맥 추적이 쓰는 조회 키이고 `text`는 화면에 나가는 형태다.
@@ -44,6 +44,7 @@ pub struct Suggestion {
     pub key: String,
     pub text: String,
     pub kind: CandidateKind,
+    pub group: CandidateGroup,
 }
 
 /// 랭킹이 참조하는 온디바이스 자료 묶음. 팩은 mmap 뷰라 이벤트마다 새로 만든다.
@@ -119,6 +120,7 @@ impl Suggester {
                 key: key.to_string(),
                 text,
                 kind: CandidateKind::Typed,
+                group: CandidateGroup::Word,
             });
         }
 
@@ -176,30 +178,39 @@ impl Suggester {
             }
             suggestions.push(suggestion);
         }
-        suggestions.extend(self.emoji_for(key, sources));
+        suggestions.extend(self.annotations_for(key, sources));
         suggestions
     }
 
-    /// 지금 치고 있는 어절에 달린 이모지. 낱말 후보 뒤에 붙는다 — 순정 키보드가 그렇듯
-    /// 이모지는 낱말을 밀어내는 것이 아니라 곁들여지는 것이다. 치던 것이 그대로 확정될
-    /// 길을 이모지가 막으면 안 된다.
+    /// 지금 치고 있는 어절에 달린 이모지·기호·얼굴 문자. 낱말 후보 뒤에 갈래 순서대로
+    /// 붙는다 — 순정 키보드가 그렇듯 곁들이는 것은 낱말을 밀어내지 않는다. 치던 것이
+    /// 그대로 확정될 길을 막아서는 안 된다.
     ///
-    /// 어절이 다 완성된 뒤에만 내놓는다(정확히 일치). 치는 도중의 접두마다 이모지가
-    /// 튀어나오면 후보 바가 어절이 끝나기 전에 흔들린다.
-    fn emoji_for(&self, key: &str, sources: &SuggestionSources<'_>) -> Vec<Suggestion> {
-        let Some(table) = sources.pack.and_then(|pack| pack.emoji()) else {
+    /// 어절이 다 완성된 뒤에만 내놓는다(정확히 일치). 치는 도중의 접두마다 튀어나오면
+    /// 후보 바가 어절이 끝나기 전에 흔들린다.
+    fn annotations_for(&self, key: &str, sources: &SuggestionSources<'_>) -> Vec<Suggestion> {
+        let Some(table) = sources.pack.and_then(|pack| pack.annotations()) else {
             return Vec::new();
         };
-        table
-            .lookup(key)
-            .into_iter()
-            .take(self.policy.emoji_limit)
-            .map(|glyph| Suggestion {
-                key: key.to_string(),
-                text: glyph.to_string(),
-                kind: CandidateKind::Conversion,
-            })
-            .collect()
+        let mut annotations = Vec::new();
+        for group in CandidateGroup::DISPLAY_ORDER {
+            if group == CandidateGroup::Word {
+                continue;
+            }
+            annotations.extend(
+                table
+                    .lookup_group(key, group)
+                    .into_iter()
+                    .take(self.policy.annotation_limit)
+                    .map(|text| Suggestion {
+                        key: key.to_string(),
+                        text: text.to_string(),
+                        kind: CandidateKind::Conversion,
+                        group,
+                    }),
+            );
+        }
+        annotations
     }
 
     /// 단어 확정 직후의 다음 단어 예측.
@@ -284,6 +295,7 @@ impl Suggester {
             key: best.key,
             text,
             kind: CandidateKind::Correction,
+            group: CandidateGroup::Word,
         })
     }
 
@@ -352,6 +364,14 @@ impl Suggester {
         let Some(text) = self.policy.encoding.decode(&key) else {
             return;
         };
-        ranked.push((score, Suggestion { key, text, kind }));
+        ranked.push((
+            score,
+            Suggestion {
+                key,
+                text,
+                kind,
+                group: CandidateGroup::Word,
+            },
+        ));
     }
 }

@@ -8,6 +8,7 @@
 
 use std::collections::BTreeMap;
 
+use crate::contract::CandidateGroup;
 use crate::pack::lexicon::MAX_FREQUENCY;
 
 const CAPACITY: usize = 1000;
@@ -19,6 +20,9 @@ const RECENCY_WINDOW: u64 = 10;
 const RECENCY_BONUS: u32 = MAX_FREQUENCY / 4;
 /// 이 횟수 이상 확정된 단어는 "학습됨" — 자동교정을 억제한다
 const LEARNED_THRESHOLD: u32 = 2;
+/// 통합 검색면의 "자주 쓰는"에 남기는 항목 수. 한 줄 남짓 채우고 나면 더 담아도 보이지
+/// 않으므로, 스냅샷을 무겁게 하지 않을 만큼만 갖는다.
+const RECENT_ANNOTATION_CAPACITY: usize = 24;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct PersonalEntry {
@@ -30,12 +34,17 @@ struct PersonalEntry {
 pub struct PersonalizationState {
     pub entries: Vec<(String, u32, u64)>,
     pub clock: u64,
+    /// 최근에 고른 이모지·기호·얼굴 문자 — 최근순
+    pub recent_annotations: Vec<(CandidateGroup, String)>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PersonalizationStore {
     entries: BTreeMap<String, PersonalEntry>,
     clock: u64,
+    /// 최근에 고른 이모지·기호·얼굴 문자 — 최근순. 낱말 학습과 달리 랭킹에 쓰이지 않고
+    /// 통합 검색면의 "자주 쓰는"만 채우므로 점수 없이 순서만 갖는다.
+    recent_annotations: Vec<(CandidateGroup, String)>,
 }
 
 impl PersonalizationStore {
@@ -68,6 +77,21 @@ impl PersonalizationStore {
                 .unwrap();
             self.entries.remove(&evicted);
         }
+    }
+
+    /// 통합 검색면에서 고른 것을 최근순 맨 앞에 남긴다.
+    pub fn record_annotation(&mut self, group: CandidateGroup, text: &str) {
+        if text.is_empty() {
+            return;
+        }
+        self.recent_annotations
+            .retain(|(kept_group, kept)| !(*kept_group == group && kept == text));
+        self.recent_annotations.insert(0, (group, text.to_string()));
+        self.recent_annotations.truncate(RECENT_ANNOTATION_CAPACITY);
+    }
+
+    pub fn recent_annotations(&self) -> &[(CandidateGroup, String)] {
+        &self.recent_annotations
     }
 
     /// 랭킹에 더해지는 개인화 가중치: 사용 횟수 + 최근 사용 보너스
@@ -121,6 +145,7 @@ impl PersonalizationStore {
                 .map(|(word, entry)| (word.clone(), entry.count, entry.last_used))
                 .collect(),
             clock: self.clock,
+            recent_annotations: self.recent_annotations.clone(),
         }
     }
 
@@ -132,6 +157,7 @@ impl PersonalizationStore {
                 .map(|(word, count, last_used)| (word, PersonalEntry { count, last_used }))
                 .collect(),
             clock: state.clock,
+            recent_annotations: state.recent_annotations,
         }
     }
 }
@@ -184,7 +210,24 @@ mod tests {
         let mut store = PersonalizationStore::new();
         store.record("hello");
         store.record("hello");
+        store.record_annotation(CandidateGroup::Emoji, "😀");
         let restored = PersonalizationStore::restore(store.snapshot());
         assert_eq!(restored, store);
+    }
+
+    /// 같은 것을 다시 고르면 최근순 맨 앞으로 올라오고 중복은 남지 않는다.
+    #[test]
+    fn recent_annotations_move_to_the_front() {
+        let mut store = PersonalizationStore::new();
+        store.record_annotation(CandidateGroup::Emoji, "😀");
+        store.record_annotation(CandidateGroup::Emoticon, "(^_^)");
+        store.record_annotation(CandidateGroup::Emoji, "😀");
+        assert_eq!(
+            store.recent_annotations(),
+            [
+                (CandidateGroup::Emoji, "😀".to_string()),
+                (CandidateGroup::Emoticon, "(^_^)".to_string()),
+            ]
+        );
     }
 }

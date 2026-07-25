@@ -1,12 +1,13 @@
 //! 키보드 레이아웃 섹션. 레이아웃은 수십 키 규모라 mmap 조회 대신 로드 시 파싱한다
 //! (mmap 원칙은 사전·LM처럼 큰 섹션에 적용).
 //!
-//! 레이어 관례: 0 = 문자(언어별), 1 = 심볼 1면(숫자·기본 기호), 2 = 심볼 2면.
+//! 레이어 관례: 0 = 문자(언어별), 1 = 심볼 1면(숫자·기본 기호), 2 = 심볼 2면,
+//! 3 = 통합 검색면(이모지·기호·얼굴 문자 — 키 대신 패널이 자리를 갖는다).
 //!
 //! 와이어 레이아웃 (little-endian):
 //! ```text
 //! layer_count u8
-//! 레이어마다: row_count u8
+//! 레이어마다: panel_per_mille u16 | row_count u8
 //!   행마다: height_per_mille u16 | key_count u8
 //!     키마다: kind u8 | width_per_mille u16 | base u32 | shifted u32
 //!             | alternate_count u8 | alternate u32 × n
@@ -51,6 +52,10 @@ pub struct LayoutRow {
 #[derive(Debug, Clone, PartialEq)]
 pub struct KeyboardLayout {
     pub rows: Vec<LayoutRow>,
+    /// 키 위에 놓이는 패널(통합 검색면)의 높이 — 표준 행 대비 배수. 0이면 키만 있는
+    /// 보통 레이어다. 패널 안을 무엇으로 채우는지는 레이아웃이 아니라 코어가 정한다
+    /// (검색어·최근 사용에 따라 달라지므로 배열 데이터에 담길 수 없다).
+    pub panel_rows: f32,
 }
 
 /// 레이어 묶음 — 문자·심볼 등 전환 가능한 레이아웃들의 집합.
@@ -69,6 +74,9 @@ pub fn deserialize(bytes: &[u8]) -> Option<KeyboardLayoutSet> {
     let layer_count = read_u8(&mut offset)? as usize;
     let mut layers = Vec::with_capacity(layer_count);
     for _ in 0..layer_count {
+        let panel_per_mille =
+            u16::from_le_bytes(bytes.get(offset..offset + 2)?.try_into().unwrap());
+        offset += 2;
         let row_count = read_u8(&mut offset)? as usize;
         let mut rows = Vec::with_capacity(row_count);
         for _ in 0..row_count {
@@ -121,7 +129,10 @@ pub fn deserialize(bytes: &[u8]) -> Option<KeyboardLayoutSet> {
                 height_ratio: height_per_mille as f32 / 1000.0,
             });
         }
-        layers.push(KeyboardLayout { rows });
+        layers.push(KeyboardLayout {
+            rows,
+            panel_rows: panel_per_mille as f32 / 1000.0,
+        });
     }
     Some(KeyboardLayoutSet { layers })
 }

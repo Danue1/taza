@@ -1,6 +1,6 @@
 use taza_ffi::{
-    FfiEditorContext, FfiEffect, FfiFieldKind, FfiFormFactor, FfiInputEvent, FfiUserPreferences,
-    KeyboardSession,
+    FfiCandidateGroup, FfiEditorContext, FfiEffect, FfiFieldKind, FfiFormFactor, FfiInputEvent,
+    FfiUserPreferences, KeyboardSession,
 };
 
 fn context(text: &str) -> FfiEditorContext {
@@ -117,8 +117,11 @@ fn personalization_snapshot_over_ffi() {
         },
         context("hi"),
     );
+    // 검색면에서 고른 것도 같은 스냅샷에 담긴다 — 낱말 학습은 w, 곁들임 최근 사용은 a
+    session.select_annotation(FfiCandidateGroup::Emoji, "😀".to_string(), context("hi "));
     let snapshot = session.personalization_snapshot();
-    assert!(snapshot.iter().any(|line| line.starts_with("hi\t")));
+    assert!(snapshot.iter().any(|line| line.starts_with("w\thi\t")));
+    assert!(snapshot.iter().any(|line| line == "a\t1\t😀"));
 
     let restored = KeyboardSession::new("en".to_string()).unwrap();
     restored.restore_personalization(snapshot.clone());

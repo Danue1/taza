@@ -14,7 +14,7 @@ const NIKL_SENTENCE_CONTAINERS: [&str; 3] = ["paragraph", "sentence", "utterance
 /// 국립국어원 모두의 말뭉치(JSON). 이용 신청을 거쳐 손으로 내려받는 원천이라 로컬
 /// 조달을 전제하며, 말뭉치 종류가 늘어도 레시피 조각만 더하면 같은 추출기로 들어온다.
 pub fn parse(path: &Path, minimum_count: u64) -> Result<Signal, String> {
-    let mut corpus = CorpusCounts::default();
+    let mut corpus = CorpusCounts::new();
     container::for_each_member(path, |name, reader| {
         if !name.ends_with(".json") {
             return Ok(());
@@ -28,7 +28,7 @@ pub fn parse(path: &Path, minimum_count: u64) -> Result<Signal, String> {
     if corpus.is_empty() {
         return Err(format!("{}: 문장을 읽지 못했음", path.display()));
     }
-    Ok(corpus.finish(minimum_count))
+    Ok(corpus.finish(minimum_count, 1))
 }
 
 fn read_nikl_value(value: &serde_json::Value, in_sentences: bool, corpus: &mut CorpusCounts) {
@@ -76,7 +76,7 @@ mod tests {
             }],
             "utterance": [{ "form": "밈 좋아" }]
         });
-        let mut corpus = CorpusCounts::default();
+        let mut corpus = CorpusCounts::new();
         read_nikl_value(&document, false, &mut corpus);
         assert_eq!(corpus.count("밈"), Some(1));
         assert_eq!(corpus.count("밈이"), Some(1));
@@ -89,7 +89,7 @@ mod tests {
     #[test]
     fn nikl_breaks_the_neighbour_chain_at_sentence_ends() {
         let document = serde_json::json!({ "paragraph": [{ "form": "앞말이다. 뒷말이다" }] });
-        let mut corpus = CorpusCounts::default();
+        let mut corpus = CorpusCounts::new();
         read_nikl_value(&document, false, &mut corpus);
         assert_eq!(corpus.pair_kinds(), 0);
     }

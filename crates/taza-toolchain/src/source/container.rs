@@ -44,41 +44,40 @@ pub fn piped(mut inner: impl Read + Send + 'static) -> PipedReader {
     }
 }
 
-/// bzip2 파일을 읽는 스트림.
+/// 나뉘어 압축된 파일을 처음부터 끝까지 읽는 스트림.
 ///
-/// bzip2는 여러 스트림을 이어 붙인 파일도 하나의 파일로 읽힌다. 위키백과가 내는
-/// multistream 덤프가 그렇게 만들어져 있고, 스트림마다 따로 풀 수 있으므로 실을 나눠
-/// 맡긴다 — 압축 해제가 파이프라인에서 가장 무거운 한 덩이다. 한 덩이짜리 파일이면
-/// 나눌 데가 없으니 해제와 파싱을 겹치는 것으로 그친다.
-pub fn open_bzip2(path: &Path) -> Result<PipedReader, String> {
-    let starts = stream_starts(path)?;
+/// bzip2도 zstd도 여러 덩이를 이어 붙인 파일이 하나의 파일로 읽힌다. 위키백과가 내는
+/// multistream 덤프가 그렇게 만들어져 있고, 덩이마다 따로 풀 수 있으므로 실을 나눠
+/// 맡긴다 — 압축 해제가 파이프라인에서 가장 무거운 한 덩이다. 나눌 데가 없는 파일이면
+/// 해제와 파싱을 겹치는 것으로 그친다.
+pub fn open(path: &Path) -> Result<PipedReader, String> {
+    if is_zstd(path) {
+        let file = std::fs::File::open(path)
+            .map_err(|error| format!("{} 열기 실패: {error}", path.display()))?;
+        let decoder = zstd::Decoder::new(file)
+            .map_err(|error| format!("{} 여는 데 실패: {error}", path.display()))?;
+        return Ok(piped(decoder));
+    }
+    let streams = compressed_chunks(path)?;
     let file = std::fs::File::open(path)
         .map_err(|error| format!("{} 열기 실패: {error}", path.display()))?;
-    if starts.len() < 2 {
+    if streams.len() < 2 {
         return Ok(piped(BzDecoder::new(file)));
     }
-    let end = std::fs::metadata(path)
-        .map_err(|error| format!("{} 크기 읽기 실패: {error}", path.display()))?
-        .len();
 
     // 실 하나가 스트림을 건너뛰며 맡고(0번 실이 0, W, 2W…), 읽는 쪽이 실을 돌아가며
     // 거두면 순서가 저절로 맞는다 — 거둔 것을 다시 줄 세우는 자리가 필요 없다.
     let lanes = std::thread::available_parallelism().map_or(4, |count| count.get());
-    let lanes = lanes.min(starts.len());
+    let lanes = lanes.min(streams.len());
     let receivers: Vec<Receiver<std::io::Result<Vec<u8>>>> = (0..lanes)
         .map(|lane| {
             let (sender, receiver) = sync_channel(1);
             let path = path.to_path_buf();
-            let ranges: Vec<(u64, u64)> = starts
-                .iter()
-                .enumerate()
-                .skip(lane)
-                .step_by(lanes)
-                .map(|(index, &start)| (start, starts.get(index + 1).copied().unwrap_or(end)))
-                .collect();
+            let ranges: Vec<(u64, u64)> =
+                streams.iter().copied().skip(lane).step_by(lanes).collect();
             std::thread::spawn(move || {
                 for (start, stop) in ranges {
-                    let decoded = decode_stream(&path, start, stop);
+                    let decoded = decode_chunk(&path, start, stop);
                     let failed = decoded.is_err();
                     if sender.send(decoded).is_err() || failed {
                         return;
@@ -109,18 +108,58 @@ pub fn open_bzip2(path: &Path) -> Result<PipedReader, String> {
     })
 }
 
-/// 스트림 하나를 통째로 푼다.
-fn decode_stream(path: &Path, start: u64, stop: u64) -> std::io::Result<Vec<u8>> {
+/// 덩이 하나를 통째로 푼다.
+pub fn decode_chunk(path: &Path, start: u64, stop: u64) -> std::io::Result<Vec<u8>> {
     let mut file = std::fs::File::open(path)?;
     file.seek(std::io::SeekFrom::Start(start))?;
+    let taken = file.take(stop - start);
     let mut decoded = Vec::new();
-    BzDecoder::new(file.take(stop - start)).read_to_end(&mut decoded)?;
+    if is_zstd(path) {
+        zstd::Decoder::new(taken)?.read_to_end(&mut decoded)?;
+    } else {
+        BzDecoder::new(taken).read_to_end(&mut decoded)?;
+    }
     Ok(decoded)
 }
 
-/// 파일 안에서 bzip2 스트림이 시작하는 자리들. 스트림 머리(`BZh` + 블록 크기)와 첫
+/// 곁들여 두는 덩이 자리표의 확장자. zstd 덩이는 표지를 뒤져 찾을 수 없어(네 바이트라
+/// 압축된 자료 안에서 우연히 나타난다) 옮겨 담을 때 자리를 적어 둔다.
+const CHUNK_INDEX: &str = "chunks";
+
+pub fn is_zstd(path: &Path) -> bool {
+    path.extension().is_some_and(|extension| extension == "zst")
+}
+
+/// 덩이 자리표 파일의 경로.
+pub fn chunk_index_path(path: &Path) -> std::path::PathBuf {
+    let mut name = path.as_os_str().to_os_string();
+    name.push(".");
+    name.push(CHUNK_INDEX);
+    std::path::PathBuf::from(name)
+}
+
+/// 파일 안의 덩이 구간들 — (시작, 끝). zstd는 곁들인 자리표를 읽고, bzip2는 표지를 찾는다.
+pub fn compressed_chunks(path: &Path) -> Result<Vec<(u64, u64)>, String> {
+    if is_zstd(path) {
+        let index = chunk_index_path(path);
+        let bytes = std::fs::read(&index)
+            .map_err(|error| format!("{} 읽기 실패: {error}", index.display()))?;
+        let starts: Vec<u64> = bytes
+            .chunks_exact(8)
+            .map(|chunk| u64::from_le_bytes(chunk.try_into().unwrap_or_default()))
+            .collect();
+        return Ok(spans(&starts, file_length(path)?));
+    }
+    bzip2_streams(path)
+}
+
+/// 파일 안의 bzip2 스트림 구간들 — (시작, 끝). 스트림 머리(`BZh` + 블록 크기)와 첫
 /// 블록의 표지가 잇달아 나오는 자리를 찾는다 — 열 바이트가 통째로 우연히 맞을 일은 없다.
-fn stream_starts(path: &Path) -> Result<Vec<u64>, String> {
+///
+/// 구간을 밖으로 내는 이유는 푸는 것만 나누는 것으로는 모자라기 때문이다. 스트림
+/// 경계가 곧 내용의 경계인 원천은(위키백과 덤프는 스트림 하나가 문서 100편) 손질까지
+/// 나눠 맡길 수 있다.
+fn bzip2_streams(path: &Path) -> Result<Vec<(u64, u64)>, String> {
     const HEADER: [u8; 6] = [0x31, 0x41, 0x59, 0x26, 0x53, 0x59];
     const LENGTH: usize = 4 + HEADER.len();
     let mut file = BufReader::new(
@@ -156,7 +195,22 @@ fn stream_starts(path: &Path) -> Result<Vec<u64>, String> {
         offset += (filled - keep) as u64;
         filled = keep;
     }
-    Ok(starts)
+    Ok(spans(&starts, file_length(path)?))
+}
+
+fn file_length(path: &Path) -> Result<u64, String> {
+    std::fs::metadata(path)
+        .map(|metadata| metadata.len())
+        .map_err(|error| format!("{} 크기 읽기 실패: {error}", path.display()))
+}
+
+/// 시작 자리 목록을 (시작, 끝) 구간으로 잇는다.
+fn spans(starts: &[u64], end: u64) -> Vec<(u64, u64)> {
+    starts
+        .iter()
+        .enumerate()
+        .map(|(index, &start)| (start, starts.get(index + 1).copied().unwrap_or(end)))
+        .collect()
 }
 
 pub struct PipedReader {
@@ -254,7 +308,7 @@ mod tests {
 
     fn read_all(path: &Path) -> String {
         let mut text = String::new();
-        open_bzip2(path).unwrap().read_to_string(&mut text).unwrap();
+        open(path).unwrap().read_to_string(&mut text).unwrap();
         text
     }
 

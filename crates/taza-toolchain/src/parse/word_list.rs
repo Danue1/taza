@@ -29,7 +29,7 @@ const PHRASE_BOUNDARY: char = '^';
 /// 허용하는 자리라면(`^`) 붙여 쓴 형태도 함께 낸다.
 pub fn parse(path: &Path, rank: f64, minimum_count: u64) -> Result<Signal, String> {
     let mut attested: HashMap<String, f64> = HashMap::new();
-    let mut corpus = CorpusCounts::default();
+    let mut corpus = CorpusCounts::new();
     container::for_each_member(path, |name, reader| {
         for line in reader.lines() {
             let line = line.map_err(|error| format!("{name} 읽기 실패: {error}"))?;
@@ -78,7 +78,7 @@ pub fn parse(path: &Path, rank: f64, minimum_count: u64) -> Result<Signal, Strin
     }
     Ok(Signal {
         attested: attested.into_iter().collect(),
-        ..corpus.finish(1)
+        ..corpus.finish(1, 1)
     })
 }
 
@@ -122,10 +122,14 @@ mod tests {
         assert_eq!(attested.get("당국"), Some(&0.4));
         // 붙임표는 실제로 치는 글자가 아니다
         assert_eq!(attested.get("가까이"), Some(&0.4));
-        assert_eq!(
-            signal.bigrams,
-            vec![("규제".to_string(), "당국".to_string(), 1)]
-        );
+        let place = |word: &str| {
+            signal
+                .observed
+                .iter()
+                .position(|(observed, _)| observed == word)
+                .expect("관측 목록에 없음") as u32
+        };
+        assert_eq!(signal.bigrams, vec![(place("규제"), place("당국"), 1)]);
         std::fs::remove_file(&path).unwrap();
     }
 

@@ -39,8 +39,10 @@ pub struct Signal {
     pub attested: Vec<(String, f64)>,
     /// 코퍼스에서 관측된 낱말 — (낱말, 관측 횟수)
     pub observed: Vec<(String, u64)>,
-    /// (앞말, 뒷말, 관측 횟수) — 문맥을 아는 원천만 낸다
-    pub bigrams: Vec<(String, String, u64)>,
+    /// (앞말 번호, 뒷말 번호, 관측 횟수) — 문맥을 아는 원천만 낸다. 번호는 `observed`의
+    /// 자리 번호다. 낱말을 글자로 실으면 짝 하나가 문자열 두 벌을 더 들고 다니는데,
+    /// 덤프 규모에서는 그 두 벌이 신호의 대부분을 차지한다.
+    pub bigrams: Vec<(u32, u32, u64)>,
     /// 활용형이 뻗어 나오는 어간 — 형태소 사전만 낸다. 코퍼스에서 관측된 활용형을
     /// 표제어로 받아들일지 가리는 조건이 된다.
     pub stems: Vec<String>,
@@ -71,7 +73,7 @@ pub fn parser_version(extraction: &Extraction) -> u32 {
     match extraction {
         Extraction::Scowl { .. } => 3,
         Extraction::Tatoeba { .. } => 3,
-        Extraction::Wikipedia { .. } => 3,
+        Extraction::Wikipedia { .. } => 4,
         Extraction::MecabKoDic { .. } => 3,
         Extraction::NiklCorpus { .. } => 3,
         Extraction::Urimalsam { .. } => 3,

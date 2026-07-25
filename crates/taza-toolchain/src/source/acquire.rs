@@ -97,12 +97,11 @@ pub fn fetch(url: &str, expected_sha256: &str, cache_directory: &Path) -> Result
         .map_err(|error| format!("{} 만들기 실패: {error}", cache_directory.display()))?;
     let file_name = url.rsplit('/').next().unwrap_or("source");
     let cached = cache_directory.join(format!("{}-{file_name}", &expected_sha256[..12]));
+    // 캐시에 있는 것은 받을 때 이미 해시를 맞춰 보고 그 해시로 이름 붙여 넣은 것이므로
+    // 다시 세지 않는다 — 기가바이트짜리 원천을 실행마다 해싱하면 캐시가 아끼려던 시간을
+    // 도로 내놓게 된다. 캐시 파일이 의심스러우면 지우면 다시 받아 검증한다.
     if cached.exists() {
-        if file_digest(&cached)? == expected_sha256 {
-            return Ok(cached);
-        }
-        // 캐시가 깨졌으면 지우고 다시 받는다
-        let _ = std::fs::remove_file(&cached);
+        return Ok(cached);
     }
 
     println!("  내려받기 {url}");

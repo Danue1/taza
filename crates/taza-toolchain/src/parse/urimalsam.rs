@@ -40,7 +40,7 @@ pub fn parse(
     excluded_parts_of_speech: &[String],
 ) -> Result<Signal, String> {
     let mut attested: HashMap<String, f64> = HashMap::new();
-    let mut corpus = CorpusCounts::default();
+    let mut corpus = CorpusCounts::new();
     container::for_each_member(path, |name, reader| {
         if !name.ends_with(".xml") {
             return Ok(());
@@ -86,7 +86,7 @@ pub fn parse(
     }
     Ok(Signal {
         attested: attested.into_iter().collect(),
-        ..corpus.finish(1)
+        ..corpus.finish(1, 1)
     })
 }
 
@@ -254,15 +254,25 @@ mod tests {
     #[test]
     fn phrases_yield_eojeol_joined_form_and_context() {
         let signal = parse_sample("phrase", &["일반어"], &["어휘", "구"]);
-        let attested: HashMap<String, f64> = signal.attested.into_iter().collect();
+        let attested: HashMap<&str, f64> = signal
+            .attested
+            .iter()
+            .map(|(word, rank)| (word.as_str(), *rank))
+            .collect();
         for expected in ["규제", "당국", "규제당국"] {
             assert_eq!(attested.get(expected), Some(&0.05), "빠짐: {expected}");
         }
-        assert!(
-            signal
-                .bigrams
-                .contains(&("규제".to_string(), "당국".to_string(), 1))
-        );
+        let (left, right) = (place(&signal, "규제"), place(&signal, "당국"));
+        assert!(signal.bigrams.contains(&(left, right, 1)));
+    }
+
+    /// 짝은 낱말 번호로 실린다 — 번호는 `observed`의 자리 번호다.
+    fn place(signal: &Signal, word: &str) -> u32 {
+        signal
+            .observed
+            .iter()
+            .position(|(observed, _)| observed == word)
+            .expect("관측 목록에 없음") as u32
     }
 
     #[test]

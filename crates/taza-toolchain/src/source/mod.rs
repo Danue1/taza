@@ -3,10 +3,14 @@
 //! 원천마다 다른 것은 넷이고 서로 직교한다: 어디서 구하는가(`acquire`), 어떻게
 //! 압축돼 있는가(`container`), 어떤 형식인가(`crate::parse`), 팩에 무엇으로
 //! 기여하는가(`recipe::Role`). 이 파일은 앞의 셋을 잇기만 한다.
+//!
+//! 큰 원천은 훑기 전에 더 싸게 풀리는 사본으로 바꿔 둔다(`transcode`) — 원천의 배포
+//! 형식은 우리가 고를 수 없지만, 다시 훑을 때 무엇을 읽을지는 고를 수 있다.
 
 pub mod acquire;
 pub mod cache;
 pub mod container;
+pub mod transcode;
 
 use crate::parse::{self, Signal};
 use crate::recipe::Source;
@@ -44,7 +48,9 @@ pub fn prepare(
             from_cache: true,
         });
     }
-    let signal = parse::parse(&source.extraction, &located.path, language)?;
+    // 다시 훑어야 할 때는 원천을 더 싸게 풀리는 사본으로 바꿔 놓고 훑는다
+    let path = transcode::faster_copy(&located.path, cache_directory);
+    let signal = parse::parse(&source.extraction, &path, language)?;
     if use_cache {
         cache::store(&cache_path, &signal)?;
     }

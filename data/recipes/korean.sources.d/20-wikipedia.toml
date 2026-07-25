@@ -4,14 +4,17 @@
 # 다만 백과사전 문체라 인명·지명으로 기울어 있다. weight를 낮게 주어 어휘는 넓히되
 # 순위의 결은 다른 원천이 잡게 한다. weight는 점수에만 걸리고 승격 판정은 가중치 없는
 # 관측 횟수로 하므로, 낮은 weight가 새 낱말이 들어오는 것을 막지는 않는다.
+#
+# 내용이 같은 두 판 가운데 multistream 쪽을 쓴다. 스트림이 여럿으로 나뉘어 있어 실을
+# 나눠 풀 수 있고, 한 덩이짜리 판은 푸는 데만 1분 반이 든다.
 
 [[sources]]
 name = "Korean Wikipedia"
 version = "20260701"
 license = "CC BY-SA 4.0"
 attribution = "Word frequencies derived from the Korean Wikipedia article dump of 2026-07-01 (https://ko.wikipedia.org), licensed CC BY-SA 4.0."
-url = "https://dumps.wikimedia.org/kowiki/20260701/kowiki-20260701-pages-articles.xml.bz2"
-sha256 = "bd3f21c078672aebd537d81a889cce82cb46fa403a417f4b43625c80fbf74813"
+url = "https://dumps.wikimedia.org/kowiki/20260701/kowiki-20260701-pages-articles-multistream.xml.bz2"
+sha256 = "991b26eb4588d2eddafd472a3b7dd2a8503740fb3e6c46d14baeef60d83e5582"
 role = "discovery"
 weight = 0.01
 format = "wikipedia"

@@ -85,8 +85,8 @@ fn encode(signal: &Signal) -> Vec<u8> {
     }
     write_length(&mut bytes, signal.bigrams.len());
     for (left, right, count) in &signal.bigrams {
-        write_text(&mut bytes, left);
-        write_text(&mut bytes, right);
+        bytes.extend_from_slice(&left.to_le_bytes());
+        bytes.extend_from_slice(&right.to_le_bytes());
         bytes.extend_from_slice(&count.to_le_bytes());
     }
     write_length(&mut bytes, signal.annotations.len());
@@ -123,8 +123,8 @@ fn decode(bytes: &[u8]) -> Option<Signal> {
             .push((word, u64::from_le_bytes(cursor.eight()?)));
     }
     for _ in 0..cursor.length()? {
-        let left = cursor.text()?;
-        let right = cursor.text()?;
+        let left = cursor.number()?;
+        let right = cursor.number()?;
         signal
             .bigrams
             .push((left, right, u64::from_le_bytes(cursor.eight()?)));
@@ -176,6 +176,10 @@ impl<'bytes> Cursor<'bytes> {
         Some(u64::from_le_bytes(self.eight()?) as usize)
     }
 
+    fn number(&mut self) -> Option<u32> {
+        Some(u32::from_le_bytes(self.take(4)?.try_into().ok()?))
+    }
+
     fn text(&mut self) -> Option<String> {
         let length = u32::from_le_bytes(self.take(4)?.try_into().ok()?) as usize;
         String::from_utf8(self.take(length)?.to_vec()).ok()
@@ -191,7 +195,7 @@ mod tests {
         let signal = Signal {
             attested: vec![("규제".to_string(), 0.4)],
             observed: vec![("당국".to_string(), 7)],
-            bigrams: vec![("규제".to_string(), "당국".to_string(), 3)],
+            bigrams: vec![(0, 1, 3)],
             annotations: vec![Annotation {
                 word: "웃음".to_string(),
                 group: CandidateGroup::Emoji,

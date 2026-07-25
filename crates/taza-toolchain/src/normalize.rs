@@ -40,8 +40,9 @@ pub struct SourceSignal<'call> {
     /// 코퍼스에서 관측된 낱말 — (낱말, 관측 횟수). 인벤토리 역할에서는 낱말 점수에
     /// 더하지 않고 문맥 이득을 재는 데만 쓴다 — 사전 등재는 실사용 횟수가 아니다.
     pub observed: &'call [(String, u64)],
-    /// (앞말, 뒷말, 관측 횟수) — 문맥을 아는 원천만 채운다
-    pub bigrams: &'call [(String, String, u64)],
+    /// (앞말 번호, 뒷말 번호, 관측 횟수) — 문맥을 아는 원천만 채운다. 번호는 `observed`의
+    /// 자리 번호다.
+    pub bigrams: &'call [(u32, u32, u64)],
     /// 활용형이 뻗어 나오는 어간 — 형태소 사전만 채운다
     pub stems: &'call [String],
     /// 어절 뒤에 붙는 접사 — 형태소 사전만 채운다. 이것과 똑같은 낱말은 홀로 쓰이는
@@ -308,11 +309,6 @@ pub fn normalize_bigrams(
         }
         // 이득은 같은 원천 안에서 재야 한다 — 낱말 빈도와 짝 빈도가 같은 코퍼스에서
         // 나온 수여야 상호정보량이 뜻을 갖는다.
-        let counts: HashMap<&str, f64> = signal
-            .observed
-            .iter()
-            .map(|(word, count)| (word.as_str(), *count as f64))
-            .collect();
         let total: f64 = signal
             .bigrams
             .iter()
@@ -321,27 +317,29 @@ pub fn normalize_bigrams(
         if total <= 0.0 {
             continue;
         }
-        for (left, right, count) in signal.bigrams {
-            if *count < rules.minimum_count {
+        for &(left, right, count) in signal.bigrams {
+            if count < rules.minimum_count {
                 continue;
             }
             observed += 1;
-            if !known.contains(left.as_str()) || !known.contains(right.as_str()) {
-                dropped_outside_lexicon += 1;
-                continue;
-            }
-            let (Some(left_count), Some(right_count)) =
-                (counts.get(left.as_str()), counts.get(right.as_str()))
-            else {
+            let (Some((left, left_count)), Some((right, right_count))) = (
+                signal.observed.get(left as usize),
+                signal.observed.get(right as usize),
+            ) else {
                 dropped_outside_lexicon += 1;
                 continue;
             };
-            let lift = (*count as f64 * total / (left_count * right_count)).ln();
+            let (left, right) = (left.as_str(), right.as_str());
+            if !known.contains(left) || !known.contains(right) {
+                dropped_outside_lexicon += 1;
+                continue;
+            }
+            let lift = (count as f64 * total / (*left_count as f64 * *right_count as f64)).ln();
             if lift <= 0.0 {
                 dropped_without_lift += 1;
                 continue;
             }
-            let slot = pairs.entry((left.as_str(), right.as_str())).or_default();
+            let slot = pairs.entry((left, right)).or_default();
             slot.lift += lift * signal.weight;
             slot.count += count;
         }
@@ -529,12 +527,9 @@ mod tests {
             ("quick".to_string(), 10),
             ("fox".to_string(), 10),
         ];
-        let bigrams = vec![
-            ("the".to_string(), "quick".to_string(), 8),
-            ("the".to_string(), "fox".to_string(), 2),
-            // 표제어 밖 낱말 — 총량에는 들어가지만 팩에는 담기지 않는다
-            ("zzz".to_string(), "yyy".to_string(), 990),
-        ];
+        // 번호는 `observed`의 자리 번호다. 마지막 짝은 그 자리에 없는 번호를 가리킨다 —
+        // 총량에는 들어가지만 팩에는 담기지 않는다.
+        let bigrams = vec![(0, 1, 8), (0, 2, 2), (7, 8, 990)];
         let lexicon = vec![
             ("the".to_string(), 100u32),
             ("quick".to_string(), 50),

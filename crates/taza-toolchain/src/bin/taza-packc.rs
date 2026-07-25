@@ -306,7 +306,8 @@ mod tests {
         assert!(compile("en", "the\t100", Some("the quick 50"), None, false).is_err());
         assert!(compile("en", "the\t100", Some(""), None, false).is_err());
         assert!(compile("en", "the\t100", None, Some(""), false).is_err());
-        assert!(compile("en", "the\t100", None, Some("ab cd"), false).is_err());
+        // 시프트 표기가 붙으면 양쪽 다 1글자여야 한다 (여러 글자는 `.com` 같은 Text 키)
+        assert!(compile("en", "the\t100", None, Some("a:bc"), false).is_err());
         assert!(compile("en", "the\t100", None, Some("a*x"), false).is_err());
     }
 }

@@ -29,6 +29,8 @@ public enum TazaTheme {
         public static let popupSurface = dynamic(light: 0xFFFFFF, dark: 0x3A3A3C)
         public static let selection = UIColor.systemBlue.withAlphaComponent(0.16)
         public static let accent = UIColor.systemBlue
+        /// 강조색 바탕 위의 글자 — 라이트·다크 모두 흰색이다(순정 리턴키)
+        public static let emphasizedLabel = UIColor.white
 
         private static func dynamic(light: UInt32, dark: UInt32) -> UIColor {
             UIColor { traits in

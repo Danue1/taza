@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use crate::contract::{
     AnnotationPanel, AnnotationPanelGroup, AnnotationPanelItem, Candidate, CandidateGroup,
-    Composer, ComposerEvent, ComposerOutput, EditorContext, Effect, InputEvent, Pack,
+    Composer, ComposerEvent, ComposerOutput, EditorContext, Effect, FieldKind, InputEvent, Pack,
     SuggestionRequest, UserPreferences,
 };
 use crate::keyboard::{
@@ -139,8 +139,11 @@ impl Engine {
             self.language = declared;
         }
         let layout = layout.unwrap_or_else(|| self.language.builtin_layout());
+        // 배열이 바뀌어도 셸이 알려 준 표시 환경과 필드 성격은 이어진다
+        let field = self.keyboard.field();
         self.keyboard = Keyboard::new(layout, self.language.clone());
         self.keyboard.set_metrics(self.metrics);
+        self.keyboard.set_field(field);
         self.pack = Some(pack);
         Ok(())
     }
@@ -156,6 +159,13 @@ impl Engine {
     pub fn set_metrics(&mut self, metrics: KeyboardMetrics) {
         self.metrics = metrics;
         self.keyboard.set_metrics(metrics);
+    }
+
+    /// 편집 대상이 바뀔 때 셸이 알려 주는 필드 성격. 보조 기능은 이벤트마다 오는
+    /// `EditorContext`가 정하지만, 화면(배열·리턴키·후보 바 자리)은 이벤트 없이도
+    /// 그려야 하므로 별도로 주입받는다.
+    pub fn set_field(&mut self, field: FieldKind) {
+        self.keyboard.set_field(field);
     }
 
     pub fn frame_metrics(&self) -> FrameMetrics {
@@ -228,6 +238,13 @@ impl Engine {
                 let character = signal.character();
                 self.touches.push(signal);
                 self.feed(ComposerEvent::Key(character), context, None)
+            }
+            // 여러 글자를 한 번에 넣는 키는 어절을 끊는다 — 조합 중이던 것을 언어별
+            // 규칙으로 확정한 뒤에 넣어야 `.com`이 조합에 말려들지 않는다
+            InputEvent::Text(text) => {
+                let mut effects = self.finalize_composition();
+                effects.push(Effect::CommitText(text));
+                effects
             }
             InputEvent::Backspace => {
                 if let Some(correction) = self.reverted_correction.take() {

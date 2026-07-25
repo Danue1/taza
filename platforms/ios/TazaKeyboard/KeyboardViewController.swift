@@ -16,6 +16,8 @@ final class KeyboardViewController: UIInputViewController {
     /// 코어에 이미 알린 표시 환경 — 같은 값을 다시 밀어 넣어 배치가 도는 것을 막는다
     private var appliedFormFactor: FfiFormFactor?
     private var appliedWidth: CGFloat = 0
+    /// 코어에 이미 알린 필드 성격 — 같은 값을 다시 밀어 넣어 배치가 도는 것을 막는다
+    private var appliedField: FfiFieldKind?
     private var gridView: KeyboardGridView!
     private var candidateBar: CandidateBarView!
     /// 통합 검색면 — 이모지 키로 들어가는 레이어에서만 보인다
@@ -55,6 +57,7 @@ final class KeyboardViewController: UIInputViewController {
 
         buildViews()
         refreshFrame()
+        updateField()
     }
 
     /// 설정 앱에서 바뀐 값은 다음 표시 때 반영된다 — 익스텐션이 살아 있는 채로
@@ -72,6 +75,7 @@ final class KeyboardViewController: UIInputViewController {
                 session.restorePersonalization(lines: snapshot)
             }
         }
+        updateField()
     }
 
     /// 익스텐션은 키보드가 내려갈 때마다 사라질 수 있으므로 배운 것을 여기서 남긴다.
@@ -254,7 +258,7 @@ final class KeyboardViewController: UIInputViewController {
                 row.map { key in
                     KeyModel(
                         label: key.label,
-                        appearance: appearance(for: key.role),
+                        appearance: appearance(for: key),
                         bounds: CGRect(
                             x: CGFloat(key.bounds.x),
                             y: CGFloat(key.bounds.y),
@@ -289,12 +293,16 @@ final class KeyboardViewController: UIInputViewController {
         }
     }
 
-    private func appearance(for role: FfiKeyRole) -> KeyCapView.Appearance {
-        switch role {
-        case .character: .letter
-        case .languageSwitch: .language
-        case .space: .space
-        default: .control
+    private func appearance(for key: FfiFrameKey) -> KeyCapView.Appearance {
+        if key.emphasized {
+            return .emphasized
+        }
+        switch key.role {
+        case .character: return .letter
+        case .languageSwitch: return .language
+        case .space: return .space
+        case .blank: return .blank
+        default: return .control
         }
     }
 
@@ -309,19 +317,36 @@ final class KeyboardViewController: UIInputViewController {
 
     // MARK: - 입력 문맥
 
-    /// 플랫폼 inputmode(keyboardType·isSecureTextEntry)를 코어 FieldKind로 매핑
+    /// 플랫폼 inputmode(keyboardType·isSecureTextEntry)를 코어 FieldKind로 매핑.
+    /// 갈래별로 순정이 어떤 화면을 쓰는지는 docs/inputmode.md의 실측표에 있다.
     private func currentFieldKind() -> FfiFieldKind {
         if textDocumentProxy.isSecureTextEntry == true {
             return .password
         }
         switch textDocumentProxy.keyboardType {
         case .emailAddress: return .email
-        case .URL, .webSearch: return .url
-        case .numberPad, .numbersAndPunctuation, .decimalPad, .asciiCapableNumberPad:
+        case .URL: return .url
+        case .webSearch: return .search
+        case .decimalPad: return .decimal
+        case .numberPad, .numbersAndPunctuation, .asciiCapableNumberPad:
             return .number
         case .phonePad, .namePhonePad: return .phone
         default: return .text
         }
+    }
+
+    /// 편집 대상이 바뀌면 코어에 알리고 다시 그린다. 필드는 배열·리턴키·후보 바 자리를
+    /// 바꾸므로(순정 관습) 이벤트가 오기 전에 화면이 먼저 맞아야 한다.
+    private func updateField() {
+        let field = currentFieldKind()
+        guard field != appliedField else { return }
+        appliedField = field
+        // 전환 대상 언어들도 같은 필드를 그리므로 세션 전체에 알린다
+        for session in sessions.values {
+            session.setField(field: field)
+        }
+        candidateBar.setCandidates([])
+        refreshFrame()
     }
 
     private func currentContext() -> FfiEditorContext {
@@ -581,6 +606,8 @@ final class KeyboardViewController: UIInputViewController {
 
     override func textDidChange(_ textInput: UITextInput?) {
         super.textDidChange(textInput)
+        // 다른 필드로 초점이 옮겨 갔을 수 있다 — 화면부터 그 필드에 맞춘다
+        updateField()
         // textDidChange는 우리 편집 뒤에도 호출된다. 문서 끝이 화면 composing과
         // 일치하면 우리 상태 그대로이므로 무시하고, 어긋났을 때(커서 이동·외부 수정)만
         // 코어 finalize로 동기화한다 — 문맥 재동기화(reconciliation) 규칙의 셸 구현.

@@ -622,6 +622,12 @@ public protocol KeyboardSessionProtocol: AnyObject, Sendable {
     func selectAnnotation(group: FfiCandidateGroup, text: String, context: FfiEditorContext)  -> [FfiEffect]
     
     /**
+     * 편집 대상이 바뀔 때(초점 이동, 앱 전환) 셸이 알려 주는 필드 성격. 배열·리턴키·
+     * 후보 바 자리가 여기서 갈리므로 프레임을 받기 전에 넣는다.
+     */
+    func setField(field: FfiFieldKind) 
+    
+    /**
      * 표시 환경 주입 — 셸이 자기 크기를 알게 될 때(첫 배치, 회전, 분할) 부른다.
      * 이후 프레임의 치수는 이 값을 따른다.
      */
@@ -858,6 +864,17 @@ open func selectAnnotation(group: FfiCandidateGroup, text: String, context: FfiE
         FfiConverterTypeFfiEditorContext_lower(context),$0
     )
 })
+}
+    
+    /**
+     * 편집 대상이 바뀔 때(초점 이동, 앱 전환) 셸이 알려 주는 필드 성격. 배열·리턴키·
+     * 후보 바 자리가 여기서 갈리므로 프레임을 받기 전에 넣는다.
+     */
+open func setField(field: FfiFieldKind)  {try! rustCall() {
+    uniffi_taza_ffi_fn_method_keyboardsession_set_field(self.uniffiClonePointer(),
+        FfiConverterTypeFfiFieldKind_lower(field),$0
+    )
+}
 }
     
     /**
@@ -1328,18 +1345,26 @@ public struct FfiFrameKey {
     public var accessibilityLabel: String
     public var bounds: FfiKeyBounds
     public var shiftActive: Bool
+    /**
+     * 이 필드에서 강조색으로 그릴 키 (검색 필드의 리턴키 등)
+     */
+    public var emphasized: Bool
     public var role: FfiKeyRole
     public var alternates: [String]
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(row: UInt32, index: UInt32, label: String, accessibilityLabel: String, bounds: FfiKeyBounds, shiftActive: Bool, role: FfiKeyRole, alternates: [String]) {
+    public init(row: UInt32, index: UInt32, label: String, accessibilityLabel: String, bounds: FfiKeyBounds, shiftActive: Bool, 
+        /**
+         * 이 필드에서 강조색으로 그릴 키 (검색 필드의 리턴키 등)
+         */emphasized: Bool, role: FfiKeyRole, alternates: [String]) {
         self.row = row
         self.index = index
         self.label = label
         self.accessibilityLabel = accessibilityLabel
         self.bounds = bounds
         self.shiftActive = shiftActive
+        self.emphasized = emphasized
         self.role = role
         self.alternates = alternates
     }
@@ -1370,6 +1395,9 @@ extension FfiFrameKey: Equatable, Hashable {
         if lhs.shiftActive != rhs.shiftActive {
             return false
         }
+        if lhs.emphasized != rhs.emphasized {
+            return false
+        }
         if lhs.role != rhs.role {
             return false
         }
@@ -1386,6 +1414,7 @@ extension FfiFrameKey: Equatable, Hashable {
         hasher.combine(accessibilityLabel)
         hasher.combine(bounds)
         hasher.combine(shiftActive)
+        hasher.combine(emphasized)
         hasher.combine(role)
         hasher.combine(alternates)
     }
@@ -1406,6 +1435,7 @@ public struct FfiConverterTypeFfiFrameKey: FfiConverterRustBuffer {
                 accessibilityLabel: FfiConverterString.read(from: &buf), 
                 bounds: FfiConverterTypeFfiKeyBounds.read(from: &buf), 
                 shiftActive: FfiConverterBool.read(from: &buf), 
+                emphasized: FfiConverterBool.read(from: &buf), 
                 role: FfiConverterTypeFfiKeyRole.read(from: &buf), 
                 alternates: FfiConverterSequenceString.read(from: &buf)
         )
@@ -1418,6 +1448,7 @@ public struct FfiConverterTypeFfiFrameKey: FfiConverterRustBuffer {
         FfiConverterString.write(value.accessibilityLabel, into: &buf)
         FfiConverterTypeFfiKeyBounds.write(value.bounds, into: &buf)
         FfiConverterBool.write(value.shiftActive, into: &buf)
+        FfiConverterBool.write(value.emphasized, into: &buf)
         FfiConverterTypeFfiKeyRole.write(value.role, into: &buf)
         FfiConverterSequenceString.write(value.alternates, into: &buf)
     }
@@ -2387,7 +2418,9 @@ public enum FfiFieldKind {
     case text
     case email
     case url
+    case search
     case number
+    case decimal
     case phone
     case password
 }
@@ -2413,11 +2446,15 @@ public struct FfiConverterTypeFfiFieldKind: FfiConverterRustBuffer {
         
         case 3: return .url
         
-        case 4: return .number
+        case 4: return .search
         
-        case 5: return .phone
+        case 5: return .number
         
-        case 6: return .password
+        case 6: return .decimal
+        
+        case 7: return .phone
+        
+        case 8: return .password
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -2439,16 +2476,24 @@ public struct FfiConverterTypeFfiFieldKind: FfiConverterRustBuffer {
             writeInt(&buf, Int32(3))
         
         
-        case .number:
+        case .search:
             writeInt(&buf, Int32(4))
         
         
-        case .phone:
+        case .number:
             writeInt(&buf, Int32(5))
         
         
-        case .password:
+        case .decimal:
             writeInt(&buf, Int32(6))
+        
+        
+        case .phone:
+            writeInt(&buf, Int32(7))
+        
+        
+        case .password:
+            writeInt(&buf, Int32(8))
         
         }
     }
@@ -2563,6 +2608,11 @@ extension FfiFormFactor: Equatable, Hashable {}
 
 public enum FfiInputEvent {
     
+    /**
+     * 한 번에 여러 글자를 넣는 키 (`.com` 등)
+     */
+    case text(text: String
+    )
     case key(character: String
     )
     case backspace
@@ -2589,20 +2639,23 @@ public struct FfiConverterTypeFfiInputEvent: FfiConverterRustBuffer {
         let variant: Int32 = try readInt(&buf)
         switch variant {
         
-        case 1: return .key(character: try FfiConverterString.read(from: &buf)
+        case 1: return .text(text: try FfiConverterString.read(from: &buf)
         )
         
-        case 2: return .backspace
-        
-        case 3: return .separator(character: try FfiConverterString.read(from: &buf)
+        case 2: return .key(character: try FfiConverterString.read(from: &buf)
         )
         
-        case 4: return .candidateSelected(index: try FfiConverterUInt32.read(from: &buf)
+        case 3: return .backspace
+        
+        case 4: return .separator(character: try FfiConverterString.read(from: &buf)
         )
         
-        case 5: return .cursorMoved
+        case 5: return .candidateSelected(index: try FfiConverterUInt32.read(from: &buf)
+        )
         
-        case 6: return .focusLost
+        case 6: return .cursorMoved
+        
+        case 7: return .focusLost
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -2612,31 +2665,36 @@ public struct FfiConverterTypeFfiInputEvent: FfiConverterRustBuffer {
         switch value {
         
         
-        case let .key(character):
+        case let .text(text):
             writeInt(&buf, Int32(1))
+            FfiConverterString.write(text, into: &buf)
+            
+        
+        case let .key(character):
+            writeInt(&buf, Int32(2))
             FfiConverterString.write(character, into: &buf)
             
         
         case .backspace:
-            writeInt(&buf, Int32(2))
+            writeInt(&buf, Int32(3))
         
         
         case let .separator(character):
-            writeInt(&buf, Int32(3))
+            writeInt(&buf, Int32(4))
             FfiConverterString.write(character, into: &buf)
             
         
         case let .candidateSelected(index):
-            writeInt(&buf, Int32(4))
+            writeInt(&buf, Int32(5))
             FfiConverterUInt32.write(index, into: &buf)
             
         
         case .cursorMoved:
-            writeInt(&buf, Int32(5))
+            writeInt(&buf, Int32(6))
         
         
         case .focusLost:
-            writeInt(&buf, Int32(6))
+            writeInt(&buf, Int32(7))
         
         }
     }
@@ -2790,6 +2848,10 @@ public enum FfiKeyRole {
     case enter
     case layerSwitch
     case languageSwitch
+    /**
+     * 눌리지 않는 빈 자리 — 셸은 키를 그리지 않는다
+     */
+    case blank
 }
 
 
@@ -2820,6 +2882,8 @@ public struct FfiConverterTypeFfiKeyRole: FfiConverterRustBuffer {
         case 6: return .layerSwitch
         
         case 7: return .languageSwitch
+        
+        case 8: return .blank
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -2855,6 +2919,10 @@ public struct FfiConverterTypeFfiKeyRole: FfiConverterRustBuffer {
         
         case .languageSwitch:
             writeInt(&buf, Int32(7))
+        
+        
+        case .blank:
+            writeInt(&buf, Int32(8))
         
         }
     }
@@ -3379,6 +3447,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_taza_ffi_checksum_method_keyboardsession_select_annotation() != 8739) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_taza_ffi_checksum_method_keyboardsession_set_field() != 9400) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_taza_ffi_checksum_method_keyboardsession_set_metrics() != 53134) {

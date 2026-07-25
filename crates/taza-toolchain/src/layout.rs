@@ -5,7 +5,8 @@
 //! 배수)를 선언한다 — 통합 검색면이 이 줄로 자기 자리를 잡는다.
 //! 공백 구분 토큰 `표기[:시프트표기][[변형문자들]][*폭비율]`. 대괄호 안 글자들은
 //! 길게 눌러 고르는 변형이다. 제어 키는 이름으로: `shift`, `backspace`, `space`,
-//! `enter`, `language`(다음 언어), `layer0`~`layer3`(레이어 전환).
+//! `enter`, `language`(다음 언어), `layer0`~`layer3`(레이어 전환), `blank`(빈 자리).
+//! 시프트 표기 없이 여러 글자를 적으면 한 번에 넣는 키다 (`.com`).
 //! 기본 폭 0.1. 행 맨 앞의 `*<수>` 토큰은 그 행의 높이(표준 행 대비 배수, 기본 1.0)다.
 //! ```text
 //! ㅂ:ㅃ ㅈ:ㅉ ㄷ:ㄸ ㄱ:ㄲ ㅅ:ㅆ ㅛ ㅕ ㅑ ㅐ:ㅒ ㅔ:ㅖ
@@ -64,10 +65,10 @@ pub fn parse(text: &str) -> Result<KeyboardLayoutSet, String> {
             // `*`·`:`는 기호 키로도 쓰이므로, 양쪽이 온전할 때만 구분자로 해석한다
             let (specification, width_ratio) = match token.split_once('*') {
                 Some((specification, width)) if !specification.is_empty() => {
-                    match width.parse::<f32>() {
-                        Ok(width) => (specification, width),
-                        Err(_) => (token, DEFAULT_KEY_WIDTH),
-                    }
+                    let width = width.parse::<f32>().map_err(|_| {
+                        format!("{}행: 폭을 읽지 못했음: {token:?}", line_number + 1)
+                    })?;
+                    (specification, width)
                 }
                 _ => (token, DEFAULT_KEY_WIDTH),
             };
@@ -89,6 +90,7 @@ pub fn parse(text: &str) -> Result<KeyboardLayoutSet, String> {
                 "layer1" => KeyAction::LayerSwitch { target: 1 },
                 "layer2" => KeyAction::LayerSwitch { target: 2 },
                 "layer3" => KeyAction::LayerSwitch { target: 3 },
+                "blank" => KeyAction::Blank,
                 characters => {
                     let (base, shifted) = match characters.split_once(':') {
                         Some((base, shifted)) if !base.is_empty() && !shifted.is_empty() => {
@@ -96,6 +98,15 @@ pub fn parse(text: &str) -> Result<KeyboardLayoutSet, String> {
                         }
                         _ => (characters, characters),
                     };
+                    // 시프트 표기 없이 여러 글자면 한 번에 넣는 키다 (`.com`)
+                    if base == shifted && base.chars().count() > 1 {
+                        keys.push(LayoutKey {
+                            action: KeyAction::Text(base.to_string()),
+                            width_ratio,
+                            alternates,
+                        });
+                        continue;
+                    }
                     let single = |part: &str| -> Result<char, String> {
                         let mut iterator = part.chars();
                         match (iterator.next(), iterator.next()) {
@@ -144,14 +155,16 @@ pub fn serialize(layout_set: &KeyboardLayoutSet) -> Vec<u8> {
             assert!(row.keys.len() <= u8::MAX as usize);
             output.push(row.keys.len() as u8);
             for key in &row.keys {
-                let (kind, base, shifted) = match key.action {
-                    KeyAction::Character { base, shifted } => (1u8, base as u32, shifted as u32),
+                let (kind, base, shifted) = match &key.action {
+                    KeyAction::Character { base, shifted } => (1u8, *base as u32, *shifted as u32),
                     KeyAction::Shift => (2, 0, 0),
                     KeyAction::Backspace => (3, 0, 0),
                     KeyAction::Space => (4, 0, 0),
                     KeyAction::Enter => (5, 0, 0),
-                    KeyAction::LayerSwitch { target } => (6, target as u32, 0),
+                    KeyAction::LayerSwitch { target } => (6, *target as u32, 0),
                     KeyAction::LanguageSwitch => (7, 0, 0),
+                    KeyAction::Text(_) => (8, 0, 0),
+                    KeyAction::Blank => (9, 0, 0),
                 };
                 output.push(kind);
                 let width_per_mille = (key.width_ratio * 1000.0).round() as u16;
@@ -162,6 +175,11 @@ pub fn serialize(layout_set: &KeyboardLayoutSet) -> Vec<u8> {
                 output.push(key.alternates.len() as u8);
                 for alternate in &key.alternates {
                     output.extend_from_slice(&(*alternate as u32).to_le_bytes());
+                }
+                if let KeyAction::Text(text) = &key.action {
+                    assert!(text.len() <= u8::MAX as usize);
+                    output.push(text.len() as u8);
+                    output.extend_from_slice(text.as_bytes());
                 }
             }
         }

@@ -37,7 +37,9 @@ pub enum FfiFieldKind {
     Text,
     Email,
     Url,
+    Search,
     Number,
+    Decimal,
     Phone,
     Password,
 }
@@ -74,10 +76,20 @@ pub fn default_user_preferences() -> FfiUserPreferences {
 
 #[derive(uniffi::Enum)]
 pub enum FfiInputEvent {
-    Key { character: String },
+    /// 한 번에 여러 글자를 넣는 키 (`.com` 등)
+    Text {
+        text: String,
+    },
+    Key {
+        character: String,
+    },
     Backspace,
-    Separator { character: String },
-    CandidateSelected { index: u32 },
+    Separator {
+        character: String,
+    },
+    CandidateSelected {
+        index: u32,
+    },
     CursorMoved,
     FocusLost,
 }
@@ -155,6 +167,8 @@ pub enum FfiKeyRole {
     Enter,
     LayerSwitch,
     LanguageSwitch,
+    /// 눌리지 않는 빈 자리 — 셸은 키를 그리지 않는다
+    Blank,
 }
 
 #[derive(uniffi::Record)]
@@ -165,6 +179,8 @@ pub struct FfiFrameKey {
     pub accessibility_label: String,
     pub bounds: FfiKeyBounds,
     pub shift_active: bool,
+    /// 이 필드에서 강조색으로 그릴 키 (검색 필드의 리턴키 등)
+    pub emphasized: bool,
     pub role: FfiKeyRole,
     pub alternates: Vec<String>,
 }
@@ -228,6 +244,7 @@ fn convert_event(event: FfiInputEvent) -> Option<InputEvent> {
         FfiInputEvent::Key { character } => {
             InputEvent::Key(KeySignal::certain(character.chars().next()?))
         }
+        FfiInputEvent::Text { text } => InputEvent::Text(text),
         FfiInputEvent::Backspace => InputEvent::Backspace,
         FfiInputEvent::Separator { character } => InputEvent::Separator(character.chars().next()?),
         FfiInputEvent::CandidateSelected { index } => InputEvent::CandidateSelected(index as usize),
@@ -289,6 +306,7 @@ fn convert_frame_key(key: taza_engine::keyboard::FrameKey) -> FfiFrameKey {
             height: key.bounds.height,
         },
         shift_active: key.shift_active,
+        emphasized: key.emphasized,
         role: match key.role {
             KeyRole::Character => FfiKeyRole::Character,
             KeyRole::Shift => FfiKeyRole::Shift,
@@ -297,6 +315,7 @@ fn convert_frame_key(key: taza_engine::keyboard::FrameKey) -> FfiFrameKey {
             KeyRole::Enter => FfiKeyRole::Enter,
             KeyRole::LayerSwitch => FfiKeyRole::LayerSwitch,
             KeyRole::LanguageSwitch => FfiKeyRole::LanguageSwitch,
+            KeyRole::Blank => FfiKeyRole::Blank,
         },
         alternates: key.alternates,
     }
@@ -312,18 +331,24 @@ fn convert_frame_metrics(metrics: taza_engine::keyboard::FrameMetrics) -> FfiFra
     }
 }
 
+fn convert_field(field: &FfiFieldKind) -> FieldKind {
+    match field {
+        FfiFieldKind::Text => FieldKind::Text,
+        FfiFieldKind::Email => FieldKind::Email,
+        FfiFieldKind::Url => FieldKind::Url,
+        FfiFieldKind::Search => FieldKind::Search,
+        FfiFieldKind::Number => FieldKind::Number,
+        FfiFieldKind::Decimal => FieldKind::Decimal,
+        FfiFieldKind::Phone => FieldKind::Phone,
+        FfiFieldKind::Password => FieldKind::Password,
+    }
+}
+
 fn convert_context(context: &FfiEditorContext) -> EditorContext {
     EditorContext {
         text_before_cursor: context.text_before_cursor.clone(),
         incognito: context.incognito,
-        field: match context.field {
-            FfiFieldKind::Text => FieldKind::Text,
-            FfiFieldKind::Email => FieldKind::Email,
-            FfiFieldKind::Url => FieldKind::Url,
-            FfiFieldKind::Number => FieldKind::Number,
-            FfiFieldKind::Phone => FieldKind::Phone,
-            FfiFieldKind::Password => FieldKind::Password,
-        },
+        field: convert_field(&context.field),
     }
 }
 
@@ -403,6 +428,12 @@ impl KeyboardSession {
             },
             width_points,
         });
+    }
+
+    /// 편집 대상이 바뀔 때(초점 이동, 앱 전환) 셸이 알려 주는 필드 성격. 배열·리턴키·
+    /// 후보 바 자리가 여기서 갈리므로 프레임을 받기 전에 넣는다.
+    pub fn set_field(&self, field: FfiFieldKind) {
+        self.engine.lock().unwrap().set_field(convert_field(&field));
     }
 
     /// 프레임 전체를 받지 않고 치수만 필요할 때(입력 뷰 높이 제약).

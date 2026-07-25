@@ -5,22 +5,28 @@ pub use crate::keyboard::KeySignal;
 pub use crate::pack::Pack;
 
 /// 입력 필드의 종류 — 플랫폼 inputmode/keyboardType/inputType을 셸이 매핑한다.
-/// Text 외 필드에서는 제안·자동교정·개인화 학습을 끈다 (순정 키보드 관습).
+/// 필드는 보조 기능뿐 아니라 화면도 정한다(`keyboard::field`) — 순정 키보드가
+/// 필드마다 다른 배열·하단 행·리턴키를 쓰기 때문이다.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum FieldKind {
     #[default]
     Text,
     Email,
     Url,
+    /// 검색 — 배열은 일반 텍스트와 같고 리턴키만 "검색"이 된다. 예측도 그대로 둔다.
+    Search,
     Number,
+    /// 소수 — 숫자 패드에 소수점이 붙는다
+    Decimal,
     Phone,
     Password,
 }
 
 impl FieldKind {
-    /// 제안·자동교정·학습 같은 보조 기능을 제공할 필드인가
+    /// 제안·자동교정·학습 같은 보조 기능을 제공할 필드인가. 순정은 검색 필드에서도
+    /// 예측을 그대로 둔다 — 검색어야말로 예측이 가장 쓸모 있는 자리다.
     pub fn assistance_enabled(self) -> bool {
-        self == FieldKind::Text
+        matches!(self, FieldKind::Text | FieldKind::Search)
     }
 }
 
@@ -75,6 +81,8 @@ pub enum InputEvent {
     /// 터치가 만든 키 신호 — 확률 판정은 코어의 히트 테스트가 한다. 물리 키보드·접근성
     /// 경로처럼 어느 키인지 확실할 때는 `KeySignal::certain`으로 만든다.
     Key(KeySignal),
+    /// 한 번에 여러 글자를 넣는 키(`.com` 등). 진행 중 조합은 먼저 확정된다.
+    Text(String),
     Backspace,
     Separator(char),
     CandidateSelected(usize),

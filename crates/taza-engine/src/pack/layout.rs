@@ -11,17 +11,21 @@
 //!   행마다: height_per_mille u16 | key_count u8
 //!     키마다: kind u8 | width_per_mille u16 | base u32 | shifted u32
 //!             | alternate_count u8 | alternate u32 × n
+//!             | (kind=8일 때만) text_length u8 | text UTF-8 × n
 //! ```
 //! kind: 1=Character, 2=Shift, 3=Backspace, 4=Space, 5=Enter,
-//! 6=LayerSwitch(base=대상 레이어), 7=LanguageSwitch.
+//! 6=LayerSwitch(base=대상 레이어), 7=LanguageSwitch, 8=Text, 9=Blank.
 //! base/shifted는 Character·LayerSwitch만 의미하고, alternate는 Character만 의미한다.
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum KeyAction {
     Character {
         base: char,
         shifted: char,
     },
+    /// 한 번에 여러 글자를 넣는 키 (`.com` 등). 필드 성격이 불러오는 키가 주로 이것이라
+    /// 히트 테스트의 이웃 확률에는 참여하지 않는다 — 어느 키인지가 이미 확실하다.
+    Text(String),
     Shift,
     Backspace,
     Space,
@@ -31,6 +35,8 @@ pub enum KeyAction {
     },
     /// 다음 언어로 전환. 언어 목록·순서는 셸이 소유하므로 코어는 요청만 낸다.
     LanguageSwitch,
+    /// 자리만 차지하고 눌리지 않는 칸 — 숫자 패드 좌하단처럼 순정이 비워 두는 자리다.
+    Blank,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -108,6 +114,12 @@ pub fn deserialize(bytes: &[u8]) -> Option<KeyboardLayoutSet> {
                         base: char::from_u32(base)?,
                         shifted: char::from_u32(shifted)?,
                     },
+                    8 => {
+                        let length = read_u8(&mut offset)? as usize;
+                        let text = std::str::from_utf8(bytes.get(offset..offset + length)?).ok()?;
+                        offset += length;
+                        KeyAction::Text(text.to_string())
+                    }
                     2 => KeyAction::Shift,
                     3 => KeyAction::Backspace,
                     4 => KeyAction::Space,
@@ -116,6 +128,7 @@ pub fn deserialize(bytes: &[u8]) -> Option<KeyboardLayoutSet> {
                         target: u8::try_from(base).ok()?,
                     },
                     7 => KeyAction::LanguageSwitch,
+                    9 => KeyAction::Blank,
                     _ => return None,
                 };
                 keys.push(LayoutKey {

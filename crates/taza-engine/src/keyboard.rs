@@ -1,9 +1,10 @@
+mod field;
 pub mod hit;
 pub mod layouts;
 
 pub use hit::{KeyProbability, KeySignal};
 
-use crate::contract::InputEvent;
+use crate::contract::{FieldKind, InputEvent};
 use crate::lang::LanguageDescriptor;
 
 /// 커서를 한 칸 옮기는 데 필요한 가로 이동 거리(pt). 순정 스페이스바 길게 눌러
@@ -210,6 +211,8 @@ pub enum KeyRole {
     Enter,
     LayerSwitch,
     LanguageSwitch,
+    /// 눌리지 않는 빈 자리 — 셸은 키를 그리지 않는다
+    Blank,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -220,6 +223,9 @@ pub struct FrameKey {
     /// VoiceOver/TalkBack에 노출할 라벨 — 접근성은 비통일 영역이 아니라 계약의 일부
     pub accessibility_label: String,
     pub shift_active: bool,
+    /// 이 필드에서 눈에 띄어야 하는 키 — 검색 필드의 리턴키처럼 순정이 강조색을 쓰는
+    /// 자리다. 어떤 색인지는 셸의 디자인 시스템이 정한다.
+    pub emphasized: bool,
     pub role: KeyRole,
     /// 길게 눌러 고르는 변형 문자 — 표시 순서 그대로. 접근성 경로에서는 커스텀
     /// 액션 목록이 된다.
@@ -251,6 +257,10 @@ pub struct Keyboard {
     active_layer: usize,
     shift: ShiftState,
     cursor_drag: Option<CursorDrag>,
+    field: FieldKind,
+    /// 레이어와 필드를 모두 적용한 배열. 프레임과 히트 테스트가 같은 것을 봐야 눌린
+    /// 자리와 그려진 자리가 어긋나지 않으므로 한 번 만들어 두고 함께 쓴다.
+    active: KeyboardLayout,
 }
 
 /// 스페이스바를 길게 눌러 끄는 커서 이동의 진행 상태. 판정(몇 칸 옮길지)은 코어가,
@@ -263,6 +273,7 @@ struct CursorDrag {
 impl Keyboard {
     pub fn new(layout_set: KeyboardLayoutSet, language: LanguageDescriptor) -> Self {
         assert!(!layout_set.layers.is_empty(), "레이어가 최소 1개 필요");
+        let active = field::apply(&layout_set.layers[0], FieldKind::default());
         Keyboard {
             layout_set,
             language,
@@ -270,12 +281,36 @@ impl Keyboard {
             active_layer: 0,
             shift: ShiftState::Released,
             cursor_drag: None,
+            field: FieldKind::default(),
+            active,
         }
     }
 
     /// 셸이 자기 크기·폼팩터를 알게 될 때마다(첫 배치, 회전, 분할) 주입한다.
     pub fn set_metrics(&mut self, metrics: KeyboardMetrics) {
         self.metrics = metrics;
+    }
+
+    /// 셸이 편집 대상이 바뀔 때마다 알려 주는 필드 성격. 배열·리턴키·후보 바 자리가
+    /// 여기서 갈리므로(`docs/inputmode.md`) 셸은 값만 넘기고 판단하지 않는다.
+    pub fn set_field(&mut self, field: FieldKind) {
+        if self.field == field {
+            return;
+        }
+        self.field = field;
+        // 숫자 패드에서 돌아올 때 문자면으로 되돌린다 — 필드가 바뀌면 직전 필드에서
+        // 고른 레이어는 의미가 없다
+        self.active_layer = 0;
+        self.shift = ShiftState::Released;
+        self.rebuild();
+    }
+
+    pub fn field(&self) -> FieldKind {
+        self.field
+    }
+
+    fn rebuild(&mut self) {
+        self.active = field::apply(&self.layout_set.layers[self.active_layer], self.field);
     }
 
     /// 지금 레이아웃·폼팩터에 맞는 실측 치수. 프레임을 다시 받지 않고 높이만
@@ -286,14 +321,19 @@ impl Keyboard {
         let rows = layer_rows(self.layout());
         FrameMetrics {
             grid_height: form_factor.key_row_height_points() * rows,
-            candidate_bar_height: form_factor.candidate_bar_height_points(),
+            // 후보를 내지 않는 필드에서는 바 자리를 없애 키보드가 낮아진다(순정 실측)
+            candidate_bar_height: if field::shows_candidate_bar(self.field) {
+                form_factor.candidate_bar_height_points()
+            } else {
+                0.0
+            },
             letter_font_size: form_factor.letter_font_size_points(),
             control_font_size: form_factor.control_font_size_points(),
         }
     }
 
     fn layout(&self) -> &KeyboardLayout {
-        &self.layout_set.layers[self.active_layer]
+        &self.active
     }
 
     fn shifted(&self) -> bool {
@@ -301,9 +341,10 @@ impl Keyboard {
     }
 
     /// 레이어 전환 키 라벨 — 순정 관례: 문자면 복귀는 스크립트에 맞게(ABC/한글),
-    /// 심볼 1·2면은 123 / #+=
+    /// 심볼 1·2면은 123 / #+=. 비밀번호 필드에서는 순정처럼 `.?123`이 된다.
     fn layer_switch_label(&self, target: u8) -> String {
         match target {
+            1 if self.field == FieldKind::Password => ".?123".to_string(),
             0 => {
                 let uses_hangul = self.layout_set.layers[0]
                     .rows
@@ -322,8 +363,8 @@ impl Keyboard {
         }
     }
 
-    fn key_character(&self, action: KeyAction) -> Option<char> {
-        match action {
+    fn key_character(&self, action: &KeyAction) -> Option<char> {
+        match *action {
             KeyAction::Character { base, shifted } => {
                 Some(if self.shifted() { shifted } else { base })
             }
@@ -331,25 +372,39 @@ impl Keyboard {
         }
     }
 
-    fn key_label(&self, action: KeyAction) -> String {
-        match action {
-            KeyAction::Character { .. } => self.key_character(action).unwrap().to_string(),
-            KeyAction::Shift => "⇧".to_string(),
-            KeyAction::Backspace => "⌫".to_string(),
-            KeyAction::Space => self.language.display_name.clone(),
-            KeyAction::Enter => "⏎".to_string(),
-            KeyAction::LayerSwitch { target } => self.layer_switch_label(target),
-            KeyAction::LanguageSwitch => self.language.keycap_label.clone(),
+    /// 리턴키 문구 — 순정은 필드가 시키는 동작을 적는다(검색 필드는 "검색").
+    fn enter_label(&self) -> String {
+        match self.field {
+            FieldKind::Search => "검색".to_string(),
+            _ => "⏎".to_string(),
         }
     }
 
-    fn accessibility_label(&self, action: KeyAction) -> String {
+    fn key_label(&self, action: &KeyAction) -> String {
         match action {
             KeyAction::Character { .. } => self.key_character(action).unwrap().to_string(),
+            KeyAction::Text(text) => text.clone(),
+            KeyAction::Shift => "⇧".to_string(),
+            KeyAction::Backspace => "⌫".to_string(),
+            KeyAction::Space => self.language.display_name.clone(),
+            KeyAction::Enter => self.enter_label(),
+            KeyAction::LayerSwitch { target } => self.layer_switch_label(*target),
+            KeyAction::LanguageSwitch => self.language.keycap_label.clone(),
+            KeyAction::Blank => String::new(),
+        }
+    }
+
+    fn accessibility_label(&self, action: &KeyAction) -> String {
+        match action {
+            KeyAction::Character { .. } => self.key_character(action).unwrap().to_string(),
+            KeyAction::Text(text) => text.clone(),
             KeyAction::Shift => "shift".to_string(),
             KeyAction::Backspace => "backspace".to_string(),
             KeyAction::Space => "space".to_string(),
-            KeyAction::Enter => "enter".to_string(),
+            KeyAction::Enter => match self.field {
+                FieldKind::Search => "search".to_string(),
+                _ => "enter".to_string(),
+            },
             KeyAction::LayerSwitch { target } => match target {
                 0 => "letters".to_string(),
                 1 => "numbers".to_string(),
@@ -359,18 +414,20 @@ impl Keyboard {
             KeyAction::LanguageSwitch => {
                 format!("language, {}", self.language.display_name)
             }
+            KeyAction::Blank => String::new(),
         }
     }
 
-    fn key_role(&self, action: KeyAction) -> KeyRole {
+    fn key_role(&self, action: &KeyAction) -> KeyRole {
         match action {
-            KeyAction::Character { .. } => KeyRole::Character,
+            KeyAction::Character { .. } | KeyAction::Text(_) => KeyRole::Character,
             KeyAction::Shift => KeyRole::Shift,
             KeyAction::Backspace => KeyRole::Backspace,
             KeyAction::Space => KeyRole::Space,
             KeyAction::Enter => KeyRole::Enter,
             KeyAction::LayerSwitch { .. } => KeyRole::LayerSwitch,
             KeyAction::LanguageSwitch => KeyRole::LanguageSwitch,
+            KeyAction::Blank => KeyRole::Blank,
         }
     }
 
@@ -391,11 +448,13 @@ impl Keyboard {
                             row: row_index,
                             index: key_index,
                         },
-                        label: self.key_label(key.action),
+                        label: self.key_label(&key.action),
                         bounds: bounds[key_index],
-                        accessibility_label: self.accessibility_label(key.action),
+                        accessibility_label: self.accessibility_label(&key.action),
                         shift_active: key.action == KeyAction::Shift && self.shifted(),
-                        role: self.key_role(key.action),
+                        emphasized: key.action == KeyAction::Enter
+                            && self.field == FieldKind::Search,
+                        role: self.key_role(&key.action),
                         alternates: key
                             .alternates
                             .iter()
@@ -425,7 +484,9 @@ impl Keyboard {
 
     pub fn press_at(&mut self, x: f32, y: f32) -> PressOutcome {
         let position = self.key_position_at(x, y);
-        let action = self.layout().rows[position.row].keys[position.index].action;
+        let action = self.layout().rows[position.row].keys[position.index]
+            .action
+            .clone();
         match action {
             KeyAction::Shift => {
                 self.shift = if self.shifted() {
@@ -440,7 +501,7 @@ impl Keyboard {
                 }
             }
             KeyAction::Character { .. } => {
-                let character = self.key_character(action).unwrap();
+                let character = self.key_character(&action).unwrap();
                 // shift 상태에서 나온 글자는 배열의 기본 글자와 다르므로 이웃 확률을
                 // 그대로 쓸 수 없다 — 그때는 확실한 신호로 둔다
                 let signal = if self.shifted() {
@@ -459,12 +520,23 @@ impl Keyboard {
             KeyAction::LayerSwitch { target } => {
                 self.active_layer = (target as usize).min(self.layout_set.layers.len() - 1);
                 self.shift = ShiftState::Released;
+                self.rebuild();
                 PressOutcome {
                     event: None,
                     layout_changed: true,
                     request: None,
                 }
             }
+            KeyAction::Text(text) => PressOutcome {
+                event: Some(InputEvent::Text(text)),
+                layout_changed: false,
+                request: None,
+            },
+            KeyAction::Blank => PressOutcome {
+                event: None,
+                layout_changed: false,
+                request: None,
+            },
             KeyAction::LanguageSwitch => PressOutcome {
                 event: None,
                 layout_changed: false,

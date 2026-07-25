@@ -341,6 +341,11 @@ RustBuffer uniffi_taza_ffi_fn_method_keyboardsession_select_alternate(void*_Nonn
 RustBuffer uniffi_taza_ffi_fn_method_keyboardsession_select_annotation(void*_Nonnull ptr, RustBuffer group, RustBuffer text, RustBuffer context, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_SET_FIELD
+#define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_SET_FIELD
+void uniffi_taza_ffi_fn_method_keyboardsession_set_field(void*_Nonnull ptr, RustBuffer field, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_SET_METRICS
 #define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_SET_METRICS
 void uniffi_taza_ffi_fn_method_keyboardsession_set_metrics(void*_Nonnull ptr, RustBuffer form_factor, float width_points, RustCallStatus *_Nonnull out_status
@@ -769,6 +774,12 @@ uint16_t uniffi_taza_ffi_checksum_method_keyboardsession_select_alternate(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_SELECT_ANNOTATION
 #define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_SELECT_ANNOTATION
 uint16_t uniffi_taza_ffi_checksum_method_keyboardsession_select_annotation(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_SET_FIELD
+#define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_SET_FIELD
+uint16_t uniffi_taza_ffi_checksum_method_keyboardsession_set_field(void
     
 );
 #endif

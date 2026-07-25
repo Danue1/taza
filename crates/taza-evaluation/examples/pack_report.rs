@@ -14,7 +14,7 @@ use taza_engine::engine::PackBytes;
 use taza_engine::keyboard::layouts;
 use taza_engine::lang::LanguageDescriptor;
 use taza_engine::lang::jamo::decompose_word;
-use taza_evaluation::synthesis::TypoSynthesizer;
+use taza_evaluation::synthesis::{TypedSequence, TypoSynthesizer};
 use taza_evaluation::{CompletionTask, EvaluationCase, evaluate_completions, evaluate_corrections};
 
 const TYPOS_PER_WORD: usize = 5;
@@ -66,6 +66,10 @@ fn main() {
         let Some(typed) = typed_form(word) else {
             continue;
         };
+        // 이 배열로 칠 수 없는 낱말은 평가 대상이 아니다 (어퍼스트로피 등)
+        let Some(touches) = synthesizer.touches_for(&typed) else {
+            continue;
+        };
         for _ in 0..TYPOS_PER_WORD {
             if let Some(variant) = synthesizer.synthesize(&typed) {
                 cases.push(EvaluationCase {
@@ -75,7 +79,10 @@ fn main() {
             }
         }
         tasks.push(CompletionTask {
-            typed,
+            typed: TypedSequence {
+                touches,
+                text: typed,
+            },
             intended: word.clone(),
         });
     }

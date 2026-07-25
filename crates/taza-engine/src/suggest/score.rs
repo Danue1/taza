@@ -14,13 +14,13 @@ use crate::pack::lexicon::MAX_FREQUENCY;
 /// 흔한 낱말로의 교정이 희귀한 완성을 앞선다.
 const EDIT_PENALTY: i64 = (MAX_FREQUENCY / 8) as i64;
 
-/// 사전 빈도·개인화·언어모델·편집거리를 하나의 점수로 합친다.
-pub(crate) fn combine(
-    frequency: u32,
-    personalization: u32,
-    language_model: u32,
-    distance: u32,
-) -> i64 {
+/// 편집 비용의 눈금. 편집 1회가 `EDIT_UNIT`이고, 인접 키 오타처럼 그럴듯한 편집은
+/// 그보다 싸다 — 정수 한 칸으로는 이 차이를 담을 수 없어 눈금을 잘게 나눈다.
+pub(crate) const EDIT_UNIT: u32 = 100;
+
+/// 사전 빈도·개인화·언어모델·편집 비용을 하나의 점수로 합친다.
+/// `cost`는 `EDIT_UNIT` 눈금의 편집 비용이다.
+pub(crate) fn combine(frequency: u32, personalization: u32, language_model: u32, cost: u32) -> i64 {
     i64::from(frequency) + i64::from(personalization) + i64::from(language_model)
-        - i64::from(distance) * EDIT_PENALTY
+        - i64::from(cost) * EDIT_PENALTY / i64::from(EDIT_UNIT)
 }

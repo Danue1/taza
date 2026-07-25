@@ -1,9 +1,18 @@
 use taza_engine::contract::{EditorContext, Effect, InputEvent};
 use taza_engine::keyboard::{
+    KeySignal,
     FormFactor, KeyRole, Keyboard, KeyboardFrame, KeyboardMetrics, ShellRequest, layouts,
 };
 use taza_engine::lang::LanguageDescriptor;
 use taza_engine::engine::Engine;
+
+/// 터치는 이웃 키 확률까지 담은 신호를 만든다 — 여기서는 실제로 입력된 글자만 본다.
+fn pressed(keyboard: &mut Keyboard, x: f32, y: f32) -> Option<char> {
+    match keyboard.press_at(x, y).event {
+        Some(InputEvent::Key(signal)) => Some(signal.character()),
+        _ => None,
+    }
+}
 
 fn key_center(frame: &KeyboardFrame, label: &str) -> (f32, f32) {
     for row in &frame.rows {
@@ -45,7 +54,7 @@ fn hit_test_maps_coordinates_to_keys() {
     let frame = keyboard.frame();
 
     let (x, y) = key_center(&frame, "q");
-    assert_eq!(keyboard.press_at(x, y).event, Some(InputEvent::Key('q')));
+    assert_eq!(pressed(&mut keyboard, x, y), Some('q'));
 
     let (x, y) = key_center(&frame, "English");
     assert_eq!(
@@ -61,15 +70,9 @@ fn hit_test_maps_coordinates_to_keys() {
 fn coordinates_outside_snap_to_nearest_key() {
     let mut keyboard = Keyboard::new(layouts::qwerty(), LanguageDescriptor::builtin("en").unwrap());
     // 화면 왼쪽 위 바깥 → 첫 행 첫 키
-    assert_eq!(
-        keyboard.press_at(-0.1, -0.5).event,
-        Some(InputEvent::Key('q'))
-    );
+    assert_eq!(pressed(&mut keyboard, -0.1, -0.5), Some('q'));
     // 둘째 행 왼쪽 여백(가운데 정렬로 생긴 빈 공간) → 'a'
-    assert_eq!(
-        keyboard.press_at(0.01, 0.3).event,
-        Some(InputEvent::Key('a'))
-    );
+    assert_eq!(pressed(&mut keyboard, 0.01, 0.3), Some('a'));
 }
 
 #[test]
@@ -85,14 +88,11 @@ fn shift_is_one_shot() {
     assert_eq!(key_center(&keyboard.frame(), "Q"), (q_x, q_y));
 
     let outcome = keyboard.press_at(q_x, q_y);
-    assert_eq!(outcome.event, Some(InputEvent::Key('Q')));
+    assert_eq!(outcome.event, Some(InputEvent::Key(KeySignal::certain('Q'))));
     assert!(outcome.layout_changed);
 
     // 자동 해제 — 다음 입력은 소문자
-    assert_eq!(
-        keyboard.press_at(q_x, q_y).event,
-        Some(InputEvent::Key('q'))
-    );
+    assert_eq!(pressed(&mut keyboard, q_x, q_y), Some('q'));
 }
 
 #[test]
@@ -103,10 +103,7 @@ fn shift_toggles_off_when_pressed_twice() {
     keyboard.press_at(shift_x, shift_y);
     keyboard.press_at(shift_x, shift_y);
     let (q_x, q_y) = key_center(&frame, "q");
-    assert_eq!(
-        keyboard.press_at(q_x, q_y).event,
-        Some(InputEvent::Key('q'))
-    );
+    assert_eq!(pressed(&mut keyboard, q_x, q_y), Some('q'));
 }
 
 #[test]
@@ -133,10 +130,7 @@ fn dubeolsik_shift_produces_tense_consonants() {
     let (giyeok_x, giyeok_y) = key_center(&frame, "ㄱ");
 
     keyboard.press_at(shift_x, shift_y);
-    assert_eq!(
-        keyboard.press_at(giyeok_x, giyeok_y).event,
-        Some(InputEvent::Key('ㄲ'))
-    );
+    assert_eq!(pressed(&mut keyboard, giyeok_x, giyeok_y), Some('ㄲ'));
 }
 
 #[test]
@@ -151,26 +145,17 @@ fn layer_switch_cycles_symbol_layers() {
     assert!(outcome.layout_changed);
     let symbols = keyboard.frame();
     let (one_x, one_y) = key_center(&symbols, "1");
-    assert_eq!(
-        keyboard.press_at(one_x, one_y).event,
-        Some(InputEvent::Key('1'))
-    );
+    assert_eq!(pressed(&mut keyboard, one_x, one_y), Some('1'));
 
     // 심볼 1면의 #+= → 심볼 2면, ABC → 문자면 복귀
     let (x, y) = key_center(&keyboard.frame(), "#+=");
     keyboard.press_at(x, y);
     let (bracket_x, bracket_y) = key_center(&keyboard.frame(), "[");
-    assert_eq!(
-        keyboard.press_at(bracket_x, bracket_y).event,
-        Some(InputEvent::Key('['))
-    );
+    assert_eq!(pressed(&mut keyboard, bracket_x, bracket_y), Some('['));
     let (x, y) = key_center(&keyboard.frame(), "ABC");
     keyboard.press_at(x, y);
     let (q_x, q_y) = key_center(&keyboard.frame(), "q");
-    assert_eq!(
-        keyboard.press_at(q_x, q_y).event,
-        Some(InputEvent::Key('q'))
-    );
+    assert_eq!(pressed(&mut keyboard, q_x, q_y), Some('q'));
 }
 
 #[test]
@@ -203,7 +188,7 @@ fn layout_from_pack_roundtrip_drives_keyboard() {
     let mut keyboard = Keyboard::new(loaded, LanguageDescriptor::builtin("ko").unwrap());
     let frame = keyboard.frame();
     let (x, y) = key_center(&frame, "ㄱ");
-    assert_eq!(keyboard.press_at(x, y).event, Some(InputEvent::Key('ㄱ')));
+    assert_eq!(pressed(&mut keyboard, x, y), Some('ㄱ'));
 }
 
 #[test]
@@ -247,7 +232,7 @@ fn alternates_reach_the_shell_and_come_back_as_input() {
     assert_eq!(key.role, KeyRole::Character);
     assert_eq!(key.alternates.first().map(String::as_str), Some("è"));
 
-    assert_eq!(keyboard.select_alternate("é"), Some(InputEvent::Key('é')));
+    assert_eq!(keyboard.select_alternate("é"), Some(InputEvent::Key(KeySignal::certain('é'))));
     // 변형이 없는 키는 빈 목록 — 셸은 롱프레스 팝업을 띄우지 않는다
     let (x, y) = key_center(&frame, "q");
     assert!(keyboard.key_at(x, y).alternates.is_empty());
@@ -339,12 +324,9 @@ fn row_height_comes_from_layout_data() {
     assert!((frame.metrics.grid_height - 54.0 * total).abs() < 1e-3);
 
     let (x, y) = key_center(&frame, "a");
-    assert_eq!(keyboard.press_at(x, y).event, Some(InputEvent::Key('a')));
+    assert_eq!(pressed(&mut keyboard, x, y), Some('a'));
     // 낮아진 첫 행의 아래쪽 경계 바로 밑은 이미 둘째 행이다
-    assert_eq!(
-        keyboard.press_at(0.05, 0.5 / total + 1e-3).event,
-        Some(InputEvent::Key('a'))
-    );
+    assert_eq!(pressed(&mut keyboard, 0.05, 0.5 / total + 1e-3), Some('a'));
 }
 
 #[test]

@@ -285,7 +285,8 @@ mod tests {
                 .search(
                     &taza_engine::suggest::Query {
                         key: "dkss",
-                        max_distance: 0,
+                        max_cost: 0,
+        touches: &[],
                         extending: true,
                     },
                     10

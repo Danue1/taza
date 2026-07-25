@@ -1,3 +1,4 @@
+use taza_engine::keyboard::KeySignal;
 use std::sync::Arc;
 use taza_engine::contract::{
     Candidate, CandidateKind, CommittedText, Composer, ComposerEvent, ComposerOutput,
@@ -15,7 +16,7 @@ fn direct_composer_commits_every_key() {
     let mut engine = Engine::with_composer(LanguageDescriptor::builtin("en").unwrap(), Box::new(DirectComposer::new()));
     let context = EditorContext::unavailable();
     assert_eq!(
-        engine.handle(InputEvent::Key('h'), &context),
+        engine.handle(InputEvent::Key(KeySignal::certain('h')), &context),
         vec![Effect::CommitText("h".to_string())]
     );
     assert_eq!(
@@ -81,7 +82,7 @@ fn candidate_replacement_translates_to_delete_then_commit() {
     engine.load_pack(Arc::new(writer.finish())).unwrap();
     let context = EditorContext::unavailable();
 
-    let effects = engine.handle(InputEvent::Key('h'), &context);
+    let effects = engine.handle(InputEvent::Key(KeySignal::certain('h')), &context);
     // 자동교정을 쓰는 언어이므로 교정 후보 뒤에 원문(as-typed)이 함께 붙는다
     assert_eq!(
         effects,
@@ -112,8 +113,8 @@ fn candidate_replacement_translates_to_delete_then_commit() {
 fn cursor_drag_finalizes_composing_then_moves() {
     let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap()).unwrap();
     let context = EditorContext::unavailable();
-    engine.handle(InputEvent::Key('ㄱ'), &context);
-    engine.handle(InputEvent::Key('ㅏ'), &context);
+    engine.handle(InputEvent::Key(KeySignal::certain('ㄱ')), &context);
+    engine.handle(InputEvent::Key(KeySignal::certain('ㅏ')), &context);
 
     // 커서가 빠져나가기 전에 조합 중이던 음절을 확정하고, 그다음 이동한다
     let effects = engine.handle(InputEvent::CursorDrag(-3), &context);

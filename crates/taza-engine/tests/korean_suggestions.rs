@@ -1,3 +1,4 @@
+use taza_engine::keyboard::KeySignal;
 use std::sync::Arc;
 use taza_engine::contract::{EditorContext, Effect, InputEvent};
 use taza_engine::engine::Engine;
@@ -76,7 +77,7 @@ impl Harness {
             let event = if character == ' ' {
                 InputEvent::Separator(' ')
             } else {
-                InputEvent::Key(character)
+                InputEvent::Key(KeySignal::certain(character))
             };
             self.send(event);
         }
@@ -151,7 +152,7 @@ fn personalized_word_absent_from_lexicon_is_completed() {
 fn works_without_pack() {
     let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap()).unwrap();
     let context = EditorContext::unavailable();
-    let effects = engine.handle(InputEvent::Key('ㄱ'), &context);
+    let effects = engine.handle(InputEvent::Key(KeySignal::certain('ㄱ')), &context);
     assert!(effects.iter().any(|effect| matches!(
         effect,
         Effect::SetComposing(text) if text.text == "ㄱ"

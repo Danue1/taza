@@ -11,7 +11,9 @@ pub use install::{
 
 use std::sync::{Arc, Mutex};
 
-use taza_engine::contract::{Candidate, CandidateKind, EditorContext, Effect, FieldKind, InputEvent};
+use taza_engine::contract::{
+    Candidate, CandidateKind, EditorContext, Effect, FieldKind, InputEvent, KeySignal,
+};
 use taza_engine::engine::{Engine, PackBytes};
 use taza_engine::keyboard::{FormFactor, KeyRole, KeyboardMetrics, ShellRequest};
 use taza_engine::lang::LanguageDescriptor;
@@ -163,7 +165,10 @@ pub enum FfiPackError {
 
 fn convert_event(event: FfiInputEvent) -> Option<InputEvent> {
     Some(match event {
-        FfiInputEvent::Key { character } => InputEvent::Key(character.chars().next()?),
+        // 좌표 없이 오는 키는 물리 키보드·접근성 경로 — 어느 키인지 확실하다
+        FfiInputEvent::Key { character } => {
+            InputEvent::Key(KeySignal::certain(character.chars().next()?))
+        }
         FfiInputEvent::Backspace => InputEvent::Backspace,
         FfiInputEvent::Separator { character } => InputEvent::Separator(character.chars().next()?),
         FfiInputEvent::CandidateSelected { index } => InputEvent::CandidateSelected(index as usize),

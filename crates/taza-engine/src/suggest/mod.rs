@@ -11,6 +11,7 @@ pub use dictionary::{Dictionary, Entry, Query};
 pub use encoding::KeyEncoding;
 
 use crate::contract::{CandidateKind, Pack};
+use crate::keyboard::KeySignal;
 use crate::personalization::PersonalizationStore;
 
 /// 언어모델에서 끌어와 재랭킹할 후보 수. 팩의 문맥 그룹은 이득 순으로 정렬돼 있는데
@@ -48,6 +49,8 @@ pub struct SuggestionSources<'call> {
     pub personalization: &'call PersonalizationStore,
     /// 직전에 확정된 어휘의 조회 키 — 언어모델 문맥
     pub previous_word: Option<&'call str>,
+    /// 지금 어절에 눌린 터치 신호 — 조회 키의 끝에서부터 맞춘다
+    pub touches: &'call [KeySignal],
 }
 
 pub struct Suggester {
@@ -72,7 +75,8 @@ impl Suggester {
         let lexicon = sources.pack.and_then(|pack| pack.lexicon());
         let query = Query {
             key,
-            max_distance: search::edit_budget(key.chars().count()),
+            max_cost: search::edit_budget(key.chars().count()),
+            touches: sources.touches,
             extending: true,
         };
         let mut ranked: Vec<(i64, Suggestion)> = Vec::new();
@@ -97,9 +101,9 @@ impl Suggester {
                     entry.frequency,
                     sources.personalization.weight(&entry.key),
                     self.language_model_weight(&entry.key, sources),
-                    entry.distance,
+                    entry.cost,
                 );
-                let kind = if entry.distance == 0 {
+                let kind = if entry.cost == 0 {
                     CandidateKind::Prediction
                 } else {
                     CandidateKind::Correction
@@ -119,7 +123,7 @@ impl Suggester {
                 entry.frequency,
                 0,
                 self.language_model_weight(&entry.key, sources),
-                entry.distance,
+                entry.cost,
             );
             self.push_ranked(&mut ranked, score, entry.key, CandidateKind::Prediction);
         }
@@ -214,13 +218,14 @@ impl Suggester {
         // 이미 끝난 어절이므로 뒤에 글자가 남는 표제어는 교정이 아니다
         let query = Query {
             key,
-            max_distance: search::edit_budget(key.chars().count()),
+            max_cost: search::edit_budget(key.chars().count()),
+            touches: sources.touches,
             extending: false,
         };
         let best = lexicon
             .search(&query, 1)
             .into_iter()
-            .find(|entry| entry.distance > 0)?;
+            .find(|entry| entry.cost > 0)?;
         let text = self.policy.encoding.decode(&best.key)?;
         Some(Suggestion {
             key: best.key,

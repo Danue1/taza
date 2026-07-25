@@ -1,3 +1,4 @@
+use taza_engine::keyboard::KeySignal;
 use taza_engine::contract::{
     Composer, ComposerEvent, EditorContext, Effect, InputEvent,
 };
@@ -16,7 +17,7 @@ fn run(events: &str) -> (String, Option<String>) {
             '<' => InputEvent::Backspace,
             '_' => InputEvent::Separator(' '),
             '|' => InputEvent::CursorMoved,
-            _ => InputEvent::Key(character),
+            _ => InputEvent::Key(KeySignal::certain(character)),
         };
         let context = EditorContext {
             text_before_cursor: Some(format!("{committed}{}", composing.as_deref().unwrap_or(""))),
@@ -168,8 +169,8 @@ fn resume_skips_when_context_unavailable() {
 fn cursor_move_finalizes_composing() {
     let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap()).unwrap();
     let context = EditorContext::unavailable();
-    engine.handle(InputEvent::Key('ㄱ'), &context);
-    engine.handle(InputEvent::Key('ㅏ'), &context);
+    engine.handle(InputEvent::Key(KeySignal::certain('ㄱ')), &context);
+    engine.handle(InputEvent::Key(KeySignal::certain('ㅏ')), &context);
     let effects = engine.handle(InputEvent::CursorMoved, &context);
     assert_eq!(
         effects,

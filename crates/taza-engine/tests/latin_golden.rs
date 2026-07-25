@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use taza_engine::contract::{CandidateKind, EditorContext, Effect, FieldKind, InputEvent};
 use taza_engine::engine::Engine;
+use taza_engine::keyboard::KeySignal;
 use taza_engine::lang::LanguageDescriptor;
 use taza_engine::pack::{Pack, SectionKind};
 use taza_toolchain::PackWriter;
@@ -92,7 +93,7 @@ impl Harness {
             let event = if character == ' ' {
                 InputEvent::Separator(' ')
             } else {
-                InputEvent::Key(character)
+                InputEvent::Key(KeySignal::certain(character))
             };
             self.send(event);
         }
@@ -192,9 +193,9 @@ fn resumes_word_after_cursor_move() {
     harness.send(InputEvent::CursorMoved);
     assert!(harness.candidates.is_empty());
 
-    harness.send(InputEvent::Key('m'));
+    harness.send(InputEvent::Key(KeySignal::certain('m')));
     assert_eq!(harness.committed, "them");
-    harness.send(InputEvent::Key('e'));
+    harness.send(InputEvent::Key(KeySignal::certain('e')));
     assert_eq!(harness.committed, "theme");
     assert_eq!(harness.candidates[0], "theme");
 }
@@ -254,7 +255,7 @@ fn password_field_disables_learning() {
 fn works_without_lexicon() {
     let mut engine = Engine::new(LanguageDescriptor::builtin("en").unwrap()).unwrap();
     let context = EditorContext::unavailable();
-    let effects = engine.handle(InputEvent::Key('h'), &context);
+    let effects = engine.handle(InputEvent::Key(KeySignal::certain('h')), &context);
     assert_eq!(effects, vec![Effect::CommitText("h".to_string())]);
 }
 
@@ -276,6 +277,7 @@ fn suggestion_kinds_distinguish_completion_from_correction() {
             pack: Some(&pack),
             personalization: &personalization,
             previous_word: None,
+            touches: &[],
         },
     );
     let correction = suggestions

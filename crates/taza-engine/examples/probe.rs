@@ -7,6 +7,7 @@
 //! ```
 //! 입력에서 공백은 어절 경계, `<`는 Backspace다. 한국어 입력은 자모열로 준다.
 
+use taza_engine::keyboard::KeySignal;
 use std::sync::Arc;
 use taza_engine::contract::{EditorContext, Effect, FieldKind, InputEvent};
 use taza_engine::engine::Engine;
@@ -41,7 +42,7 @@ fn main() {
         let event = match character {
             '<' => InputEvent::Backspace,
             ' ' => InputEvent::Separator(' '),
-            other => InputEvent::Key(other),
+            other => InputEvent::Key(KeySignal::certain(other)),
         };
         let mut candidates = Vec::new();
         for effect in engine.handle(event, &context) {

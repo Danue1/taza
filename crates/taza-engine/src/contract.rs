@@ -1,6 +1,7 @@
 //! 코어와 셸이 주고받는 경계 타입 전부. 여기에는 타입과 trait만 두고, 판단 규칙은
 //! `policy`에, 조립은 `engine`에 둔다.
 
+pub use crate::keyboard::KeySignal;
 pub use crate::pack::Pack;
 
 /// 입력 필드의 종류 — 플랫폼 inputmode/keyboardType/inputType을 셸이 매핑한다.
@@ -41,9 +42,11 @@ impl EditorContext {
 
 /// 셸이 코어로 보내는 입력. 터치 좌표를 키로 판정하는 일은 코어가 하므로
 /// (`Engine::press_at`) 셸이 이 값을 직접 만드는 경로는 물리 키보드·접근성뿐이다.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum InputEvent {
-    Key(char),
+    /// 터치가 만든 키 신호 — 확률 판정은 코어의 히트 테스트가 한다. 물리 키보드·접근성
+    /// 경로처럼 어느 키인지 확실할 때는 `KeySignal::certain`으로 만든다.
+    Key(KeySignal),
     Backspace,
     Separator(char),
     CandidateSelected(usize),

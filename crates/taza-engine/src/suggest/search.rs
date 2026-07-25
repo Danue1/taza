@@ -8,6 +8,7 @@
 //! 훑어 좋은 후보를 일찍 확보하고, 확보한 후보보다 나아질 수 없는 가지는 통째로
 //! 건너뛴다. 방문 예산은 사전이 아무리 커도 한 번의 조회가 끝나는 것을 보장하는 안전선이다.
 
+use crate::keyboard::KeySignal;
 use crate::pack::lexicon::{Lexicon, Node};
 use crate::suggest::dictionary::{Entry, Query};
 use crate::suggest::score;
@@ -16,16 +17,29 @@ use crate::suggest::score;
 /// 조회가 끝나게 하는 안전선이며, 정상 입력에서는 걸리지 않는다.
 const VISIT_BUDGET: usize = 20_000;
 
-/// 조회 키 길이에 따른 편집 예산. 완성(정확한 접두)에는 걸리지 않고 교정에만 걸린다.
-/// 키 하나짜리 입력에서 편집 하나는 입력 전체를 바꾸는 것이라 아무 낱말이나 교정 후보가
-/// 되므로 예산을 주지 않는다. 반대로 긴 입력은 편집 하나로 덮이지 않는 오타가 흔하다.
+/// 조회 키 길이에 따른 편집 예산 (`EDIT_UNIT` 눈금). 완성(정확한 접두)에는 걸리지 않고
+/// 교정에만 걸린다. 키 하나짜리 입력에서 편집 하나는 입력 전체를 바꾸는 것이라 아무
+/// 낱말이나 교정 후보가 되므로 예산을 주지 않는다. 반대로 긴 입력은 편집 하나로 덮이지
+/// 않는 오타가 흔하다.
 pub(crate) fn edit_budget(key_length: usize) -> u32 {
     match key_length {
         0..=1 => 0,
-        2..=9 => 1,
-        _ => 2,
+        2..=9 => score::EDIT_UNIT,
+        _ => 2 * score::EDIT_UNIT,
     }
 }
+
+/// 무관한 글자로의 치환 비용. 편집 1회분 그대로다.
+const SUBSTITUTION: u32 = score::EDIT_UNIT;
+
+/// 터치가 그 키를 노렸을 확률이 이보다 높으면 "그럴듯한 오타"로 본다.
+const PLAUSIBLE_TOUCH: f32 = 0.05;
+
+/// 그럴듯한 인접 키 치환의 최소 비용. 확률이 높을수록 여기에 가까워진다.
+/// 편집 1회의 절반보다 커야 한다 — 그보다 싸면 예산 하나에 인접 오타가 둘씩 들어가
+/// 대사전에서 후보가 범람한다. 인접 오타도 여전히 "편집 하나"이고, 싸진 만큼은
+/// 도달 범위가 아니라 순위에서 이득을 본다.
+const NEAR_SUBSTITUTION_FLOOR: u32 = score::EDIT_UNIT * 3 / 5;
 
 pub(crate) fn search(lexicon: &Lexicon<'_>, query: &Query<'_>, limit: usize) -> Vec<Entry> {
     let Some(root) = lexicon.root() else {
@@ -37,7 +51,8 @@ pub(crate) fn search(lexicon: &Lexicon<'_>, query: &Query<'_>, limit: usize) -> 
     let mut search = Search {
         lexicon,
         query: query.key.as_bytes(),
-        max_distance: query.max_distance,
+        touches: query.touches,
+        max_cost: query.max_cost,
         extending: query.extending,
         limit,
         prefix: Vec::new(),
@@ -46,7 +61,9 @@ pub(crate) fn search(lexicon: &Lexicon<'_>, query: &Query<'_>, limit: usize) -> 
         results: Vec::new(),
         visited: 0,
     };
-    let initial: Vec<u32> = (0..=query.key.len() as u32).collect();
+    let initial: Vec<u32> = (0..=query.key.len() as u32)
+        .map(|column| column * score::EDIT_UNIT)
+        .collect();
     search.visit(root, &initial, None, true);
     let mut results = search.results;
     results.sort_by(|left, right| {
@@ -59,13 +76,14 @@ pub(crate) fn search(lexicon: &Lexicon<'_>, query: &Query<'_>, limit: usize) -> 
 
 /// 사전만 보고 매긴 점수 — 개인화·언어모델 항은 호출자가 더한다.
 fn frequency_score(entry: &Entry) -> i64 {
-    score::combine(entry.frequency, 0, 0, entry.distance)
+    score::combine(entry.frequency, 0, 0, entry.cost)
 }
 
 struct Search<'call, 'bytes> {
     lexicon: &'call Lexicon<'bytes>,
     query: &'call [u8],
-    max_distance: u32,
+    touches: &'call [KeySignal],
+    max_cost: u32,
     extending: bool,
     limit: usize,
     prefix: Vec<u8>,
@@ -84,14 +102,14 @@ impl Search<'_, '_> {
             .flatten()
     }
 
-    fn keep(&mut self, frequency: u32, distance: u32) {
+    fn keep(&mut self, frequency: u32, cost: u32) {
         let Ok(key) = std::str::from_utf8(&self.prefix) else {
             return;
         };
         self.results.push(Entry {
             key: key.to_string(),
             frequency,
-            distance,
+            cost,
         });
         if self.results.len() > self.limit {
             let worst = self
@@ -104,6 +122,34 @@ impl Search<'_, '_> {
                 self.results.swap_remove(index);
             }
         }
+    }
+
+    /// 질의의 `position` 자리를 `byte`로 바꾸는 비용.
+    ///
+    /// 그 자리의 터치가 애초에 이 글자를 노렸을 법하면(이웃 키였다면) 무관한 치환보다
+    /// 싸게 친다 — 손가락이 옆 키에 닿은 것과 전혀 다른 낱말을 친 것은 같은 오타가 아니다.
+    /// 터치 신호는 조회 키의 끝에서부터 맞춘다.
+    fn substitution_cost(&self, position: usize, byte: u8) -> u32 {
+        if self.query[position] == byte {
+            return 0;
+        }
+        let offset = self.query.len().saturating_sub(self.touches.len());
+        let Some(signal) = position
+            .checked_sub(offset)
+            .and_then(|index| self.touches.get(index))
+        else {
+            return SUBSTITUTION;
+        };
+        let Some(character) = char::from_u32(u32::from(byte)) else {
+            return SUBSTITUTION;
+        };
+        let probability = signal.probability_of(character);
+        if probability < PLAUSIBLE_TOUCH {
+            return SUBSTITUTION;
+        }
+        // 확률이 높을수록 바닥값에 가까워진다
+        let scaled = (1.0 - probability) * (SUBSTITUTION - NEAR_SUBSTITUTION_FLOOR) as f32;
+        NEAR_SUBSTITUTION_FLOOR + scaled.round() as u32
     }
 
     /// `row`는 지금 접두사에 대한 편집거리 DP 행, `previous`는 전치를 잡기 위한
@@ -119,14 +165,14 @@ impl Search<'_, '_> {
         // 질의 전체와의 편집거리로 잰다. 어긋난 뒤에도 뒤를 공짜로 늘려 주면
         // "hepl"이 "hell"을 거쳐 "hello"에 닿아 정작 "help"를 밀어낸다.
         let completion = self.extending && on_query_path && self.prefix.len() >= self.query.len();
-        let distance = if completion {
+        let cost = if completion {
             0
         } else {
             *row.last().unwrap_or(&u32::MAX)
         };
         let frequency = self.lexicon.frequency_at(node);
-        if frequency > 0 && distance <= self.max_distance {
-            self.keep(frequency, distance);
+        if frequency > 0 && cost <= self.max_cost {
+            self.keep(frequency, cost);
         }
 
         // 이 아래에서 나올 수 있는 최선은 "하위 트리 최고 빈도 × 앞으로 가능한 최소 편집"이다.
@@ -161,18 +207,18 @@ impl Search<'_, '_> {
 
         for &(byte, child) in &children {
             next_row.clear();
-            next_row.push(row[0] + 1);
+            next_row.push(row[0] + score::EDIT_UNIT);
             for column in 1..row.len() {
-                let substitution = u32::from(self.query[column - 1] != byte);
-                let mut cost = (next_row[column - 1] + 1)
-                    .min(row[column] + 1)
+                let substitution = self.substitution_cost(column - 1, byte);
+                let mut cost = (next_row[column - 1] + score::EDIT_UNIT)
+                    .min(row[column] + score::EDIT_UNIT)
                     .min(row[column - 1] + substitution);
                 if let Some((row_before, previous_byte)) = previous
                     && column >= 2
                     && byte == self.query[column - 2]
                     && previous_byte == self.query[column - 1]
                 {
-                    cost = cost.min(row_before[column - 2] + 1);
+                    cost = cost.min(row_before[column - 2] + score::EDIT_UNIT);
                 }
                 next_row.push(cost);
             }
@@ -181,7 +227,7 @@ impl Search<'_, '_> {
             let child_on_path = on_query_path
                 && (self.prefix.len() >= self.query.len() || byte == self.query[self.prefix.len()]);
             let reachable = self.extending && child_on_path
-                || next_row.iter().copied().min().unwrap_or(u32::MAX) <= self.max_distance;
+                || next_row.iter().copied().min().unwrap_or(u32::MAX) <= self.max_cost;
             if !reachable {
                 continue;
             }

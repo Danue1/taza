@@ -6,15 +6,18 @@
 
 pub mod synthesis;
 
+use synthesis::TypedSequence;
+
 use std::sync::Arc;
 use taza_engine::contract::{EditorContext, Effect, InputEvent};
 use taza_engine::engine::{Engine, PackBytes};
 use taza_engine::lang::LanguageDescriptor;
 
-/// typed는 실제 입력 시퀀스(한국어는 자모), intended는 화면 표시 형태의 의도 단어.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// typed는 실제로 친 입력(글자와 터치 좌표, 한국어는 자모), intended는 의도 단어의
+/// 화면 표시 형태다. 좌표까지 담는 이유는 공간 모델이 읽는 신호가 좌표이기 때문이다.
+#[derive(Debug, Clone, PartialEq)]
 pub struct EvaluationCase {
-    pub typed: String,
+    pub typed: TypedSequence,
     pub intended: String,
 }
 
@@ -38,9 +41,9 @@ pub struct CompletionReport {
 }
 
 /// 완성 평가 과제 — typed 시퀀스를 치는 동안 intended가 top-3에 오르면 선택한 것으로 본다.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CompletionTask {
-    pub typed: String,
+    pub typed: TypedSequence,
     pub intended: String,
 }
 
@@ -62,13 +65,29 @@ impl Typist {
         }
     }
 
-    fn send(&mut self, event: InputEvent) {
-        let context = EditorContext {
+    fn context(&self) -> EditorContext {
+        EditorContext {
             text_before_cursor: Some(self.committed.clone()),
             incognito: false,
             field: taza_engine::contract::FieldKind::Text,
-        };
-        for effect in self.engine.handle(event, &context) {
+        }
+    }
+
+    /// 실제 타이핑처럼 좌표로 누른다 — 코어가 그 자리에서 키 신호를 만든다.
+    fn press(&mut self, x: f32, y: f32) {
+        let context = self.context();
+        let effects = self.engine.press_at(x, y, &context).effects;
+        self.apply(effects);
+    }
+
+    fn send(&mut self, event: InputEvent) {
+        let context = self.context();
+        let effects = self.engine.handle(event, &context);
+        self.apply(effects);
+    }
+
+    fn apply(&mut self, effects: Vec<Effect>) {
+        for effect in effects {
             match effect {
                 Effect::CommitText(text) => self.committed.push_str(&text),
                 Effect::DeleteBackward(count) => {
@@ -88,9 +107,9 @@ impl Typist {
         }
     }
 
-    fn type_word(&mut self, word: &str) {
-        for character in word.chars() {
-            self.send(InputEvent::Key(character));
+    fn type_sequence(&mut self, typed: &TypedSequence) {
+        for &(x, y) in &typed.touches {
+            self.press(x, y);
         }
     }
 }
@@ -106,7 +125,7 @@ pub fn evaluate_corrections(
     let mut autocorrected = 0usize;
     for case in cases {
         let mut typist = Typist::new(language, pack);
-        typist.type_word(&case.typed);
+        typist.type_sequence(&case.typed);
         if let Some(rank) = typist
             .candidates
             .iter()
@@ -142,12 +161,12 @@ pub fn evaluate_completions(
 ) -> CompletionReport {
     let mut savings_sum = 0.0f64;
     for task in tasks {
-        let typed_length = task.typed.chars().count();
+        let typed_length = task.typed.touches.len();
         let baseline = (typed_length + 1) as f64;
         let mut typist = Typist::new(language, pack);
         let mut used: Option<usize> = None;
-        for (typed_count, character) in task.typed.chars().enumerate() {
-            typist.send(InputEvent::Key(character));
+        for (typed_count, &(x, y)) in task.typed.touches.iter().enumerate() {
+            typist.press(x, y);
             let in_top3 = typist
                 .candidates
                 .iter()

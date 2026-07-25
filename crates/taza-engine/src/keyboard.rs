@@ -1,4 +1,7 @@
+pub mod hit;
 pub mod layouts;
+
+pub use hit::{KeyProbability, KeySignal};
 
 use crate::contract::InputEvent;
 use crate::lang::LanguageDescriptor;
@@ -103,7 +106,7 @@ fn is_hangul_script(character: char) -> bool {
 
 /// 각 행의 정규화 높이 — 행별 상대 높이를 합이 1이 되도록 나눈다. 값이 비어 있는
 /// 레이아웃(높이를 지정하지 않은 팩)은 균등 배분으로 되돌린다.
-fn row_heights(layout: &KeyboardLayout) -> Vec<f32> {
+pub(crate) fn row_heights(layout: &KeyboardLayout) -> Vec<f32> {
     let total: f32 = layout
         .rows
         .iter()
@@ -165,7 +168,7 @@ pub struct KeyBounds {
 }
 
 impl KeyBounds {
-    fn center_x(&self) -> f32 {
+    pub(crate) fn center_x(&self) -> f32 {
         self.x + self.width / 2.0
     }
 }
@@ -211,7 +214,7 @@ pub enum ShellRequest {
     NextLanguage,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PressOutcome {
     pub event: Option<InputEvent>,
     /// shift 등 상태 변화로 프레임을 다시 그려야 하는지
@@ -391,37 +394,8 @@ impl Keyboard {
         }
     }
 
-    /// 좌표는 키보드 영역 밖이어도 가장 가까운 행·키로 스냅한다 — 가장자리 터치를
-    /// 버리는 것보다 관대한 판정이 모바일 관습이다.
     fn key_position_at(&self, x: f32, y: f32) -> KeyPosition {
-        let heights = row_heights(self.layout());
-        let mut row_index = heights.len() - 1;
-        let mut top = 0.0;
-        for (index, height) in heights.iter().enumerate() {
-            if y < top + height {
-                row_index = index;
-                break;
-            }
-            top += height;
-        }
-        let bounds = self.row_bounds(row_index);
-        let mut best_index = 0;
-        let mut best_distance = f32::INFINITY;
-        for (key_index, key_bounds) in bounds.iter().enumerate() {
-            if x >= key_bounds.x && x < key_bounds.x + key_bounds.width {
-                best_index = key_index;
-                break;
-            }
-            let distance = (key_bounds.center_x() - x).abs();
-            if distance < best_distance {
-                best_distance = distance;
-                best_index = key_index;
-            }
-        }
-        KeyPosition {
-            row: row_index,
-            index: best_index,
-        }
+        hit::key_position_at(self.layout(), x, y)
     }
 
     /// 좌표에 해당하는 키의 프레임 정보. 셸이 길게 누르기 대상을 알아내는 통로다 —
@@ -449,10 +423,17 @@ impl Keyboard {
             }
             KeyAction::Character { .. } => {
                 let character = self.key_character(action).unwrap();
+                // shift 상태에서 나온 글자는 배열의 기본 글자와 다르므로 이웃 확률을
+                // 그대로 쓸 수 없다 — 그때는 확실한 신호로 둔다
+                let signal = if self.shifted() {
+                    KeySignal::certain(character)
+                } else {
+                    hit::key_signal_at(self.layout(), x, y, character)
+                };
                 let layout_changed = self.shifted();
                 self.shift = ShiftState::Released;
                 PressOutcome {
-                    event: Some(InputEvent::Key(character)),
+                    event: Some(InputEvent::Key(signal)),
                     layout_changed,
                     request: None,
                 }
@@ -493,7 +474,10 @@ impl Keyboard {
     /// 결과도 일반 키 입력과 같은 경로로 흐른다.
     pub fn select_alternate(&mut self, alternate: &str) -> Option<InputEvent> {
         self.shift = ShiftState::Released;
-        alternate.chars().next().map(InputEvent::Key)
+        alternate
+            .chars()
+            .next()
+            .map(|character| InputEvent::Key(KeySignal::certain(character)))
     }
 
     pub fn begin_cursor_drag(&mut self, x: f32) {

@@ -1,12 +1,17 @@
 //! 조회 대상의 공통 인터페이스. 팩 lexicon(읽기 전용)과 개인화 스토어(쓰기 가능)가
 //! 같은 모양으로 검색되므로, 랭킹은 사전이 몇 개든 한 번의 결합으로 끝난다.
 
+use crate::keyboard::KeySignal;
+
 /// 조회 키와 허용 편집 예산.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy)]
 pub struct Query<'key> {
     pub key: &'key str,
-    /// 허용 편집 거리. 0이면 완성만 찾는다.
-    pub max_distance: u32,
+    /// 허용 편집 비용 (`EDIT_UNIT` 눈금). 0이면 완성만 찾는다.
+    pub max_cost: u32,
+    /// 키 자리마다 눌린 터치 신호 — **키의 끝에서부터** 맞춘다. 인접 키를 잘못 누른
+    /// 오타가 무관한 치환보다 싸지는 근거이며, 비어 있으면 모든 치환이 같은 값이다.
+    pub touches: &'key [KeySignal],
     /// 아직 입력이 끝나지 않았다고 보고 표제어 뒤에 남는 글자를 비용 없이 허용할지.
     /// 진행 중인 낱말의 완성에는 참("th"는 "theme"의 거리 0), 이미 끝난 어절의 교정에는
     /// 거짓이다 — 끝난 어절을 더 긴 낱말로 바꾸는 것은 교정이 아니다.
@@ -20,8 +25,8 @@ pub struct Entry {
     /// 가산 점수 공간의 값 — 팩 lexicon은 정규화 빈도를, 개인화 스토어는 사용
     /// 가중치를 낸다. 두 값이 같은 자릿수라는 것이 랭킹 결합의 전제다.
     pub frequency: u32,
-    /// 조회 키와의 편집거리. 접두 완성은 0.
-    pub distance: u32,
+    /// 조회 키와의 편집 비용 (`EDIT_UNIT` 눈금). 접두 완성은 0.
+    pub cost: u32,
 }
 
 pub trait Dictionary {
@@ -53,7 +58,7 @@ impl Dictionary for crate::personalization::PersonalizationStore {
             .map(|(key, weight)| Entry {
                 key,
                 frequency: weight,
-                distance: 0,
+                cost: 0,
             })
             .collect()
     }

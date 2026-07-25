@@ -7,7 +7,8 @@ use taza_toolchain::lexicon::LexiconBuilder;
 fn completion_query(key: &str) -> Query<'_> {
     Query {
         key,
-        max_distance: 0,
+        max_cost: 0,
+        touches: &[],
         extending: true,
     }
 }
@@ -54,17 +55,17 @@ fn prefix_completion_orders_by_frequency() {
             Entry {
                 key: "the".to_string(),
                 frequency: 100,
-                distance: 0
+                cost: 0
             },
             Entry {
                 key: "then".to_string(),
                 frequency: 70,
-                distance: 0
+                cost: 0
             },
             Entry {
                 key: "they".to_string(),
                 frequency: 70,
-                distance: 0
+                cost: 0
             },
         ]
     );

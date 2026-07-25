@@ -10,7 +10,7 @@ use crate::contract::{
     SuggestionRequest,
 };
 use crate::keyboard::{
-    FrameKey, FrameMetrics, Keyboard, KeyboardFrame, KeyboardMetrics, ShellRequest,
+    FrameKey, FrameMetrics, Keyboard, KeyboardFrame, KeyboardMetrics, KeySignal, ShellRequest,
 };
 use crate::lang::LanguageDescriptor;
 use crate::pack::PackError;
@@ -53,6 +53,9 @@ pub struct Engine {
     suggestions: Vec<Suggestion>,
     /// 직전에 확정된 어휘의 조회 키 — 언어모델 문맥
     previous_word: Option<String>,
+    /// 지금 어절에 대해 눌린 키 신호들. 조회 키의 **끝에서부터** 맞춰 쓴다 — 커서 이동
+    /// 뒤 문맥에서 되가져온 앞부분에는 신호가 없으므로 조회 키보다 짧을 수 있다.
+    touches: Vec<KeySignal>,
 }
 
 impl Engine {
@@ -75,6 +78,7 @@ impl Engine {
             pack: None,
             suggestions: Vec::new(),
             previous_word: None,
+            touches: Vec::new(),
         }
     }
 
@@ -178,6 +182,7 @@ impl Engine {
                 }
                 // 커서가 옮겨 갔으므로 직전 어휘는 더 이상 문맥이 아니다
                 self.previous_word = None;
+                self.touches.clear();
                 self.replace_suggestions(Vec::new(), &mut effects);
                 effects
             }
@@ -190,8 +195,15 @@ impl Engine {
                 }
                 effects
             }
-            InputEvent::Key(character) => self.feed(ComposerEvent::Key(character), context, None),
-            InputEvent::Backspace => self.feed(ComposerEvent::Backspace, context, None),
+            InputEvent::Key(signal) => {
+                let character = signal.character();
+                self.touches.push(signal);
+                self.feed(ComposerEvent::Key(character), context, None)
+            }
+            InputEvent::Backspace => {
+                self.touches.pop();
+                self.feed(ComposerEvent::Backspace, context, None)
+            }
             InputEvent::Separator(character) => {
                 self.feed(ComposerEvent::Separator(character), context, None)
             }
@@ -307,6 +319,7 @@ impl Engine {
             pack,
             personalization: &self.personalization,
             previous_word: self.previous_word.as_deref(),
+            touches: &self.touches,
         }
     }
 

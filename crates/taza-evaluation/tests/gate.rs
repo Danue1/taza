@@ -85,6 +85,7 @@ fn correction_quality_gate() {
     let pack = Pack::open(&bytes).unwrap();
     let cases = synthesize_cases(&layouts::qwerty(), &word_list(), 42, 5);
     let report = evaluate_corrections(&pack, &cases, &latin_factory);
+    println!("[gate] english correction {report:?}");
 
     // 기준선 실측 (seed 42): top1 0.900, top3 0.983, MRR 0.936, autocorrect 0.917
     assert!(
@@ -113,6 +114,7 @@ fn completion_quality_gate() {
         })
         .collect();
     let report = evaluate_completions(&pack, &tasks, &latin_factory);
+    println!("[gate] english completion {report:?}");
     // 기준선 실측: 0.622
     assert_eq!(report.word_count, 12);
     assert!(
@@ -164,6 +166,7 @@ fn korean_correction_quality_gate() {
         }
     }
     let report = evaluate_corrections(&pack, &cases, &hangul_factory);
+    println!("[gate] korean correction {report:?}");
 
     // 기준선 실측 (seed 42): top1 1.0, top3 1.0, MRR 1.0 (소규모 사전 기준.
     // 한국어는 자동교정 없음 — autocorrect_accuracy는 검증하지 않는다)
@@ -198,6 +201,7 @@ fn korean_completion_quality_gate() {
         })
         .collect();
     let report = evaluate_completions(&pack, &tasks, &hangul_factory);
+    println!("[gate] korean completion {report:?}");
     // 기준선 실측: 0.737
     assert_eq!(report.word_count, 8);
     assert!(

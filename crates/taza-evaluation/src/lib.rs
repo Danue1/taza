@@ -6,11 +6,10 @@
 
 pub mod synthesis;
 
-use taza_engine::contract::{Composer, EditorContext, Pack};
-use taza_engine::session::{Effect, InputEvent, Session};
-
-/// 언어별 Composer를 세션마다 새로 만드는 팩토리 — 평가는 항상 빈 상태에서 시작한다.
-pub type ComposerFactory<'call> = &'call dyn Fn() -> Box<dyn Composer>;
+use std::sync::Arc;
+use taza_engine::contract::{EditorContext, Effect, InputEvent};
+use taza_engine::engine::{Engine, PackBytes};
+use taza_engine::lang::Language;
 
 /// typed는 실제 입력 시퀀스(한국어는 자모), intended는 화면 표시 형태의 의도 단어.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -46,27 +45,30 @@ pub struct CompletionTask {
 }
 
 struct Typist {
-    session: Session,
+    engine: Engine,
     committed: String,
     candidates: Vec<String>,
 }
 
 impl Typist {
-    fn new(composer_factory: ComposerFactory<'_>) -> Self {
+    /// 평가는 항상 빈 상태에서 시작한다 — 과제마다 엔진을 새로 만든다.
+    fn new(language: Language, pack: &Arc<dyn PackBytes>) -> Self {
+        let mut engine = Engine::new(language).expect("이 빌드에 없는 언어");
+        engine.load_pack(Arc::clone(pack)).expect("팩 열기 실패");
         Typist {
-            session: Session::new(composer_factory()),
+            engine,
             committed: String::new(),
             candidates: Vec::new(),
         }
     }
 
-    fn send(&mut self, event: InputEvent, pack: &Pack<'_>) {
+    fn send(&mut self, event: InputEvent) {
         let context = EditorContext {
             text_before_cursor: Some(self.committed.clone()),
             incognito: false,
             field: taza_engine::contract::FieldKind::Text,
         };
-        for effect in self.session.handle(event, &context, Some(pack)) {
+        for effect in self.engine.handle(event, &context) {
             match effect {
                 Effect::CommitText(text) => self.committed.push_str(&text),
                 Effect::DeleteBackward(count) => {
@@ -86,25 +88,25 @@ impl Typist {
         }
     }
 
-    fn type_word(&mut self, word: &str, pack: &Pack<'_>) {
+    fn type_word(&mut self, word: &str) {
         for character in word.chars() {
-            self.send(InputEvent::Key(character), pack);
+            self.send(InputEvent::Key(character));
         }
     }
 }
 
 pub fn evaluate_corrections(
-    pack: &Pack<'_>,
+    pack: &Arc<dyn PackBytes>,
+    language: Language,
     cases: &[EvaluationCase],
-    composer_factory: ComposerFactory<'_>,
 ) -> CorrectionReport {
     let mut top1 = 0usize;
     let mut top3 = 0usize;
     let mut reciprocal_rank_sum = 0.0f64;
     let mut autocorrected = 0usize;
     for case in cases {
-        let mut typist = Typist::new(composer_factory);
-        typist.type_word(&case.typed, pack);
+        let mut typist = Typist::new(language, pack);
+        typist.type_word(&case.typed);
         if let Some(rank) = typist
             .candidates
             .iter()
@@ -118,7 +120,7 @@ pub fn evaluate_corrections(
             }
             reciprocal_rank_sum += 1.0 / (rank + 1) as f64;
         }
-        typist.send(InputEvent::Separator(' '), pack);
+        typist.send(InputEvent::Separator(' '));
         if typist.committed == format!("{} ", case.intended) {
             autocorrected += 1;
         }
@@ -134,18 +136,18 @@ pub fn evaluate_corrections(
 }
 
 pub fn evaluate_completions(
-    pack: &Pack<'_>,
+    pack: &Arc<dyn PackBytes>,
+    language: Language,
     tasks: &[CompletionTask],
-    composer_factory: ComposerFactory<'_>,
 ) -> CompletionReport {
     let mut savings_sum = 0.0f64;
     for task in tasks {
         let typed_length = task.typed.chars().count();
         let baseline = (typed_length + 1) as f64;
-        let mut typist = Typist::new(composer_factory);
+        let mut typist = Typist::new(language, pack);
         let mut used: Option<usize> = None;
         for (typed_count, character) in task.typed.chars().enumerate() {
-            typist.send(InputEvent::Key(character), pack);
+            typist.send(InputEvent::Key(character));
             let in_top3 = typist
                 .candidates
                 .iter()

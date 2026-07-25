@@ -1,7 +1,7 @@
 pub mod layouts;
 
+use crate::contract::InputEvent;
 use crate::lang::Language;
-use crate::session::InputEvent;
 
 /// 커서를 한 칸 옮기는 데 필요한 가로 이동 거리(pt). 순정 스페이스바 길게 눌러
 /// 커서 이동과 비슷한 감도다. 정규화 좌표가 아니라 물리 거리로 잡아야 화면이

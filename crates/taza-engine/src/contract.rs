@@ -1,3 +1,6 @@
+//! 코어와 셸이 주고받는 경계 타입 전부. 여기에는 타입과 trait만 두고, 판단 규칙은
+//! `policy`에, 조립은 `engine`에 둔다.
+
 pub use crate::pack::Pack;
 
 use crate::personalization::PersonalizationStore;
@@ -36,6 +39,40 @@ impl EditorContext {
     pub fn unavailable() -> Self {
         EditorContext::default()
     }
+}
+
+/// 셸이 코어로 보내는 입력. 터치 좌표를 키로 판정하는 일은 코어가 하므로
+/// (`Engine::press_at`) 셸이 이 값을 직접 만드는 경로는 물리 키보드·접근성뿐이다.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InputEvent {
+    Key(char),
+    Backspace,
+    Separator(char),
+    CandidateSelected(usize),
+    CursorMoved,
+    /// 스페이스바를 길게 눌러 끄는 커서 이동. 값은 논리적 이동 칸수(부호 = 방향)로,
+    /// 코어가 포인터 이동량에서 산출한다.
+    CursorDrag(i32),
+    FocusLost,
+}
+
+/// 셸이 플랫폼 API로 번역하는 선언적 명령. 셸은 번역만 하고 판단하지 않는다.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Effect {
+    /// 활성 composing 구간이 있으면 그것을 치환하며 확정한다
+    /// (iOS insertText / Android commitText의 공통 의미론)
+    CommitText(String),
+    SetComposing(ComposingText),
+    /// composing 구간의 텍스트를 제거하고 composing 상태를 끝낸다.
+    /// 주의: iOS unmarkText / Android finishComposingText는 "확정"이므로 그대로 쓰면
+    /// 안 된다 — 빈 문자열로 치환 후 종료해야 한다 (셸 계약).
+    ClearComposing,
+    /// 코드포인트 수. iOS deleteBackward는 count 미보장이므로 셸은 적용 후 문맥 재동기화 필요
+    DeleteBackward(usize),
+    UpdateCandidates(Vec<Candidate>),
+    /// 커서를 논리적으로 옮긴다(부호 = 방향, 단위 = 코드포인트).
+    /// RTL에서도 의미는 "논리적 이동"으로 고정 — 시각적 방향은 플랫폼이 해석한다.
+    MoveCursor(i32),
 }
 
 /// 레이아웃이 물리 키를 언어별 논리 문자로 해석한 뒤 Composer에 전달한다.
@@ -119,30 +156,9 @@ pub struct ComposerEnvironment<'call> {
     pub personalization: &'call mut PersonalizationStore,
 }
 
-/// 더블 스페이스 → ". " 치환(순정 키보드 공통 관습). 직전이 "단어 문자 + 공백 1개"일
-/// 때만 성립한다. composing이 없는 상태에서 공백 Separator를 받았을 때 호출한다.
-pub(crate) fn double_space_period(context: &EditorContext) -> Option<ComposerOutput> {
-    let text = context.text_before_cursor.as_ref()?;
-    let mut characters = text.chars().rev();
-    if characters.next()? != ' ' {
-        return None;
-    }
-    if !characters.next()?.is_alphanumeric() {
-        return None;
-    }
-    Some(ComposerOutput {
-        delete_before_commit: 1,
-        commit: Some(CommittedText::plain(". ".to_string())),
-        ..ComposerOutput::default()
-    })
-}
-
 pub trait Composer: Send {
-    fn feed(
-        &mut self,
-        event: ComposerEvent,
-        environment: &mut ComposerEnvironment<'_>,
-    ) -> ComposerOutput;
+    fn feed(&mut self, event: ComposerEvent, environment: &mut ComposerEnvironment<'_>)
+    -> ComposerOutput;
 
     /// 커서 이동·포커스 이탈 시 진행 중 composing을 언어별 정책으로 강제 확정한다.
     fn finalize(&mut self) -> Option<CommittedText>;

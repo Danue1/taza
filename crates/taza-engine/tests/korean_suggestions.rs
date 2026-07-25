@@ -1,8 +1,9 @@
-use taza_engine::contract::EditorContext;
-use taza_engine::lang::hangul::HangulComposer;
+use std::sync::Arc;
+use taza_engine::contract::{EditorContext, Effect, InputEvent};
+use taza_engine::engine::Engine;
+use taza_engine::lang::Language;
 use taza_engine::lang::jamo::{decompose_word, encode_jamo_ascii};
-use taza_engine::pack::{Pack, SectionKind};
-use taza_engine::session::{Effect, InputEvent, Session};
+use taza_engine::pack::SectionKind;
 use taza_toolchain::PackWriter;
 use taza_toolchain::lexicon::LexiconBuilder;
 
@@ -17,19 +18,19 @@ fn korean_pack() -> Vec<u8> {
     writer.finish()
 }
 
-struct Harness<'bytes> {
-    session: Session,
-    pack: Pack<'bytes>,
+struct Harness {
+    engine: Engine,
     committed: String,
     composing: Option<String>,
     candidates: Vec<String>,
 }
 
-impl<'bytes> Harness<'bytes> {
-    fn new(pack_bytes: &'bytes [u8]) -> Self {
+impl Harness {
+    fn new(pack_bytes: &[u8]) -> Self {
+        let mut engine = Engine::new(Language::Korean).unwrap();
+        engine.load_pack(Arc::new(pack_bytes.to_vec())).unwrap();
         Harness {
-            session: Session::new(Box::new(HangulComposer::new())),
-            pack: Pack::open(pack_bytes).unwrap(),
+            engine,
             committed: String::new(),
             composing: None,
             candidates: Vec::new(),
@@ -46,8 +47,7 @@ impl<'bytes> Harness<'bytes> {
             incognito: false,
             field: taza_engine::contract::FieldKind::Text,
         };
-        let pack = &self.pack;
-        for effect in self.session.handle(event, &context, Some(pack)) {
+        for effect in self.engine.handle(event, &context) {
             match effect {
                 Effect::CommitText(text) => {
                     self.committed.push_str(&text);
@@ -137,9 +137,9 @@ fn personalization_boosts_frequent_word() {
 
 #[test]
 fn works_without_pack() {
-    let mut session = Session::new(Box::new(HangulComposer::new()));
+    let mut engine = Engine::new(Language::Korean).unwrap();
     let context = EditorContext::unavailable();
-    let effects = session.handle(InputEvent::Key('ㄱ'), &context, None);
+    let effects = engine.handle(InputEvent::Key('ㄱ'), &context);
     assert!(effects.iter().any(|effect| matches!(
         effect,
         Effect::SetComposing(text) if text.text == "ㄱ"

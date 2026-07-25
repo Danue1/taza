@@ -1,23 +1,15 @@
 //! CI 회귀 게이트 — 랭킹·사전·교정 로직 변경은 이 임계값을 통과해야 병합한다.
 
-use taza_engine::contract::Composer;
+use std::sync::Arc;
+use taza_engine::engine::PackBytes;
 use taza_engine::keyboard::layouts;
-use taza_engine::lang::hangul::HangulComposer;
+use taza_engine::lang::Language;
 use taza_engine::lang::jamo::{decompose_word, encode_jamo_ascii};
-use taza_engine::lang::latin::LatinComposer;
-use taza_engine::pack::{Pack, SectionKind};
+use taza_engine::pack::SectionKind;
 use taza_evaluation::synthesis::{TypoSynthesizer, synthesize_cases};
 use taza_evaluation::{CompletionTask, EvaluationCase, evaluate_completions, evaluate_corrections};
 use taza_toolchain::PackWriter;
 use taza_toolchain::lexicon::LexiconBuilder;
-
-fn latin_factory() -> Box<dyn Composer> {
-    Box::new(LatinComposer::new())
-}
-
-fn hangul_factory() -> Box<dyn Composer> {
-    Box::new(HangulComposer::new())
-}
 
 const WORDS: [(&str, u32); 12] = [
     ("the", 1000),
@@ -81,10 +73,9 @@ fn adjacent_substitution_uses_layout_neighbors() {
 
 #[test]
 fn correction_quality_gate() {
-    let bytes = english_pack_bytes();
-    let pack = Pack::open(&bytes).unwrap();
+    let pack: Arc<dyn PackBytes> = Arc::new(english_pack_bytes());
     let cases = synthesize_cases(&layouts::qwerty(), &word_list(), 42, 5);
-    let report = evaluate_corrections(&pack, &cases, &latin_factory);
+    let report = evaluate_corrections(&pack, Language::English, &cases);
     println!("[gate] english correction {report:?}");
 
     // 기준선 실측 (seed 42): top1 0.900, top3 0.983, MRR 0.936, autocorrect 0.917
@@ -104,8 +95,7 @@ fn correction_quality_gate() {
 
 #[test]
 fn completion_quality_gate() {
-    let bytes = english_pack_bytes();
-    let pack = Pack::open(&bytes).unwrap();
+    let pack: Arc<dyn PackBytes> = Arc::new(english_pack_bytes());
     let tasks: Vec<CompletionTask> = word_list()
         .iter()
         .map(|word| CompletionTask {
@@ -113,7 +103,7 @@ fn completion_quality_gate() {
             intended: word.to_string(),
         })
         .collect();
-    let report = evaluate_completions(&pack, &tasks, &latin_factory);
+    let report = evaluate_completions(&pack, Language::English, &tasks);
     println!("[gate] english completion {report:?}");
     // 기준선 실측: 0.622
     assert_eq!(report.word_count, 12);
@@ -147,8 +137,7 @@ fn korean_pack_bytes() -> Vec<u8> {
 
 #[test]
 fn korean_correction_quality_gate() {
-    let bytes = korean_pack_bytes();
-    let pack = Pack::open(&bytes).unwrap();
+    let pack: Arc<dyn PackBytes> = Arc::new(korean_pack_bytes());
 
     // 자모 시퀀스 위에서 두벌식 레이아웃 인접성으로 오타 합성
     let layout = layouts::dubeolsik();
@@ -165,7 +154,7 @@ fn korean_correction_quality_gate() {
             }
         }
     }
-    let report = evaluate_corrections(&pack, &cases, &hangul_factory);
+    let report = evaluate_corrections(&pack, Language::Korean, &cases);
     println!("[gate] korean correction {report:?}");
 
     // 기준선 실측 (seed 42): top1 1.0, top3 1.0, MRR 1.0 (소규모 사전 기준.
@@ -191,8 +180,7 @@ fn korean_correction_quality_gate() {
 
 #[test]
 fn korean_completion_quality_gate() {
-    let bytes = korean_pack_bytes();
-    let pack = Pack::open(&bytes).unwrap();
+    let pack: Arc<dyn PackBytes> = Arc::new(korean_pack_bytes());
     let tasks: Vec<CompletionTask> = KOREAN_WORDS
         .iter()
         .map(|(word, _)| CompletionTask {
@@ -200,7 +188,7 @@ fn korean_completion_quality_gate() {
             intended: word.to_string(),
         })
         .collect();
-    let report = evaluate_completions(&pack, &tasks, &hangul_factory);
+    let report = evaluate_completions(&pack, Language::Korean, &tasks);
     println!("[gate] korean completion {report:?}");
     // 기준선 실측: 0.737
     assert_eq!(report.word_count, 8);

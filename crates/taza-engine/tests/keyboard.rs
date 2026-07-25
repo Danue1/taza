@@ -1,10 +1,9 @@
-use taza_engine::contract::EditorContext;
+use taza_engine::contract::{EditorContext, Effect, InputEvent};
 use taza_engine::keyboard::{
     FormFactor, KeyRole, Keyboard, KeyboardFrame, KeyboardMetrics, ShellRequest, layouts,
 };
 use taza_engine::lang::Language;
-use taza_engine::lang::hangul::HangulComposer;
-use taza_engine::session::{Effect, InputEvent, Session};
+use taza_engine::engine::Engine;
 
 fn key_center(frame: &KeyboardFrame, label: &str) -> (f32, f32) {
     for row in &frame.rows {
@@ -280,7 +279,7 @@ fn cursor_drag_emits_steps_once_per_threshold() {
 #[test]
 fn touch_sequence_types_hangul_through_session() {
     let mut keyboard = Keyboard::new(layouts::dubeolsik(), Language::Korean);
-    let mut session = Session::new(Box::new(HangulComposer::new()));
+    let mut engine = Engine::new(Language::Korean).unwrap();
     let frame = keyboard.frame();
     let context = EditorContext::unavailable();
 
@@ -288,7 +287,7 @@ fn touch_sequence_types_hangul_through_session() {
     for label in ["ㄱ", "ㅏ", "ㅂ", "ㅏ"] {
         let (x, y) = key_center(&frame, label);
         let event = keyboard.press_at(x, y).event.unwrap();
-        for effect in session.handle(event, &context, None) {
+        for effect in engine.handle(event, &context) {
             if let Effect::SetComposing(text) = effect {
                 composing = text.text;
             }

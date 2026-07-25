@@ -3,8 +3,9 @@ use super::jamo::{
 };
 use crate::contract::{
     Candidate, CandidateKind, CommittedText, Composer, ComposerEnvironment, ComposerEvent,
-    ComposerOutput, ComposerState, ComposingText, EditorContext, double_space_period,
+    ComposerOutput, ComposerState, ComposingText, EditorContext,
 };
+use crate::policy::double_space_period;
 
 const SUGGESTION_LIMIT: usize = 3;
 

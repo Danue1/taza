@@ -8,11 +8,12 @@
 //! ```
 //! 표본은 점수표 상위 N개 — 실제로 자주 쓰는 어휘에서 재는 것이 목적이다.
 
-use taza_engine::contract::{Composer, Pack};
+use std::sync::Arc;
+use taza_engine::contract::Pack;
+use taza_engine::engine::PackBytes;
 use taza_engine::keyboard::layouts;
-use taza_engine::lang::hangul::HangulComposer;
+use taza_engine::lang::Language;
 use taza_engine::lang::jamo::decompose_word;
-use taza_engine::lang::latin::LatinComposer;
 use taza_evaluation::synthesis::TypoSynthesizer;
 use taza_evaluation::{CompletionTask, EvaluationCase, evaluate_completions, evaluate_corrections};
 
@@ -40,7 +41,8 @@ fn main() {
         .collect();
 
     let bytes = std::fs::read(pack_path).expect("팩 읽기 실패");
-    let pack = Pack::open(&bytes).expect("팩 열기 실패");
+    let pack: Arc<dyn PackBytes> = Arc::new(bytes);
+    let opened = Pack::open(pack.bytes()).expect("팩 열기 실패");
 
     let korean = language == "ko";
     let layout = if korean {
@@ -78,16 +80,16 @@ fn main() {
         });
     }
 
-    let factory: &dyn Fn() -> Box<dyn Composer> = if korean {
-        &|| Box::new(HangulComposer::new())
+    let evaluated_language = if korean {
+        Language::Korean
     } else {
-        &|| Box::new(LatinComposer::new())
+        Language::English
     };
-    let corrections = evaluate_corrections(&pack, &cases, factory);
-    let completions = evaluate_completions(&pack, &tasks, factory);
+    let corrections = evaluate_corrections(&pack, evaluated_language, &cases);
+    let completions = evaluate_completions(&pack, evaluated_language, &tasks);
 
-    let metadata = pack.metadata();
-    println!("팩: {pack_path} ({} 언어)", pack.language());
+    let metadata = opened.metadata();
+    println!("팩: {pack_path} ({} 언어)", opened.language());
     if let Some(metadata) = &metadata {
         for key in ["pack_version", "word_count", "lexicon_encoding", "sources"] {
             if let Some(value) = metadata.get(key) {

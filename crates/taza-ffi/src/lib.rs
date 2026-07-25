@@ -9,14 +9,13 @@ pub use install::{
     supported_pack_format_version,
 };
 
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
-use taza_engine::contract::{Candidate, CandidateKind, EditorContext, FieldKind};
-use taza_engine::keyboard::{FormFactor, KeyRole, Keyboard, KeyboardMetrics, ShellRequest};
+use taza_engine::contract::{Candidate, CandidateKind, EditorContext, Effect, FieldKind, InputEvent};
+use taza_engine::engine::{Engine, PackBytes};
+use taza_engine::keyboard::{FormFactor, KeyRole, KeyboardMetrics, ShellRequest};
 use taza_engine::lang::Language;
-use taza_engine::pack::Pack;
 use taza_engine::personalization::PersonalizationState;
-use taza_engine::session::{Effect, InputEvent, Session};
 
 uniffi::setup_scaffolding!();
 
@@ -249,34 +248,11 @@ fn convert_context(context: &FfiEditorContext) -> EditorContext {
     }
 }
 
-struct SessionState {
-    session: Session,
-    keyboard: Keyboard,
-    language: Language,
-    /// 팩 교체로 키보드를 다시 만들어도 셸이 주입한 표시 환경은 이어져야 한다
-    metrics: KeyboardMetrics,
-    pack_bytes: Option<memmap2::Mmap>,
-}
-
-impl SessionState {
-    fn with_pack<Output>(
-        &mut self,
-        operation: impl FnOnce(&mut Session, Option<&Pack<'_>>) -> Output,
-    ) -> Output {
-        match &self.pack_bytes {
-            Some(bytes) => match Pack::open(bytes) {
-                Ok(pack) => operation(&mut self.session, Some(&pack)),
-                Err(_) => operation(&mut self.session, None),
-            },
-            None => operation(&mut self.session, None),
-        }
-    }
-}
-
 /// 키보드 익스텐션 프로세스당 하나 — 셸은 이 객체 하나로 입력·화면·팩을 오간다.
+/// 조립은 코어(`Engine`)가 하고 이 계층은 타입 번역과 파일 IO만 맡는다.
 #[derive(uniffi::Object)]
 pub struct KeyboardSession {
-    state: Mutex<SessionState>,
+    engine: Mutex<Engine>,
 }
 
 #[uniffi::export]
@@ -287,15 +263,9 @@ impl KeyboardSession {
             FfiLanguage::English => Language::English,
             FfiLanguage::Korean => Language::Korean,
         };
-        let composer = language.composer().ok_or(FfiLanguageError::Unsupported)?;
+        let engine = Engine::new(language).ok_or(FfiLanguageError::Unsupported)?;
         Ok(KeyboardSession {
-            state: Mutex::new(SessionState {
-                session: Session::new(composer),
-                keyboard: Keyboard::new(language.builtin_layout(), language),
-                language,
-                metrics: KeyboardMetrics::default(),
-                pack_bytes: None,
-            }),
+            engine: Mutex::new(engine),
         })
     }
 
@@ -308,40 +278,31 @@ impl KeyboardSession {
         let bytes = unsafe { memmap2::Mmap::map(&file) }.map_err(|error| FfiPackError::Io {
             message: error.to_string(),
         })?;
-        let pack = Pack::open(&bytes).map_err(|error| FfiPackError::Invalid {
-            message: error.to_string(),
-        })?;
-        let layout = pack.layout();
-        let mut state = self.state.lock().unwrap();
-        if let Some(layout) = layout {
-            let (language, metrics) = (state.language, state.metrics);
-            state.keyboard = Keyboard::new(layout, language);
-            state.keyboard.set_metrics(metrics);
-        }
-        state.pack_bytes = Some(bytes);
-        Ok(())
+        self.engine
+            .lock()
+            .unwrap()
+            .load_pack(Arc::new(bytes) as Arc<dyn PackBytes>)
+            .map_err(|error| FfiPackError::Invalid {
+                message: error.to_string(),
+            })
     }
 
     /// 표시 환경 주입 — 셸이 자기 크기를 알게 될 때(첫 배치, 회전, 분할) 부른다.
     /// 이후 프레임의 치수는 이 값을 따른다.
     pub fn set_metrics(&self, form_factor: FfiFormFactor, width_points: f32) {
-        let metrics = KeyboardMetrics {
+        self.engine.lock().unwrap().set_metrics(KeyboardMetrics {
             form_factor: match form_factor {
                 FfiFormFactor::PhonePortrait => FormFactor::PhonePortrait,
                 FfiFormFactor::PhoneLandscape => FormFactor::PhoneLandscape,
                 FfiFormFactor::Tablet => FormFactor::Tablet,
             },
             width_points,
-        };
-        let mut state = self.state.lock().unwrap();
-        state.metrics = metrics;
-        state.keyboard.set_metrics(metrics);
+        });
     }
 
     /// 프레임 전체를 받지 않고 치수만 필요할 때(입력 뷰 높이 제약).
     pub fn frame_metrics(&self) -> FfiFrameMetrics {
-        let state = self.state.lock().unwrap();
-        convert_frame_metrics(state.keyboard.frame_metrics())
+        convert_frame_metrics(self.engine.lock().unwrap().frame_metrics())
     }
 
     /// 이벤트당 1회 왕복 — 반환된 Effect 목록을 셸이 순서대로 플랫폼 API로 번역한다.
@@ -349,85 +310,65 @@ impl KeyboardSession {
         let Some(input_event) = convert_event(event) else {
             return Vec::new();
         };
-        let core_context = convert_context(&context);
-        let mut state = self.state.lock().unwrap();
-        state
-            .with_pack(|session, pack| session.handle(input_event, &core_context, pack))
-            .into_iter()
-            .map(convert_effect)
-            .collect()
+        let effects = self
+            .engine
+            .lock()
+            .unwrap()
+            .handle(input_event, &convert_context(&context));
+        effects.into_iter().map(convert_effect).collect()
     }
 
-    /// 터치 좌표(정규화) → 코어 히트 테스트 → 세션 처리까지 한 번에.
+    /// 터치 좌표(정규화) → 코어 히트 테스트 → 합성까지 한 번에.
     pub fn press_at(&self, x: f32, y: f32, context: FfiEditorContext) -> FfiPressResult {
-        let core_context = convert_context(&context);
-        let mut state = self.state.lock().unwrap();
-        let outcome = state.keyboard.press_at(x, y);
-        let effects = match outcome.event {
-            Some(event) => state
-                .with_pack(|session, pack| session.handle(event, &core_context, pack))
-                .into_iter()
-                .map(convert_effect)
-                .collect(),
-            None => Vec::new(),
-        };
+        let result = self
+            .engine
+            .lock()
+            .unwrap()
+            .press_at(x, y, &convert_context(&context));
         FfiPressResult {
-            effects,
-            layout_changed: outcome.layout_changed,
-            requests_next_language: outcome.request == Some(ShellRequest::NextLanguage),
+            effects: result.effects.into_iter().map(convert_effect).collect(),
+            layout_changed: result.layout_changed,
+            requests_next_language: result.request == Some(ShellRequest::NextLanguage),
         }
     }
 
     /// 좌표에 있는 키 — 셸이 길게 누르기 대상을 알아내는 통로. 스냅 규칙이 탭과
     /// 같아야 하므로 코어 히트 테스트를 그대로 쓴다.
     pub fn key_at(&self, x: f32, y: f32) -> FfiFrameKey {
-        let state = self.state.lock().unwrap();
-        convert_frame_key(state.keyboard.key_at(x, y))
+        convert_frame_key(self.engine.lock().unwrap().key_at(x, y))
     }
 
     /// 길게 눌러 연 팝업에서 고른 변형 문자 — 일반 키 입력과 같은 경로로 흐른다.
     pub fn select_alternate(&self, alternate: String, context: FfiEditorContext) -> Vec<FfiEffect> {
-        let core_context = convert_context(&context);
-        let mut state = self.state.lock().unwrap();
-        let Some(event) = state.keyboard.select_alternate(&alternate) else {
-            return Vec::new();
-        };
-        state
-            .with_pack(|session, pack| session.handle(event, &core_context, pack))
-            .into_iter()
-            .map(convert_effect)
-            .collect()
+        let effects = self
+            .engine
+            .lock()
+            .unwrap()
+            .select_alternate(&alternate, &convert_context(&context));
+        effects.into_iter().map(convert_effect).collect()
     }
 
     /// 스페이스바를 길게 눌러 끄는 커서 이동. 셸은 포인터 x(정규화)만 흘려보내고
     /// 몇 칸 움직일지는 코어가 판정한다.
     pub fn begin_cursor_drag(&self, x: f32) {
-        self.state.lock().unwrap().keyboard.begin_cursor_drag(x);
+        self.engine.lock().unwrap().begin_cursor_drag(x);
     }
 
     pub fn update_cursor_drag(&self, x: f32, context: FfiEditorContext) -> Vec<FfiEffect> {
-        let core_context = convert_context(&context);
-        let mut state = self.state.lock().unwrap();
-        let steps = state.keyboard.update_cursor_drag(x);
-        if steps == 0 {
-            return Vec::new();
-        }
-        state
-            .with_pack(|session, pack| {
-                session.handle(InputEvent::CursorDrag(steps), &core_context, pack)
-            })
-            .into_iter()
-            .map(convert_effect)
-            .collect()
+        let effects = self
+            .engine
+            .lock()
+            .unwrap()
+            .update_cursor_drag(x, &convert_context(&context));
+        effects.into_iter().map(convert_effect).collect()
     }
 
     pub fn end_cursor_drag(&self) {
-        self.state.lock().unwrap().keyboard.end_cursor_drag();
+        self.engine.lock().unwrap().end_cursor_drag();
     }
 
     pub fn keyboard_frame(&self) -> FfiKeyboardFrame {
-        let state = self.state.lock().unwrap();
-        let frame = state.keyboard.frame();
+        let frame = self.engine.lock().unwrap().frame();
         FfiKeyboardFrame {
             rows: frame
                 .rows
@@ -440,8 +381,7 @@ impl KeyboardSession {
 
     /// 개인화 상태 직렬화 — 셸이 컨테이너 저장소(App Group 등)에 보관한다.
     pub fn personalization_snapshot(&self) -> Vec<String> {
-        let state = self.state.lock().unwrap();
-        let snapshot = state.session.personalization_snapshot();
+        let snapshot = self.engine.lock().unwrap().personalization_snapshot();
         let mut lines = vec![snapshot.clock.to_string()];
         for (word, count, last_used) in snapshot.entries {
             lines.push(format!("{word}\t{count}\t{last_used}"));
@@ -467,9 +407,9 @@ impl KeyboardSession {
             };
             entries.push((word.to_string(), count, last_used));
         }
-        let mut state = self.state.lock().unwrap();
-        state
-            .session
+        self.engine
+            .lock()
+            .unwrap()
             .restore_personalization(PersonalizationState { entries, clock });
     }
 }

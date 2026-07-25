@@ -1,24 +1,25 @@
 use taza_engine::contract::{
     Candidate, CandidateKind, CommittedText, Composer, ComposerEnvironment, ComposerEvent,
-    ComposerOutput, ComposerState, EditorContext,
+    ComposerOutput, ComposerState, EditorContext, Effect, InputEvent,
 };
+use taza_engine::engine::Engine;
+use taza_engine::lang::Language;
 use taza_engine::lang::direct::DirectComposer;
-use taza_engine::session::{Effect, InputEvent, Session};
 
 #[test]
 fn direct_composer_commits_every_key() {
-    let mut session = Session::new(Box::new(DirectComposer::new()));
+    let mut engine = Engine::with_composer(Language::English, Box::new(DirectComposer::new()));
     let context = EditorContext::unavailable();
     assert_eq!(
-        session.handle(InputEvent::Key('h'), &context, None),
+        engine.handle(InputEvent::Key('h'), &context),
         vec![Effect::CommitText("h".to_string())]
     );
     assert_eq!(
-        session.handle(InputEvent::Separator(' '), &context, None),
+        engine.handle(InputEvent::Separator(' '), &context),
         vec![Effect::CommitText(" ".to_string())]
     );
     assert_eq!(
-        session.handle(InputEvent::Backspace, &context, None),
+        engine.handle(InputEvent::Backspace, &context),
         vec![Effect::DeleteBackward(1)]
     );
 }
@@ -71,10 +72,10 @@ impl Composer for ReplacingComposer {
 
 #[test]
 fn candidate_replacement_translates_to_delete_then_commit() {
-    let mut session = Session::new(Box::new(ReplacingComposer));
+    let mut engine = Engine::with_composer(Language::English, Box::new(ReplacingComposer));
     let context = EditorContext::unavailable();
 
-    let effects = session.handle(InputEvent::Key('h'), &context, None);
+    let effects = engine.handle(InputEvent::Key('h'), &context);
     assert_eq!(
         effects,
         vec![Effect::UpdateCandidates(vec![Candidate {
@@ -83,7 +84,7 @@ fn candidate_replacement_translates_to_delete_then_commit() {
         }])]
     );
 
-    let effects = session.handle(InputEvent::CandidateSelected(0), &context, None);
+    let effects = engine.handle(InputEvent::CandidateSelected(0), &context);
     assert_eq!(
         effects,
         vec![
@@ -96,14 +97,13 @@ fn candidate_replacement_translates_to_delete_then_commit() {
 
 #[test]
 fn cursor_drag_finalizes_composing_then_moves() {
-    use taza_engine::lang::hangul::HangulComposer;
-    let mut session = Session::new(Box::new(HangulComposer::new()));
+    let mut engine = Engine::new(Language::Korean).unwrap();
     let context = EditorContext::unavailable();
-    session.handle(InputEvent::Key('ㄱ'), &context, None);
-    session.handle(InputEvent::Key('ㅏ'), &context, None);
+    engine.handle(InputEvent::Key('ㄱ'), &context);
+    engine.handle(InputEvent::Key('ㅏ'), &context);
 
     // 커서가 빠져나가기 전에 조합 중이던 음절을 확정하고, 그다음 이동한다
-    let effects = session.handle(InputEvent::CursorDrag(-3), &context, None);
+    let effects = engine.handle(InputEvent::CursorDrag(-3), &context);
     assert_eq!(
         effects,
         vec![
@@ -115,7 +115,7 @@ fn cursor_drag_finalizes_composing_then_moves() {
 
     // 조합 중이 아니면 이동만 나간다
     assert_eq!(
-        session.handle(InputEvent::CursorDrag(2), &context, None),
+        engine.handle(InputEvent::CursorDrag(2), &context),
         vec![Effect::MoveCursor(2)]
     );
 }

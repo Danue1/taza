@@ -547,6 +547,7 @@ fileprivate struct FfiConverterString: FfiConverter {
 
 /**
  * 키보드 익스텐션 프로세스당 하나 — 셸은 이 객체 하나로 입력·화면·팩을 오간다.
+ * 조립은 코어(`Engine`)가 하고 이 계층은 타입 번역과 파일 IO만 맡는다.
  */
 public protocol KeyboardSessionProtocol: AnyObject, Sendable {
     
@@ -588,7 +589,7 @@ public protocol KeyboardSessionProtocol: AnyObject, Sendable {
     func personalizationSnapshot()  -> [String]
     
     /**
-     * 터치 좌표(정규화) → 코어 히트 테스트 → 세션 처리까지 한 번에.
+     * 터치 좌표(정규화) → 코어 히트 테스트 → 합성까지 한 번에.
      */
     func pressAt(x: Float, y: Float, context: FfiEditorContext)  -> FfiPressResult
     
@@ -610,6 +611,7 @@ public protocol KeyboardSessionProtocol: AnyObject, Sendable {
 }
 /**
  * 키보드 익스텐션 프로세스당 하나 — 셸은 이 객체 하나로 입력·화면·팩을 오간다.
+ * 조립은 코어(`Engine`)가 하고 이 계층은 타입 번역과 파일 IO만 맡는다.
  */
 open class KeyboardSession: KeyboardSessionProtocol, @unchecked Sendable {
     fileprivate let pointer: UnsafeMutableRawPointer!
@@ -752,7 +754,7 @@ open func personalizationSnapshot() -> [String]  {
 }
     
     /**
-     * 터치 좌표(정규화) → 코어 히트 테스트 → 세션 처리까지 한 번에.
+     * 터치 좌표(정규화) → 코어 히트 테스트 → 합성까지 한 번에.
      */
 open func pressAt(x: Float, y: Float, context: FfiEditorContext) -> FfiPressResult  {
     return try!  FfiConverterTypeFfiPressResult_lift(try! rustCall() {
@@ -2740,7 +2742,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_taza_ffi_checksum_method_keyboardsession_personalization_snapshot() != 21724) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_taza_ffi_checksum_method_keyboardsession_press_at() != 57189) {
+    if (uniffi_taza_ffi_checksum_method_keyboardsession_press_at() != 48447) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_taza_ffi_checksum_method_keyboardsession_restore_personalization() != 5700) {

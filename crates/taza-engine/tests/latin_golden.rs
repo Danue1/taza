@@ -1,7 +1,9 @@
-use taza_engine::contract::{CandidateKind, EditorContext, FieldKind};
+use std::sync::Arc;
+use taza_engine::contract::{CandidateKind, EditorContext, Effect, FieldKind, InputEvent};
+use taza_engine::engine::Engine;
+use taza_engine::lang::Language;
 use taza_engine::lang::latin::LatinComposer;
 use taza_engine::pack::{Pack, SectionKind};
-use taza_engine::session::{Effect, InputEvent, Session};
 use taza_toolchain::PackWriter;
 use taza_toolchain::lexicon::LexiconBuilder;
 use taza_toolchain::ngram::NgramModelBuilder;
@@ -34,20 +36,20 @@ fn english_pack() -> Vec<u8> {
     writer.finish()
 }
 
-struct Harness<'bytes> {
-    session: Session,
-    pack: Pack<'bytes>,
+struct Harness {
+    engine: Engine,
     committed: String,
     candidates: Vec<String>,
     incognito: bool,
     field: FieldKind,
 }
 
-impl<'bytes> Harness<'bytes> {
-    fn new(pack_bytes: &'bytes [u8]) -> Self {
+impl Harness {
+    fn new(pack_bytes: &[u8]) -> Self {
+        let mut engine = Engine::new(Language::English).unwrap();
+        engine.load_pack(Arc::new(pack_bytes.to_vec())).unwrap();
         Harness {
-            session: Session::new(Box::new(LatinComposer::new())),
-            pack: Pack::open(pack_bytes).unwrap(),
+            engine,
             committed: String::new(),
             candidates: Vec::new(),
             incognito: false,
@@ -61,8 +63,7 @@ impl<'bytes> Harness<'bytes> {
             incognito: self.incognito,
             field: self.field,
         };
-        let pack = &self.pack;
-        for effect in self.session.handle(event, &context, Some(pack)) {
+        for effect in self.engine.handle(event, &context) {
             match effect {
                 Effect::CommitText(text) => self.committed.push_str(&text),
                 Effect::DeleteBackward(count) => {
@@ -235,9 +236,9 @@ fn password_field_disables_learning() {
 
 #[test]
 fn works_without_lexicon() {
-    let mut session = Session::new(Box::new(LatinComposer::new()));
+    let mut engine = Engine::new(Language::English).unwrap();
     let context = EditorContext::unavailable();
-    let effects = session.handle(InputEvent::Key('h'), &context, None);
+    let effects = engine.handle(InputEvent::Key('h'), &context);
     assert_eq!(effects, vec![Effect::CommitText("h".to_string())]);
 }
 
@@ -318,11 +319,12 @@ fn personalization_snapshot_persists_learning() {
     let bytes = english_pack();
     let mut harness = Harness::new(&bytes);
     harness.type_text("help help ");
-    let state = harness.session.personalization_snapshot();
+    let state = harness.engine.personalization_snapshot();
 
     let mut restored = Harness::new(&bytes);
-    restored.session = Session::new(Box::new(LatinComposer::new()));
-    restored.session.restore_personalization(state);
+    restored.engine = Engine::with_composer(Language::English, Box::new(LatinComposer::new()));
+    restored.engine.load_pack(Arc::new(bytes.clone())).unwrap();
+    restored.engine.restore_personalization(state);
     restored.type_text("he");
     assert_eq!(restored.candidates[0], "help");
 }

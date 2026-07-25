@@ -1,7 +1,8 @@
 use crate::contract::{
     Candidate, CandidateKind, CommittedText, Composer, ComposerEnvironment, ComposerEvent,
-    ComposerOutput, ComposerState, EditorContext, double_space_period,
+    ComposerOutput, ComposerState, EditorContext,
 };
+use crate::policy::double_space_period;
 
 const SUGGESTION_LIMIT: usize = 3;
 /// 자동교정을 시도하는 최소 단어 길이 — 짧은 단어는 오교정 위험이 이득보다 크다

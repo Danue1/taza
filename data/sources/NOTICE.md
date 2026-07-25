@@ -18,19 +18,21 @@
 
 ## korean (ko) — 판 1
 
-표제어 200000개
+표제어 120000개
 
 ### 원천
 
 - mecab-ko-dic 2.1.1-20180720 (Apache-2.0)
 - Tatoeba sentences (kor) 2026-07-25 (CC-BY 2.0 FR)
 - Korean Wikipedia 20260701 (CC BY-SA 4.0)
+- 우리말샘 20260702 (CC BY-SA 2.0 KR)
 
 ### 저작자 표시
 
 > Korean morpheme dictionary from mecab-ko-dic 2.1.1-20180720 (https://bitbucket.org/eunjeon/mecab-ko-dic), licensed under Apache License 2.0.
 > Word frequencies derived from the Tatoeba Project Korean sentence export (https://tatoeba.org), licensed CC-BY 2.0 FR.
 > Word frequencies derived from the Korean Wikipedia article dump of 2026-07-01 (https://ko.wikipedia.org), licensed CC BY-SA 4.0.
+> Headwords from 우리말샘 (https://opendict.korean.go.kr), 국립국어원, licensed CC BY-SA 2.0 KR.
 
 ## 재현
 

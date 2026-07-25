@@ -4,7 +4,7 @@
 //! 전송 구간에만 쓴다: 컨테이너 앱이 `.tazapack.zst`를 받아 해시를 확인하고 풀어
 //! App Group에 놓으면, 익스텐션은 평소처럼 mmap한다.
 
-use crate::fetch::hex_digest;
+use crate::source::acquire::hex_digest;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 

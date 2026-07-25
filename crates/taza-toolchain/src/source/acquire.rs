@@ -40,12 +40,22 @@ fn file_digest(path: &Path) -> Result<String, String> {
         .collect())
 }
 
+/// 자리를 잡은 원천 파일. 해시를 함께 내는 이유는 추출 결과 캐시의 키가 되기 때문이다 —
+/// 원천이 바뀌면 그 해시가 바뀌고, 캐시가 저절로 무효가 된다.
+pub struct Located {
+    pub path: PathBuf,
+    pub digest: String,
+}
+
 /// 원천 파일의 자리를 마련한다. 자리에 없고 선택 원천이면 `None`이다 — 손으로 받아야
 /// 하는 말뭉치가 아직 없어도 나머지 원천만으로 팩이 나와야 한다.
-pub fn locate(source: &Source, cache_directory: &Path) -> Result<Option<PathBuf>, String> {
+pub fn locate(source: &Source, cache_directory: &Path) -> Result<Option<Located>, String> {
     match &source.origin {
         Origin::Remote { url, sha256 } => match fetch(url, sha256, cache_directory) {
-            Ok(path) => Ok(Some(path)),
+            Ok(path) => Ok(Some(Located {
+                path,
+                digest: sha256.clone(),
+            })),
             Err(error) if source.is_optional() => {
                 println!("  건너뜀 {} — {error}", source.name);
                 Ok(None)
@@ -60,8 +70,11 @@ pub fn locate(source: &Source, cache_directory: &Path) -> Result<Option<PathBuf>
                 }
                 return Err(format!("{}: {} 없음", source.name, file.display()));
             }
+            // 손으로 받은 판은 사람마다 다를 수 있어 해시를 필수로 두지 않는다. 다만
+            // 캐시 키로는 늘 필요하므로 적혀 있지 않아도 계산한다.
+            let digest = file_digest(file)?;
             if let Some(expected) = sha256
-                && &file_digest(file)? != expected
+                && &digest != expected
             {
                 return Err(format!(
                     "{}: sha256 불일치 — {}",
@@ -69,7 +82,10 @@ pub fn locate(source: &Source, cache_directory: &Path) -> Result<Option<PathBuf>
                     file.display()
                 ));
             }
-            Ok(Some(file.clone()))
+            Ok(Some(Located {
+                path: file.clone(),
+                digest,
+            }))
         }
     }
 }

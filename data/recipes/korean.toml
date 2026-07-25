@@ -25,7 +25,7 @@ source_directory = "korean.sources.d"
 [lexicon]
 encoding = "hangul-jamo-dubeolsik"
 character_set = "hangul-syllables"
-max_words = 200000
+max_words = 120000
 minimum_word_length = 1
 # 사전에는 기본형("있다")만 있고 사람이 실제로 치는 것은 활용형("있어", "있는")이다.
 # 활용 규칙을 코드로 생성하려면 불규칙까지 다뤄야 하지만, 무엇이 실제로 쓰이는지는

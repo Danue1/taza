@@ -306,6 +306,13 @@ pub enum Extraction {
         /// 어간에 종결어미 `다`를 붙여 기본형으로 만드는 CSV 파일들 (용언)
         #[serde(default)]
         verb_stem_files: Vec<String>,
+        /// 활용형 CSV — 표층형이 어간+어미로 분석돼 있는 항목들. 규칙 활용은 코퍼스가
+        /// 보여 주지만 축약·불규칙("재밌어", "몰라", "예뻐")은 그 형태가 코퍼스에
+        /// 나타나지 않으면 어디서도 알 수 없다. 사전이 이미 적어 둔 것을 받는다.
+        ///
+        /// 이 파일에는 조사 결합 분석도 섞여 있으므로(`가` = JKS+NP) 용언 활용만 받는다.
+        #[serde(default)]
+        inflection_files: Vec<String>,
         /// 조사를 붙여 어절을 만들 상위 체언 수 (0이면 결합형을 만들지 않는다).
         /// 교착어의 어절 전체를 담으면 폭발하므로 흔한 체언에만 붙인다.
         #[serde(default)]
@@ -317,6 +324,22 @@ pub enum Extraction {
     NiklCorpus {
         #[serde(default = "default_minimum_count")]
         minimum_count: u64,
+    },
+    /// 우리말샘 사전 XML. 110만 표제어 가운데 방언·북한어·옛말이 상당수라 그대로 받으면
+    /// 표준 어휘를 예산에서 밀어낸다 — 사전이 스스로 구분해 둔 갈래로 고른다.
+    Urimalsam {
+        /// 받을 뜻풀이 갈래 (`senseInfo/type`) — 보통 `일반어`만
+        sense_types: Vec<String>,
+        /// 받을 표제어 단위 (`wordInfo/word_unit`) — 속담·관용구는 문장이라 어절 사전에
+        /// 들어갈 자리가 없다
+        word_units: Vec<String>,
+        /// 표제어로 두지 않을 품사. 조사·어미·접사는 홀로 쓰이는 어절이 아니다.
+        #[serde(default = "default_excluded_parts_of_speech")]
+        excluded_parts_of_speech: Vec<String>,
+        /// 사전에는 빈도가 없다. 모든 표제어가 같은 등급을 받고, 예산 안에 들어갈 순위는
+        /// 코퍼스가 정한다.
+        #[serde(default = "default_word_list_rank")]
+        rank: f64,
     },
     /// 줄 단위 낱말 목록 (`낱말` 또는 `낱말<TAB>빈도`). 형식이 제각각인 사전·용어집·
     /// 신어 자료를 사람이 한 번 이 꼴로 뽑아 두면 그대로 흡수된다 — 원천마다 파서를
@@ -337,6 +360,13 @@ fn default_minimum_count() -> u64 {
 
 fn default_word_list_rank() -> f64 {
     0.5
+}
+
+fn default_excluded_parts_of_speech() -> Vec<String> {
+    ["조사", "어미", "접사"]
+        .into_iter()
+        .map(str::to_string)
+        .collect()
 }
 
 impl Recipe {

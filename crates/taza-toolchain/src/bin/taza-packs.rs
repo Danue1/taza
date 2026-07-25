@@ -13,24 +13,29 @@
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+use taza_toolchain::assemble;
 use taza_toolchain::distribute::{self, CatalogEntry};
-use taza_toolchain::fetch::hex_digest;
 use taza_toolchain::normalize::{SourceSignal, normalize, normalize_bigrams};
 use taza_toolchain::recipe::Recipe;
-use taza_toolchain::{assemble, extract, fetch};
+use taza_toolchain::source::acquire::hex_digest;
+use taza_toolchain::source::{self, Prepared};
 
-const USAGE: &str = "사용법: taza-packs [언어…] [--data <디렉터리>] [--skip-archive]";
+const USAGE: &str = "사용법: taza-packs [언어…] [--data <디렉터리>] [--skip-archive] [--no-cache]";
 
 struct Options {
     names: Vec<String>,
     data_directory: PathBuf,
     skip_archive: bool,
+    /// 추출 결과 캐시를 무시하고 원천을 다시 훑는다 — 파서를 고치고 판 번호를 올리는
+    /// 것을 잊었을 때의 탈출구다.
+    no_cache: bool,
 }
 
 fn parse_options(arguments: &[String]) -> Result<Options, String> {
     let mut names = Vec::new();
     let mut data_directory = PathBuf::from("data");
     let mut skip_archive = false;
+    let mut no_cache = false;
     let mut iterator = arguments.iter();
     while let Some(argument) = iterator.next() {
         match argument.as_str() {
@@ -41,6 +46,7 @@ fn parse_options(arguments: &[String]) -> Result<Options, String> {
                     .ok_or_else(|| USAGE.to_string())?;
             }
             "--skip-archive" => skip_archive = true,
+            "--no-cache" => no_cache = true,
             other if other.starts_with("--") => return Err(USAGE.to_string()),
             other => names.push(other.to_string()),
         }
@@ -49,6 +55,7 @@ fn parse_options(arguments: &[String]) -> Result<Options, String> {
         names,
         data_directory,
         skip_archive,
+        no_cache,
     })
 }
 
@@ -88,16 +95,19 @@ fn build(recipe_path: &Path, options: &Options) -> Result<CatalogEntry, String> 
     let cache = options.data_directory.join("cache");
     let mut extracted = Vec::new();
     for source in &recipe.sources {
-        let Some(path) = fetch::locate(source, &cache)? else {
+        let Prepared::Extracted { signal, from_cache } =
+            source::prepare(source, &recipe.language, &cache, !options.no_cache)?
+        else {
             continue;
         };
-        let signal = extract::extract(&source.extraction, &path, &recipe.language)?;
         println!(
-            "  {} ({}): 낱말 {} / 이웃 짝 {}",
+            "  {} ({}): 보증 {} / 관측 {} / 이웃 짝 {}{}",
             source.name,
             source.license,
-            signal.words.len(),
-            signal.bigrams.len()
+            signal.attested.len(),
+            signal.observed.len(),
+            signal.bigrams.len(),
+            if from_cache { " (캐시)" } else { "" }
         );
         extracted.push((source, signal));
     }
@@ -107,7 +117,8 @@ fn build(recipe_path: &Path, options: &Options) -> Result<CatalogEntry, String> 
         .map(|(source, signal)| SourceSignal {
             role: source.role,
             weight: source.weight,
-            entries: &signal.words,
+            attested: &signal.attested,
+            observed: &signal.observed,
             bigrams: &signal.bigrams,
             stems: &signal.stems,
             affixes: &signal.affixes,
@@ -173,6 +184,22 @@ fn build(recipe_path: &Path, options: &Options) -> Result<CatalogEntry, String> 
         .collect();
     std::fs::write(&promoted_path, promoted)
         .map_err(|error| format!("{} 쓰기 실패: {error}", promoted_path.display()))?;
+
+    // 원천별 기여 — 새 말뭉치를 꽂았을 때 그것이 사전을 실제로 바꿨는지는 전체 표제어
+    // 수만 봐서는 알 수 없다. 큰 코퍼스를 더해도 이미 있던 낱말만 다시 보고 있을 수 있다.
+    let contributions_path = build_directory.join(format!("{}-sources.tsv", recipe.name));
+    let mut contributions = String::from("원천\t표제어\t단독\t승격\n");
+    for ((source, _), contribution) in extracted.iter().zip(&report.contributions) {
+        contributions.push_str(&format!(
+            "{}\t{}\t{}\t{}\n",
+            source.name,
+            contribution.in_lexicon,
+            contribution.unique_to_source,
+            contribution.promoted
+        ));
+    }
+    std::fs::write(&contributions_path, contributions)
+        .map_err(|error| format!("{} 쓰기 실패: {error}", contributions_path.display()))?;
 
     let layout_text = recipe
         .layout

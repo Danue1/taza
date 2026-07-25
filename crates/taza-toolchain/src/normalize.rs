@@ -5,9 +5,9 @@
 //! 랭킹에 닿지 못하고, (2) 원천을 갈아치울 때마다 랭킹 스케일이 달라져 평가 결과를
 //! 비교할 수 없다. 로그 스케일로 옮겨 두 문제를 함께 없앤다.
 
+use crate::lang::korean::InflectionStems;
 use crate::recipe::{LanguageModelRules, LexiconRules, Role};
 use std::collections::{HashMap, HashSet};
-use taza_engine::lang::jamo::decompose_word;
 use taza_engine::pack::lexicon::MAX_FREQUENCY;
 
 #[derive(Debug, Default)]
@@ -31,17 +31,32 @@ struct Candidate {
     sources: usize,
 }
 
+/// 한 원천이 병합에 내놓는 것 — 역할·가중치와 추출된 신호를 함께 본다.
 pub struct SourceSignal<'call> {
     pub role: Role,
     pub weight: f64,
-    pub entries: &'call [(String, f64)],
-    /// (앞말, 뒷말, 관측 횟수) — 문장 코퍼스만 채운다
+    /// 사전이 보증한 낱말 — (낱말, 흔함 등급). 인벤토리 역할일 때만 표제어 집합에 들어간다.
+    pub attested: &'call [(String, f64)],
+    /// 코퍼스에서 관측된 낱말 — (낱말, 관측 횟수). 인벤토리 역할에서는 낱말 점수에
+    /// 더하지 않고 문맥 이득을 재는 데만 쓴다 — 사전 등재는 실사용 횟수가 아니다.
+    pub observed: &'call [(String, u64)],
+    /// (앞말, 뒷말, 관측 횟수) — 문맥을 아는 원천만 채운다
     pub bigrams: &'call [(String, String, u64)],
     /// 활용형이 뻗어 나오는 어간 — 형태소 사전만 채운다
     pub stems: &'call [String],
     /// 어절 뒤에 붙는 접사 — 형태소 사전만 채운다. 이것과 똑같은 낱말은 홀로 쓰이는
     /// 어절이 아니므로 승격 후보에서 뺀다.
     pub affixes: &'call [String],
+}
+
+impl SourceSignal<'_> {
+    /// 이 원천이 낸 낱말 전부 — 보증한 것과 관측한 것을 가리지 않는다.
+    fn words(&self) -> impl Iterator<Item = &str> {
+        self.attested
+            .iter()
+            .map(|(word, _)| word.as_str())
+            .chain(self.observed.iter().map(|(word, _)| word.as_str()))
+    }
 }
 
 /// 예산에 밀려 팩에서 빠진 낱말 중 남겨 둘 표본 수. 오교정률 평가의 코퍼스가 된다 —
@@ -65,6 +80,23 @@ pub struct NormalizeReport {
     pub rejected_candidates: usize,
     /// 예산 바로 아래에서 잘린 낱말들 — 점수가 높을수록 실제로 쳐질 법한 말이다
     pub absent_words: Vec<String>,
+    /// 원천별 기여 — 넘겨받은 순서 그대로다
+    pub contributions: Vec<Contribution>,
+}
+
+/// 원천 하나가 팩에 실제로 무엇을 보탰는가.
+///
+/// 새 말뭉치를 꽂았을 때 그것이 사전을 바꿨는지는 전체 표제어 수만 봐서는 알 수 없다 —
+/// 큰 코퍼스를 더해도 이미 있던 낱말만 다시 보고 있을 수 있다. 원천을 늘리는 일이 값을
+/// 하는지 판단하려면 이 표가 있어야 한다.
+#[derive(Debug)]
+pub struct Contribution {
+    /// 이 원천이 낸 낱말 가운데 팩 표제어가 된 것
+    pub in_lexicon: usize,
+    /// 이 원천이 처음 데려온 낱말 — 다른 어느 원천도 내지 않은 표제어
+    pub unique_to_source: usize,
+    /// 이 원천의 증거로 승격된 낱말
+    pub promoted: usize,
 }
 
 /// 반환값은 (표제어, 정규화 점수)를 점수 내림차순·사전순으로 정렬한 목록이다.
@@ -72,7 +104,11 @@ pub fn normalize(
     signals: &[SourceSignal<'_>],
     rules: &LexiconRules,
 ) -> (Vec<(String, u32)>, NormalizeReport) {
-    let has_inventory = signals.iter().any(|signal| signal.role == Role::Inventory);
+    // 인벤토리 역할 원천이 하나라도 보증한 낱말이 있으면 표제어 집합이 닫힌다 — 그 밖의
+    // 낱말은 활용형이거나 승격 문턱을 넘어야 들어온다.
+    let has_inventory = signals
+        .iter()
+        .any(|signal| signal.role == Role::Inventory && !signal.attested.is_empty());
     let mut stems = InflectionStems::default();
     for signal in signals {
         for stem in signal.stems {
@@ -86,10 +122,10 @@ pub fn normalize(
         if signal.role != Role::Inventory {
             continue;
         }
-        for (word, value) in signal.entries {
+        for (word, rank) in signal.attested {
             let entry = accumulated.entry(word).or_default();
             entry.in_inventory = true;
-            entry.rank += value * signal.weight;
+            entry.rank += rank * signal.weight;
         }
     }
     let inventory_size = accumulated.len();
@@ -97,10 +133,15 @@ pub fn normalize(
     let mut accepted_inflections = 0usize;
     let mut candidates: HashMap<&str, Candidate> = HashMap::new();
     for signal in signals {
+        // 사전은 낱말을 보증할 뿐 세지 않는다. 사전 원천도 `observed`를 낼 수는 있지만
+        // (구 표제어의 이웃 짝을 재려면 구성 어절의 수가 있어야 한다) 그것은 표제어가
+        // 사전에 한 번 실렸다는 사실이지 사람이 그만큼 쳤다는 뜻이 아니다. 낱말 점수에
+        // 더하면 사전 등재 한 번이 코퍼스 수백 회 출현을 눌러 버린다.
         if signal.role == Role::Inventory {
             continue;
         }
-        for (word, value) in signal.entries {
+        for (word, count) in signal.observed {
+            let value = *count as f64;
             if let Some(entry) = accumulated.get_mut(word.as_str()) {
                 entry.count += value * signal.weight;
                 continue;
@@ -119,7 +160,7 @@ pub fn normalize(
             if signal.role == Role::Discovery {
                 let candidate = candidates.entry(word).or_default();
                 candidate.count += value * signal.weight;
-                candidate.observations += *value as u64;
+                candidate.observations += *count;
                 candidate.sources += 1;
             }
         }
@@ -194,9 +235,11 @@ pub fn normalize(
     filtered.truncate(rules.max_words);
 
     let highest = filtered.first().map(|(_, score)| *score).unwrap_or(1.0);
+    let in_lexicon: HashSet<&str> = filtered.iter().map(|(word, _)| *word).collect();
+    let contributions = contributions(signals, &in_lexicon, &promoted_words);
     let words = filtered
-        .into_iter()
-        .map(|(word, score)| (word.to_string(), quantize(score, highest)))
+        .iter()
+        .map(|(word, score)| (word.to_string(), quantize(*score, highest)))
         .collect();
     (
         words,
@@ -208,6 +251,7 @@ pub fn normalize(
             accepted_inflections,
             promoted_words,
             rejected_candidates,
+            contributions,
             absent_words,
         },
     )
@@ -262,10 +306,12 @@ pub fn normalize_bigrams(
         if signal.bigrams.is_empty() {
             continue;
         }
+        // 이득은 같은 원천 안에서 재야 한다 — 낱말 빈도와 짝 빈도가 같은 코퍼스에서
+        // 나온 수여야 상호정보량이 뜻을 갖는다.
         let counts: HashMap<&str, f64> = signal
-            .entries
+            .observed
             .iter()
-            .map(|(word, count)| (word.as_str(), *count))
+            .map(|(word, count)| (word.as_str(), *count as f64))
             .collect();
         let total: f64 = signal
             .bigrams
@@ -342,62 +388,45 @@ pub fn normalize_bigrams(
     )
 }
 
-/// 활용 관계를 재는 단위. 한글은 자모로 풀고, 풀 수 없는 글자가 섞이면 표층 그대로 둔다.
-///
-/// 표층 음절로 재면 한국어 활용의 대부분을 놓친다 — 어미는 어간의 마지막 음절 **안으로**
-/// 들어가 그 음절을 바꾸기 때문이다("하"→"했", "오"→"왔", "주"→"줘"). 자모로 풀면 이
-/// 변화가 어미 자모의 덧붙음으로 드러나(ㅈㅜ → ㅈㅜㅓ) 접두 관계가 그대로 성립한다.
-fn inflection_key(word: &str) -> Vec<char> {
-    decompose_word(word).unwrap_or_else(|| word.chars().collect())
-}
-
-/// 어간 말모음이 어미와 축약돼 아예 다른 모음으로 나타나는 짝. 두벌식에서 두 키인
-/// 축약(ㅗ+ㅏ→ㅘ, ㅜ+ㅓ→ㅝ)은 자모로 풀면 덧붙음으로 보여 이미 접두로 잡히므로,
-/// 한 키짜리 모음으로 바뀌어 접두 관계가 끊기는 것만 적는다.
-const VOWEL_CONTRACTIONS: [(char, &[char]); 3] = [
-    ('ㅏ', &['ㅐ']),       // 하 + 여 → 해
-    ('ㅣ', &['ㅕ']),       // 마시 + 어 → 마셔
-    ('ㅡ', &['ㅓ', 'ㅏ']), // 쓰 + 어 → 써, 바쁘 + 아 → 바빠
-];
-
-/// 활용형을 알아보는 어간 색인. 축약형을 따로 두는 이유는 어절이 될 조건이 다르기
-/// 때문이다 — 표층 어간은 어미가 붙어야 어절이 되지만("하"는 어절이 아니다),
-/// 축약형은 이미 어미가 녹아든 형태라 그 자체로 어절이다("해", "미안해", "써").
-#[derive(Default)]
-struct InflectionStems {
-    bare: HashSet<Vec<char>>,
-    contracted: HashSet<Vec<char>>,
-}
-
-impl InflectionStems {
-    fn insert(&mut self, stem: &str) {
-        let key = inflection_key(stem);
-        let Some(&last) = key.last() else {
-            return;
-        };
-        for (vowel, contractions) in VOWEL_CONTRACTIONS {
-            if vowel != last {
-                continue;
-            }
-            for &replacement in contractions {
-                let mut variant = key.clone();
-                variant.pop();
-                variant.push(replacement);
-                self.contracted.insert(variant);
+/// 원천별로 팩에 무엇을 보탰는지 센다. "처음 데려온 낱말"은 그 원천이 없었다면 표제어가
+/// 못 되었을 것을 뜻하므로, 원천을 늘린 값어치가 여기 드러난다.
+fn contributions(
+    signals: &[SourceSignal<'_>],
+    in_lexicon: &HashSet<&str>,
+    promoted_words: &[String],
+) -> Vec<Contribution> {
+    let promoted: HashSet<&str> = promoted_words.iter().map(String::as_str).collect();
+    let mut providers: HashMap<&str, usize> = HashMap::new();
+    for signal in signals {
+        for word in signal.words() {
+            if in_lexicon.contains(word) {
+                *providers.entry(word).or_default() += 1;
             }
         }
-        self.bare.insert(key);
     }
-
-    /// 알려진 어간에서 뻗어 나온 낱말인가 — 활용형으로 볼 수 있는 최소 조건이다.
-    /// 한국어 용언 어간은 대개 한 음절(있·하·같)이라 길이로 더 조이면 정작 흔한
-    /// 활용형이 다 걸러진다. 어간 집합이 용언 파일에서만 오므로(고유명사는 애초에
-    /// 빠져 있다) 이 조건만으로도 잡음이 새는 길은 좁다.
-    fn grew(&self, word: &str) -> bool {
-        let key = inflection_key(word);
-        (1..key.len()).any(|length| self.bare.contains(&key[..length]))
-            || (1..=key.len()).any(|length| self.contracted.contains(&key[..length]))
-    }
+    signals
+        .iter()
+        .map(|signal| {
+            let mut contribution = Contribution {
+                in_lexicon: 0,
+                unique_to_source: 0,
+                promoted: 0,
+            };
+            for word in signal.words() {
+                if !in_lexicon.contains(word) {
+                    continue;
+                }
+                contribution.in_lexicon += 1;
+                if providers.get(word) == Some(&1) {
+                    contribution.unique_to_source += 1;
+                }
+                if promoted.contains(word) {
+                    contribution.promoted += 1;
+                }
+            }
+            contribution
+        })
+        .collect()
 }
 
 /// 실사용 횟수는 로그로 눌러 담는다 — 상위 몇 낱말이 점수 공간을 독점하지 않게.
@@ -445,32 +474,38 @@ mod tests {
         }
     }
 
+    /// 표제어를 보증하는 원천
+    fn inventory<'a>(attested: &'a [(String, f64)]) -> SourceSignal<'a> {
+        SourceSignal {
+            role: Role::Inventory,
+            weight: 1.0,
+            attested,
+            observed: &[],
+            bigrams: &[],
+            stems: &[],
+            affixes: &[],
+        }
+    }
+
+    /// 증거만 대는 코퍼스 원천
+    fn corpus<'a>(role: Role, observed: &'a [(String, u64)]) -> SourceSignal<'a> {
+        SourceSignal {
+            role,
+            weight: 1.0,
+            attested: &[],
+            observed,
+            bigrams: &[],
+            stems: &[],
+            affixes: &[],
+        }
+    }
+
     #[test]
     fn frequency_source_only_boosts_inventory_words() {
-        let inventory = vec![("the".to_string(), 0.9), ("theme".to_string(), 0.3)];
-        let corpus = vec![
-            ("theme".to_string(), 5000.0),
-            ("qwertyish".to_string(), 9.0),
-        ];
+        let attested = vec![("the".to_string(), 0.9), ("theme".to_string(), 0.3)];
+        let observed = vec![("theme".to_string(), 5000), ("qwertyish".to_string(), 9)];
         let (words, report) = normalize(
-            &[
-                SourceSignal {
-                    role: Role::Inventory,
-                    weight: 1.0,
-                    entries: &inventory,
-                    bigrams: &[],
-                    stems: &[],
-                    affixes: &[],
-                },
-                SourceSignal {
-                    role: Role::Frequency,
-                    weight: 1.0,
-                    entries: &corpus,
-                    bigrams: &[],
-                    stems: &[],
-                    affixes: &[],
-                },
-            ],
+            &[inventory(&attested), corpus(Role::Frequency, &observed)],
             &rules(10),
         );
         assert_eq!(report.inventory_size, 2);
@@ -489,10 +524,10 @@ mod tests {
     fn bigrams_keep_context_lift_not_raw_frequency() {
         // "fox"는 "quick"보다 드물게 이어졌지만 둘 다 문맥 이득이 있다. 담기는 값은
         // 이득이므로 순서가 관측 횟수가 아니라 이득을 따른다.
-        let counts = vec![
-            ("the".to_string(), 100.0),
-            ("quick".to_string(), 10.0),
-            ("fox".to_string(), 10.0),
+        let observed = vec![
+            ("the".to_string(), 100),
+            ("quick".to_string(), 10),
+            ("fox".to_string(), 10),
         ];
         let bigrams = vec![
             ("the".to_string(), "quick".to_string(), 8),
@@ -507,12 +542,8 @@ mod tests {
         ];
         let (result, report) = normalize_bigrams(
             &[SourceSignal {
-                role: Role::Frequency,
-                weight: 1.0,
-                entries: &counts,
                 bigrams: &bigrams,
-                stems: &[],
-                affixes: &[],
+                ..corpus(Role::Frequency, &observed)
             }],
             &lexicon,
             &LanguageModelRules {
@@ -539,17 +570,9 @@ mod tests {
     /// 사전에 없는 낱말은 discovery 원천이 문턱만큼 증거를 대야 표제어가 된다.
     #[test]
     fn admission_promotes_only_words_with_enough_evidence() {
-        let inventory = vec![("keyboard".to_string(), 0.9)];
-        let news = vec![("podcast".to_string(), 60.0), ("zzzq".to_string(), 90.0)];
-        let chat = vec![("podcast".to_string(), 50.0), ("meme".to_string(), 400.0)];
-        let signal = |role, entries| SourceSignal {
-            role,
-            weight: 1.0,
-            entries,
-            bigrams: &[],
-            stems: &[],
-            affixes: &[],
-        };
+        let attested = vec![("keyboard".to_string(), 0.9)];
+        let news = vec![("podcast".to_string(), 60), ("zzzq".to_string(), 90)];
+        let chat = vec![("podcast".to_string(), 50), ("meme".to_string(), 400)];
         let mut rules = rules(10);
         rules.admission = Some(AdmissionRules {
             minimum_count: 100,
@@ -558,9 +581,9 @@ mod tests {
         });
         let (words, report) = normalize(
             &[
-                signal(Role::Inventory, &inventory),
-                signal(Role::Discovery, &news),
-                signal(Role::Discovery, &chat),
+                inventory(&attested),
+                corpus(Role::Discovery, &news),
+                corpus(Role::Discovery, &chat),
             ],
             &rules,
         );
@@ -578,68 +601,61 @@ mod tests {
     /// 조사·어미는 홀로 쓰이는 어절이 아니다 — 코퍼스에 아무리 흔해도 표제어가 아니다.
     #[test]
     fn admission_rejects_bare_affixes() {
-        let inventory = vec![("타자".to_string(), 0.9)];
-        let corpus = vec![("는".to_string(), 90000.0), ("팟캐스트".to_string(), 500.0)];
+        let attested = vec![("타자".to_string(), 0.9)];
+        let observed = vec![("는".to_string(), 90000), ("팟캐스트".to_string(), 500)];
         let affixes = vec!["는".to_string(), "를".to_string()];
         let mut rules = rules(10);
         rules.minimum_word_length = 1;
+        rules.character_set = CharacterSet::HangulSyllables;
         rules.admission = Some(AdmissionRules {
             minimum_count: 100,
             minimum_sources: 1,
             maximum: 10,
         });
-        rules.character_set = CharacterSet::HangulSyllables;
         let (_, report) = normalize(
             &[
                 SourceSignal {
-                    role: Role::Inventory,
-                    weight: 1.0,
-                    entries: &inventory,
-                    bigrams: &[],
-                    stems: &[],
                     affixes: &affixes,
+                    ..inventory(&attested)
                 },
-                SourceSignal {
-                    role: Role::Discovery,
-                    weight: 1.0,
-                    entries: &corpus,
-                    bigrams: &[],
-                    stems: &[],
-                    affixes: &[],
-                },
+                corpus(Role::Discovery, &observed),
             ],
             &rules,
         );
         assert_eq!(report.promoted_words, vec!["팟캐스트".to_string()]);
     }
 
+    /// 사전이 낸 관측은 등재 사실이지 실사용 횟수가 아니다 — 낱말 점수에 더하면 사전에
+    /// 한 번 실린 것이 코퍼스 수백 회 출현을 눌러 버린다.
+    #[test]
+    fn inventory_observations_do_not_score_words() {
+        let attested = vec![("규격서".to_string(), 0.05), ("사람".to_string(), 0.05)];
+        // 사전이 표제어를 훑으며 낸 관측 — 낱말마다 한 번씩
+        let listing = vec![("규격서".to_string(), 1), ("사람".to_string(), 1)];
+        let observed = vec![("사람".to_string(), 900)];
+        let mut rules = rules(1);
+        rules.character_set = CharacterSet::HangulSyllables;
+        let (words, _) = normalize(
+            &[
+                SourceSignal {
+                    observed: &listing,
+                    ..inventory(&attested)
+                },
+                corpus(Role::Frequency, &observed),
+            ],
+            &rules,
+        );
+        // 예산이 하나뿐이면 코퍼스가 실제로 본 낱말이 남아야 한다
+        assert_eq!(words, vec![("사람".to_string(), MAX_FREQUENCY)]);
+    }
+
     /// 승격 규칙이 없으면 discovery 원천도 빈도만 보탠다 — 기존 팩의 동작이 그대로다.
     #[test]
     fn discovery_without_admission_only_boosts() {
-        let inventory = vec![("keyboard".to_string(), 0.9)];
-        let corpus = vec![
-            ("keyboard".to_string(), 500.0),
-            ("podcast".to_string(), 900.0),
-        ];
+        let attested = vec![("keyboard".to_string(), 0.9)];
+        let observed = vec![("keyboard".to_string(), 500), ("podcast".to_string(), 900)];
         let (words, report) = normalize(
-            &[
-                SourceSignal {
-                    role: Role::Inventory,
-                    weight: 1.0,
-                    entries: &inventory,
-                    bigrams: &[],
-                    stems: &[],
-                    affixes: &[],
-                },
-                SourceSignal {
-                    role: Role::Discovery,
-                    weight: 1.0,
-                    entries: &corpus,
-                    bigrams: &[],
-                    stems: &[],
-                    affixes: &[],
-                },
-            ],
+            &[inventory(&attested), corpus(Role::Discovery, &observed)],
             &rules(10),
         );
         assert!(report.promoted_words.is_empty());
@@ -649,23 +665,13 @@ mod tests {
 
     #[test]
     fn applies_filters_and_budget() {
-        let inventory = vec![
+        let attested = vec![
             ("a".to_string(), 1.0),
-            ("naïve".to_string(), 0.8),
+            ("na\u{ef}ve".to_string(), 0.8),
             ("keyboard".to_string(), 0.6),
             ("language".to_string(), 0.4),
         ];
-        let (words, report) = normalize(
-            &[SourceSignal {
-                role: Role::Inventory,
-                weight: 1.0,
-                entries: &inventory,
-                bigrams: &[],
-                stems: &[],
-                affixes: &[],
-            }],
-            &rules(1),
-        );
+        let (words, report) = normalize(&[inventory(&attested)], &rules(1));
         // 한 글자와 문자 집합을 벗어난 낱말이 걸러지고, 예산이 나머지를 자른다
         assert_eq!(report.dropped_by_filter, 2);
         assert_eq!(report.dropped_by_budget, 1);

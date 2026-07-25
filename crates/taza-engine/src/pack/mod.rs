@@ -12,6 +12,7 @@
 //! ```
 //! 모든 정수는 little-endian이며 offset은 파일 시작 기준.
 
+pub mod emoji;
 pub mod layout;
 pub mod lexicon;
 pub mod metadata;
@@ -30,6 +31,8 @@ pub enum SectionKind {
     NgramModel,
     Layout,
     Metadata,
+    /// 낱말 → 이모지 표. 후보 바에 이모지를 함께 내놓는 데 쓴다.
+    Emoji,
 }
 
 impl SectionKind {
@@ -39,6 +42,7 @@ impl SectionKind {
             SectionKind::NgramModel => 2,
             SectionKind::Layout => 3,
             SectionKind::Metadata => 4,
+            SectionKind::Emoji => 5,
         }
     }
 
@@ -48,6 +52,7 @@ impl SectionKind {
             2 => Some(SectionKind::NgramModel),
             3 => Some(SectionKind::Layout),
             4 => Some(SectionKind::Metadata),
+            5 => Some(SectionKind::Emoji),
             _ => None,
         }
     }

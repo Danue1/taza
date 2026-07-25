@@ -124,6 +124,13 @@ fn build(recipe_path: &Path, options: &Options) -> Result<CatalogEntry, String> 
             affixes: &signal.affixes,
         })
         .collect();
+    // 이모지는 원천이 표시 형태로 낸다 — 조회 키로 옮기는 것은 조립 단계의 몫이다
+    let mut emoji: Vec<(String, String)> = extracted
+        .iter()
+        .flat_map(|(_, signal)| signal.emoji.iter().cloned())
+        .collect();
+    emoji.sort_unstable();
+    emoji.dedup();
     // 원천이 밝힌 접사는 팩에 실려 코어가 학습 어휘의 결합형을 제안하는 데 쓰인다
     let mut affixes: Vec<String> = extracted
         .iter()
@@ -216,6 +223,7 @@ fn build(recipe_path: &Path, options: &Options) -> Result<CatalogEntry, String> 
         &used,
         &words,
         &bigrams,
+        &emoji,
         &affixes,
         layout_text.as_deref(),
     )?;
@@ -226,10 +234,12 @@ fn build(recipe_path: &Path, options: &Options) -> Result<CatalogEntry, String> 
     std::fs::write(&pack_path, &assembled.bytes)
         .map_err(|error| format!("{} 쓰기 실패: {error}", pack_path.display()))?;
     println!(
-        "  팩: 표제어 {} / lexicon {} KB / 언어모델 {} KB / 전체 {} KB → {}",
+        "  팩: 표제어 {} / lexicon {} KB / 언어모델 {} KB / 이모지 {}낱말 {} KB / 전체 {} KB → {}",
         assembled.word_count,
         assembled.lexicon_bytes / 1024,
         assembled.language_model_bytes / 1024,
+        assembled.emoji_key_count,
+        assembled.emoji_bytes / 1024,
         assembled.bytes.len() / 1024,
         pack_path.display()
     );

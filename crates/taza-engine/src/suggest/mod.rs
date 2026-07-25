@@ -33,6 +33,9 @@ pub struct SuggestionPolicy {
     /// 한글처럼 조합 자체가 표시 단위인 스크립트는 경계 교정 대신 후보 선택으로 고친다.
     pub autocorrect: bool,
     pub limit: usize,
+    /// 어절 하나에 곁들일 이모지 후보 수. 낱말 후보 뒤에 붙으므로 `limit`과 따로 둔다 —
+    /// 이모지가 낱말이 설 자리를 가져가서는 안 된다.
+    pub emoji_limit: usize,
 }
 
 /// 후보 하나. `key`는 학습·문맥 추적이 쓰는 조회 키이고 `text`는 화면에 나가는 형태다.
@@ -173,7 +176,30 @@ impl Suggester {
             }
             suggestions.push(suggestion);
         }
+        suggestions.extend(self.emoji_for(key, sources));
         suggestions
+    }
+
+    /// 지금 치고 있는 어절에 달린 이모지. 낱말 후보 뒤에 붙는다 — 순정 키보드가 그렇듯
+    /// 이모지는 낱말을 밀어내는 것이 아니라 곁들여지는 것이다. 치던 것이 그대로 확정될
+    /// 길을 이모지가 막으면 안 된다.
+    ///
+    /// 어절이 다 완성된 뒤에만 내놓는다(정확히 일치). 치는 도중의 접두마다 이모지가
+    /// 튀어나오면 후보 바가 어절이 끝나기 전에 흔들린다.
+    fn emoji_for(&self, key: &str, sources: &SuggestionSources<'_>) -> Vec<Suggestion> {
+        let Some(table) = sources.pack.and_then(|pack| pack.emoji()) else {
+            return Vec::new();
+        };
+        table
+            .lookup(key)
+            .into_iter()
+            .take(self.policy.emoji_limit)
+            .map(|glyph| Suggestion {
+                key: key.to_string(),
+                text: glyph.to_string(),
+                kind: CandidateKind::Conversion,
+            })
+            .collect()
     }
 
     /// 단어 확정 직후의 다음 단어 예측.

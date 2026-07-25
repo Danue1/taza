@@ -1,5 +1,6 @@
 //! 정규화된 점수표 + 레이아웃 + 원천 기록을 언어팩 바이너리로 조립한다.
 
+use crate::emoji::EmojiBuilder;
 use crate::lexicon::LexiconBuilder;
 use crate::metadata::MetadataBuilder;
 use crate::ngram::NgramModelBuilder;
@@ -15,6 +16,8 @@ pub struct AssembledPack {
     pub lexicon_bytes: usize,
     pub bigram_count: usize,
     pub language_model_bytes: usize,
+    pub emoji_key_count: usize,
+    pub emoji_bytes: usize,
 }
 
 /// 표제어를 팩의 저장 인코딩으로 옮긴다. 한글 자모 인코딩에서 분해할 수 없는 표제어는
@@ -28,6 +31,7 @@ pub fn assemble(
     sources: &[&Source],
     words: &[(String, u32)],
     bigrams: &[(String, String, u32)],
+    emoji: &[(String, String)],
     affixes: &[String],
     layout_text: Option<&str>,
 ) -> Result<AssembledPack, String> {
@@ -60,6 +64,23 @@ pub fn assemble(
     let language_model_section = (bigram_count > 0).then(|| language_model.build());
     let language_model_bytes = language_model_section.as_ref().map_or(0, Vec::len);
 
+    // 이모지 키도 lexicon과 같은 조회 키 공간에 있어야 지금 치고 있는 어절로 물어볼 수 있다.
+    // 표제어가 아닌 낱말에 달린 이모지는 내놓을 길이 없으므로 담지 않는다.
+    let in_lexicon: std::collections::HashSet<&str> =
+        words.iter().map(|(word, _)| word.as_str()).collect();
+    let mut emoji_table = EmojiBuilder::new();
+    for (word, glyph) in emoji {
+        if !in_lexicon.contains(word.as_str()) {
+            continue;
+        }
+        if let Some(encoded) = encode(word, recipe.lexicon.encoding) {
+            emoji_table.insert(&encoded, glyph);
+        }
+    }
+    let emoji_key_count = emoji_table.key_count();
+    let emoji_section = (emoji_key_count > 0).then(|| emoji_table.build());
+    let emoji_bytes = emoji_section.as_ref().map_or(0, Vec::len);
+
     let mut metadata = MetadataBuilder::new();
     metadata.set(keys::PACK_VERSION, recipe.pack_version.to_string());
     metadata.set(keys::RECIPE, &recipe.name);
@@ -89,6 +110,9 @@ pub fn assemble(
     if let Some(section) = language_model_section {
         writer.add_section(SectionKind::NgramModel, section);
     }
+    if let Some(section) = emoji_section {
+        writer.add_section(SectionKind::Emoji, section);
+    }
     if let Some(layout_text) = layout_text {
         writer.add_section(
             SectionKind::Layout,
@@ -102,6 +126,8 @@ pub fn assemble(
         lexicon_bytes,
         bigram_count,
         language_model_bytes,
+        emoji_key_count,
+        emoji_bytes,
     })
 }
 

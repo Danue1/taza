@@ -325,6 +325,8 @@ pub enum Extraction {
         #[serde(default = "default_minimum_count")]
         minimum_count: u64,
     },
+    /// CLDR 이모지 주석 — 이모지마다 그것을 부르는 낱말이 달려 있다.
+    CldrAnnotations,
     /// 우리말샘 사전 XML. 110만 표제어 가운데 방언·북한어·옛말이 상당수라 그대로 받으면
     /// 표준 어휘를 예산에서 밀어낸다 — 사전이 스스로 구분해 둔 갈래로 고른다.
     Urimalsam {

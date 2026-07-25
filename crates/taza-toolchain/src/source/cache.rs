@@ -14,7 +14,7 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
 /// 캐시 파일 형식의 판. 형식을 바꾸면 올린다 — 낡은 파일은 읽히지 않고 버려진다.
-const FORMAT: u8 = 1;
+const FORMAT: u8 = 2;
 const MAGIC: &[u8; 6] = b"TZSIG\0";
 
 /// 캐시 압축 수준. 캐시는 오래 두는 것이 아니라 다음 실행까지만 사는 것이므로,
@@ -84,6 +84,11 @@ fn encode(signal: &Signal) -> Vec<u8> {
         write_text(&mut bytes, right);
         bytes.extend_from_slice(&count.to_le_bytes());
     }
+    write_length(&mut bytes, signal.emoji.len());
+    for (key, emoji) in &signal.emoji {
+        write_text(&mut bytes, key);
+        write_text(&mut bytes, emoji);
+    }
     for list in [&signal.stems, &signal.affixes] {
         write_length(&mut bytes, list.len());
         for text in list {
@@ -117,6 +122,10 @@ fn decode(bytes: &[u8]) -> Option<Signal> {
         signal
             .bigrams
             .push((left, right, u64::from_le_bytes(cursor.eight()?)));
+    }
+    for _ in 0..cursor.length()? {
+        let key = cursor.text()?;
+        signal.emoji.push((key, cursor.text()?));
     }
     for _ in 0..cursor.length()? {
         signal.stems.push(cursor.text()?);
@@ -172,6 +181,7 @@ mod tests {
             attested: vec![("규제".to_string(), 0.4)],
             observed: vec![("당국".to_string(), 7)],
             bigrams: vec![("규제".to_string(), "당국".to_string(), 3)],
+            emoji: vec![("웃음".to_string(), "😀".to_string())],
             stems: vec!["하".to_string()],
             affixes: vec!["는".to_string()],
         };
@@ -179,6 +189,7 @@ mod tests {
         assert_eq!(decoded.attested, signal.attested);
         assert_eq!(decoded.observed, signal.observed);
         assert_eq!(decoded.bigrams, signal.bigrams);
+        assert_eq!(decoded.emoji, signal.emoji);
         assert_eq!(decoded.stems, signal.stems);
         assert_eq!(decoded.affixes, signal.affixes);
     }

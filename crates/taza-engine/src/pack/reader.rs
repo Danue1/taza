@@ -1,3 +1,4 @@
+use crate::pack::emoji::EmojiTable;
 use crate::pack::layout::KeyboardLayoutSet;
 use crate::pack::lexicon::Lexicon;
 use crate::pack::metadata::Metadata;
@@ -124,6 +125,11 @@ impl<'bytes> Pack<'bytes> {
     /// 여기서 태그로 디스패치한다 (소비자는 이 메서드만 보므로 교체가 팩 배포로 끝난다).
     pub fn language_model(&self) -> Option<NgramModel<'bytes>> {
         self.section(SectionKind::NgramModel).map(NgramModel::new)
+    }
+
+    /// 낱말 → 이모지 표. 이모지를 싣지 않은 팩에는 없다.
+    pub fn emoji(&self) -> Option<EmojiTable<'bytes>> {
+        self.section(SectionKind::Emoji).map(EmojiTable::new)
     }
 
     pub fn layout(&self) -> Option<KeyboardLayoutSet> {

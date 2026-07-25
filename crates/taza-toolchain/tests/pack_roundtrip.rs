@@ -144,3 +144,63 @@ fn rejects_invalid_input() {
         PackError::Truncated
     );
 }
+
+/// 이모지는 낱말 후보 뒤에 곁들여진다 — 낱말이 설 자리를 가져가지 않는다.
+#[test]
+fn emoji_accompany_word_suggestions() {
+    use taza_engine::contract::CandidateKind;
+    use taza_engine::suggest::{KeyEncoding, Suggester, SuggestionPolicy, SuggestionSources};
+    use taza_toolchain::emoji::EmojiBuilder;
+
+    let encoding = KeyEncoding::HangulJamoDubeolsik;
+    // 조회 키는 낱말에서 뽑는다 — 손으로 적으면 자모 순서를 틀리기 쉽다
+    let key = |word: &str| encoding.encode(word).unwrap();
+
+    let mut lexicon = LexiconBuilder::new();
+    lexicon.insert(&key("웃음"), 60000);
+    lexicon.insert(&key("웃음소리"), 30000);
+    let mut emoji = EmojiBuilder::new();
+    emoji.insert(&key("웃음"), "😀");
+
+    let mut writer = PackWriter::new("ko");
+    writer.add_section(SectionKind::Lexicon, lexicon.build());
+    writer.add_section(SectionKind::Emoji, emoji.build());
+    let bytes = writer.finish();
+    let pack = Pack::open(&bytes).unwrap();
+
+    let suggester = Suggester::new(SuggestionPolicy {
+        encoding,
+        autocorrect: false,
+        limit: 3,
+        emoji_limit: 1,
+    });
+    let sources = SuggestionSources {
+        pack: Some(&pack),
+        personalization: None,
+        previous_word: None,
+        touches: &[],
+    };
+
+    let suggestions = suggester.suggest(&key("웃음"), &sources);
+    let emoji_candidates: Vec<&str> = suggestions
+        .iter()
+        .filter(|suggestion| suggestion.kind == CandidateKind::Conversion)
+        .map(|suggestion| suggestion.text.as_str())
+        .collect();
+    assert_eq!(emoji_candidates, vec!["😀"]);
+    // 낱말이 먼저다 — 이모지는 뒤에 붙는다
+    assert_ne!(suggestions[0].kind, CandidateKind::Conversion);
+    assert!(
+        suggestions
+            .iter()
+            .any(|suggestion| suggestion.text == "웃음")
+    );
+
+    // 어절이 완성되기 전에는 이모지가 튀어나오지 않는다
+    let partial = suggester.suggest(&key("웃"), &sources);
+    assert!(
+        partial
+            .iter()
+            .all(|suggestion| suggestion.kind != CandidateKind::Conversion)
+    );
+}

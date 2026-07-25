@@ -1,0 +1,19 @@
+# CLDR 이모지 주석 — 이모지마다 그것을 부르는 낱말이 달려 있다("😀": 미소·스마일·웃음).
+# 낱말을 치면 그 낱말에 달린 이모지가 후보 바에 곁들여진다.
+#
+# 어절 하나로 치는 낱말만 받는다. "활짝 웃는 얼굴" 같은 대표 이름은 후보 바가 상대하는
+# 단위가 아니다 — 사람은 어절을 치고, 그 어절에 이모지가 달려 있어야 한다.
+#
+# 이 원천은 표제어를 늘리지 않는다. 사전에 이미 있는 낱말에만 이모지를 달며, 그래서
+# role이 없어도 될 법하지만 원천 표의 모양을 맞추려 inventory로 둔다(보증하는 낱말은 없다).
+
+[[sources]]
+name = "CLDR 이모지 주석 (ko)"
+version = "48.2"
+license = "Unicode-3.0"
+attribution = "Emoji annotations from Unicode CLDR 48.2 (https://cldr.unicode.org), Copyright © 1991-2025 Unicode, Inc., licensed under the Unicode License v3."
+url = "https://raw.githubusercontent.com/unicode-org/cldr/release-48-2/common/annotations/ko.xml"
+sha256 = "1d7007de84c0431f892b3f8c87b24835c8f8474a1711a2406592aaf24f5db72d"
+role = "inventory"
+weight = 1.0
+format = "cldr-annotations"

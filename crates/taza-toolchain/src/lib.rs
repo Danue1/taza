@@ -11,6 +11,7 @@
 
 pub mod assemble;
 pub mod distribute;
+pub mod emoji;
 pub mod lang;
 pub mod layout;
 pub mod lexicon;

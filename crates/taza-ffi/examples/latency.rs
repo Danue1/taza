@@ -3,9 +3,10 @@
 //! 실행: cargo run --release -p taza-ffi --example latency [팩경로]
 //! 팩 경로를 주면 그 팩(실데이터)으로, 없으면 내장 소형 팩으로 측정한다.
 
+use taza_engine::pack::SectionKind;
 use taza_ffi::{FfiEditorContext, FfiFieldKind, FfiInputEvent, FfiLanguage, KeyboardSession};
-use taza_pack::lexicon::LexiconBuilder;
-use taza_pack::{PackWriter, SectionKind};
+use taza_toolchain::PackWriter;
+use taza_toolchain::lexicon::LexiconBuilder;
 
 fn main() {
     let path = match std::env::args().nth(1) {
@@ -29,7 +30,7 @@ fn main() {
         }
     };
 
-    let session = KeyboardSession::new(FfiLanguage::English);
+    let session = KeyboardSession::new(FfiLanguage::English).unwrap();
     session
         .load_pack(path.to_string_lossy().to_string())
         .unwrap();

@@ -1,0 +1,91 @@
+//! 정규화된 점수표 + 레이아웃 + 원천 기록을 언어팩 바이너리로 조립한다.
+
+use crate::lexicon::LexiconBuilder;
+use crate::metadata::MetadataBuilder;
+use crate::recipe::{LexiconEncoding, Recipe};
+use crate::{PackWriter, layout};
+use taza_engine::pack::SectionKind;
+use taza_engine::pack::metadata::keys;
+
+pub struct AssembledPack {
+    pub bytes: Vec<u8>,
+    pub word_count: usize,
+    pub lexicon_bytes: usize,
+}
+
+/// 표제어를 팩의 저장 인코딩으로 옮긴다. 한글 자모 인코딩에서 분해할 수 없는 표제어는
+/// 원천 잡음이므로 버린다 — 몇 개가 빠졌는지는 호출자가 보고한다.
+fn encode(word: &str, encoding: LexiconEncoding) -> Option<String> {
+    match encoding {
+        LexiconEncoding::Utf8 => Some(word.to_string()),
+        LexiconEncoding::HangulJamoDubeolsik => {
+            use taza_engine::lang::jamo::{decompose_word, encode_jamo_ascii};
+            decompose_word(word).and_then(|jamo| encode_jamo_ascii(&jamo))
+        }
+    }
+}
+
+pub fn assemble(
+    recipe: &Recipe,
+    words: &[(String, u32)],
+    layout_text: Option<&str>,
+) -> Result<AssembledPack, String> {
+    let mut lexicon = LexiconBuilder::new();
+    for (word, score) in words {
+        if let Some(encoded) = encode(word, recipe.lexicon.encoding) {
+            lexicon.insert(&encoded, *score);
+        }
+    }
+    let word_count = lexicon.word_count();
+    if word_count == 0 {
+        return Err("표제어가 하나도 남지 않았음".to_string());
+    }
+    let lexicon_section = lexicon.build();
+    let lexicon_bytes = lexicon_section.len();
+
+    let mut metadata = MetadataBuilder::new();
+    metadata.set(keys::PACK_VERSION, recipe.pack_version.to_string());
+    metadata.set(keys::RECIPE, &recipe.name);
+    metadata.set(keys::WORD_COUNT, word_count.to_string());
+    metadata.set(keys::LEXICON_ENCODING, recipe.lexicon.encoding.tag());
+    metadata.set(
+        keys::WORD_SEPARATED,
+        recipe.script.word_separated.to_string(),
+    );
+    metadata.set(keys::RIGHT_TO_LEFT, recipe.script.right_to_left.to_string());
+    metadata.set(keys::SOURCES, source_lines(recipe));
+    metadata.set(keys::ATTRIBUTION, attribution(recipe));
+
+    let mut writer = PackWriter::new(&recipe.language);
+    writer.add_section(SectionKind::Lexicon, lexicon_section);
+    if let Some(layout_text) = layout_text {
+        writer.add_section(
+            SectionKind::Layout,
+            layout::serialize(&layout::parse(layout_text)?),
+        );
+    }
+    writer.add_section(SectionKind::Metadata, metadata.build());
+    Ok(AssembledPack {
+        bytes: writer.finish(),
+        word_count,
+        lexicon_bytes,
+    })
+}
+
+pub fn source_lines(recipe: &Recipe) -> String {
+    recipe
+        .sources
+        .iter()
+        .map(|source| format!("{} {} ({})", source.name, source.version, source.license))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+pub fn attribution(recipe: &Recipe) -> String {
+    recipe
+        .sources
+        .iter()
+        .map(|source| source.attribution.clone())
+        .collect::<Vec<_>>()
+        .join("\n")
+}

@@ -11,9 +11,19 @@ crate-type = ["lib", "staticlib", "cdylib"]
 name = "uniffi-bindgen"
 path = "src/bindgen.rs"
 
+[features]
+default = ["lang-latin", "lang-hangul"]
+lang-latin = ["taza-engine/lang-latin"]
+lang-hangul = ["taza-engine/lang-hangul"]
+
 [dependencies]
-taza-core = { path = "../taza-core" }
-taza-pack = { path = "../taza-pack" }
+taza-engine.workspace = true
 uniffi = { version = "0.29", features = ["cli"] }
 memmap2 = "0.9"
 thiserror = "2"
+ruzstd = "0.8.3"
+sha2 = "0.11.0"
+
+[dev-dependencies]
+sha2 = "0.11.0"
+taza-toolchain.workspace = true

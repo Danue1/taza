@@ -3,7 +3,7 @@
 
 use crate::EvaluationCase;
 use std::collections::BTreeMap;
-use taza_core::keyboard::{KeyAction, Keyboard, KeyboardLayoutSet};
+use taza_engine::keyboard::{KeyAction, KeyboardLayoutSet, row_bounds};
 
 /// 결정론 보장용 xorshift64 — 시드가 같으면 평가 셋이 같다.
 struct Random(u64);
@@ -27,21 +27,18 @@ impl Random {
     }
 }
 
-// 오타 인접성은 문자 레이어(0) 기준 — 프레임도 초기 상태(레이어 0)에서 얻는다
+// 오타 인접성은 문자 레이어(0) 기준 — 키 기하만 필요하므로 세션 없이 계산한다
 fn adjacency(layout_set: &KeyboardLayoutSet) -> BTreeMap<char, Vec<char>> {
-    let keyboard = Keyboard::new(layout_set.clone());
-    let frame = keyboard.frame();
     let letters_layer = &layout_set.layers[0];
     let mut centers: Vec<(char, f32, f32)> = Vec::new();
-    for row in &frame.rows {
-        for key in row {
-            if let KeyAction::Character { base, .. } =
-                letters_layer.rows[key.position.row].keys[key.position.index].action
-            {
+    for row_index in 0..letters_layer.rows.len() {
+        let bounds = row_bounds(letters_layer, row_index);
+        for (key_index, key) in letters_layer.rows[row_index].keys.iter().enumerate() {
+            if let KeyAction::Character { base, .. } = key.action {
                 centers.push((
                     base,
-                    key.bounds.x + key.bounds.width / 2.0,
-                    key.bounds.y + key.bounds.height / 2.0,
+                    bounds[key_index].x + bounds[key_index].width / 2.0,
+                    bounds[key_index].y + bounds[key_index].height / 2.0,
                 ));
             }
         }

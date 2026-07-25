@@ -1,15 +1,15 @@
 //! CI 회귀 게이트 — 랭킹·사전·교정 로직 변경은 이 임계값을 통과해야 병합한다.
 
-use taza_core::composer::hangul::{HangulComposer, decompose_word, encode_jamo_ascii};
-use taza_core::composer::latin::LatinComposer;
-use taza_core::composer::Composer;
-use taza_core::keyboard::layouts;
+use taza_engine::contract::Composer;
+use taza_engine::keyboard::layouts;
+use taza_engine::lang::hangul::HangulComposer;
+use taza_engine::lang::jamo::{decompose_word, encode_jamo_ascii};
+use taza_engine::lang::latin::LatinComposer;
+use taza_engine::pack::{Pack, SectionKind};
 use taza_evaluation::synthesis::{TypoSynthesizer, synthesize_cases};
-use taza_evaluation::{
-    CompletionTask, EvaluationCase, evaluate_completions, evaluate_corrections,
-};
-use taza_pack::lexicon::LexiconBuilder;
-use taza_pack::{Pack, PackWriter, SectionKind};
+use taza_evaluation::{CompletionTask, EvaluationCase, evaluate_completions, evaluate_corrections};
+use taza_toolchain::PackWriter;
+use taza_toolchain::lexicon::LexiconBuilder;
 
 fn latin_factory() -> Box<dyn Composer> {
     Box::new(LatinComposer::new())
@@ -55,7 +55,11 @@ fn synthesis_is_deterministic_and_produces_typos() {
     let first = synthesize_cases(&layout, &words, 42, 3);
     let second = synthesize_cases(&layout, &words, 42, 3);
     assert_eq!(first, second);
-    assert!(first.len() >= words.len() * 2, "합성 수율이 너무 낮음: {}", first.len());
+    assert!(
+        first.len() >= words.len() * 2,
+        "합성 수율이 너무 낮음: {}",
+        first.len()
+    );
     for case in &first {
         assert_ne!(case.typed, case.intended);
     }
@@ -83,19 +87,14 @@ fn correction_quality_gate() {
     let report = evaluate_corrections(&pack, &cases, &latin_factory);
 
     // 기준선 실측 (seed 42): top1 0.900, top3 0.983, MRR 0.936, autocorrect 0.917
-    assert!(report.case_count >= 40, "평가 셋이 너무 작음: {}", report.case_count);
     assert!(
-        report.top3_accuracy >= 0.95,
-        "top-3 회귀: {report:?}"
+        report.case_count >= 40,
+        "평가 셋이 너무 작음: {}",
+        report.case_count
     );
-    assert!(
-        report.top1_accuracy >= 0.85,
-        "top-1 회귀: {report:?}"
-    );
-    assert!(
-        report.mean_reciprocal_rank >= 0.90,
-        "MRR 회귀: {report:?}"
-    );
+    assert!(report.top3_accuracy >= 0.95, "top-3 회귀: {report:?}");
+    assert!(report.top1_accuracy >= 0.85, "top-1 회귀: {report:?}");
+    assert!(report.mean_reciprocal_rank >= 0.90, "MRR 회귀: {report:?}");
     assert!(
         report.autocorrect_accuracy >= 0.85,
         "자동교정 회귀: {report:?}"
@@ -168,10 +167,23 @@ fn korean_correction_quality_gate() {
 
     // 기준선 실측 (seed 42): top1 1.0, top3 1.0, MRR 1.0 (소규모 사전 기준.
     // 한국어는 자동교정 없음 — autocorrect_accuracy는 검증하지 않는다)
-    assert!(report.case_count >= 30, "평가 셋이 너무 작음: {}", report.case_count);
-    assert!(report.top3_accuracy >= 0.95, "한국어 top-3 회귀: {report:?}");
-    assert!(report.top1_accuracy >= 0.90, "한국어 top-1 회귀: {report:?}");
-    assert!(report.mean_reciprocal_rank >= 0.95, "한국어 MRR 회귀: {report:?}");
+    assert!(
+        report.case_count >= 30,
+        "평가 셋이 너무 작음: {}",
+        report.case_count
+    );
+    assert!(
+        report.top3_accuracy >= 0.95,
+        "한국어 top-3 회귀: {report:?}"
+    );
+    assert!(
+        report.top1_accuracy >= 0.90,
+        "한국어 top-1 회귀: {report:?}"
+    );
+    assert!(
+        report.mean_reciprocal_rank >= 0.95,
+        "한국어 MRR 회귀: {report:?}"
+    );
 }
 
 #[test]

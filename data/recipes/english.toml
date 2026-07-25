@@ -1,0 +1,49 @@
+# 영어 언어팩 — 앱에 내장되는 기본 언어라 크기 예산을 먼저 본다.
+#
+# 어휘 인벤토리는 SCOWL(관대한 커스텀 라이선스), 실사용 빈도는 Tatoeba(CC-BY 2.0 FR).
+# 둘 다 저작자 표시만 요구하므로 share-alike가 파생 팩에 옮겨붙지 않는다.
+# 대문자 목록(upper·proper-names)은 넣지 않는다 — 조회가 대소문자를 구분하므로 v1
+# 라틴 경로에서는 소문자 표제어만 쓸모가 있다.
+
+name = "english"
+language = "en"
+pack_version = 1
+
+[lexicon]
+encoding = "utf8"
+character_set = "latin-lowercase"
+max_words = 80000
+minimum_word_length = 2
+
+[script]
+word_separated = true
+right_to_left = false
+
+[[sources]]
+name = "SCOWL"
+version = "2020.12.07"
+license = "SCOWL permissive (Kevin Atkinson)"
+attribution = "Word lists from SCOWL 2020.12.07, Copyright 2000-2018 Kevin Atkinson. Used and redistributed under the SCOWL license."
+url = "https://downloads.sourceforge.net/project/wordlist/SCOWL/2020.12.07/scowl-2020.12.07.tar.gz"
+sha256 = "5587667caa20c4891390c2d42dbb4d5c4c3f41bee77af1457ece3ba23fb859cc"
+role = "inventory"
+weight = 1.0
+format = "scowl"
+dialects = ["english", "american"]
+categories = ["words", "contractions"]
+# 70까지가 일상 어휘의 경계 — 80 이상은 희귀어·전문어가 급증해 오교정 위험만 늘린다.
+maximum_size = 70
+
+[[sources]]
+name = "Tatoeba sentences (eng)"
+version = "2026-07-25"
+license = "CC-BY 2.0 FR"
+attribution = "Word frequencies derived from the Tatoeba Project English sentence export (https://tatoeba.org), licensed CC-BY 2.0 FR."
+url = "https://downloads.tatoeba.org/exports/per_language/eng/eng_sentences.tsv.bz2"
+sha256 = "82247a6399d2bf0c384e834e799a6ed48ad5292ea723b86075d01dfad457d287"
+role = "frequency"
+# 인벤토리 등급(0~1)보다 크게 잡아 실사용 빈도가 랭킹을 주도하게 한다 — 등급은
+# 코퍼스에 안 나온 낱말의 순서를 정하는 바닥 역할이다.
+weight = 0.35
+format = "tatoeba"
+minimum_count = 2

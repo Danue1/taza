@@ -6,8 +6,8 @@
 
 pub mod synthesis;
 
-use taza_core::composer::{Composer, EditorContext, Pack};
-use taza_core::session::{Effect, InputEvent, Session};
+use taza_engine::contract::{Composer, EditorContext, Pack};
+use taza_engine::session::{Effect, InputEvent, Session};
 
 /// 언어별 Composer를 세션마다 새로 만드는 팩토리 — 평가는 항상 빈 상태에서 시작한다.
 pub type ComposerFactory<'call> = &'call dyn Fn() -> Box<dyn Composer>;
@@ -64,7 +64,7 @@ impl Typist {
         let context = EditorContext {
             text_before_cursor: Some(self.committed.clone()),
             incognito: false,
-            field: taza_core::composer::FieldKind::Text,
+            field: taza_engine::contract::FieldKind::Text,
         };
         for effect in self.session.handle(event, &context, Some(pack)) {
             match effect {
@@ -81,6 +81,7 @@ impl Typist {
                         .collect();
                 }
                 Effect::SetComposing(_) | Effect::ClearComposing => {}
+                Effect::MoveCursor(_) => panic!("평가 하네스는 커서를 옮기지 않는다"),
             }
         }
     }

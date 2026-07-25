@@ -1,11 +1,13 @@
 [package]
-name = "taza-evaluation"
+name = "taza-engine"
 version = "0.1.0"
 edition.workspace = true
 license.workspace = true
 
-[dependencies]
-taza-engine = { workspace = true, features = ["lang-latin", "lang-hangul"] }
+[features]
+default = ["lang-latin", "lang-hangul"]
+lang-latin = []
+lang-hangul = []
 
 [dev-dependencies]
 taza-toolchain.workspace = true

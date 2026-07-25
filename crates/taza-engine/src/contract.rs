@@ -3,7 +3,7 @@
 
 pub use crate::pack::Pack;
 
-use crate::personalization::PersonalizationStore;
+use crate::suggest::SuggestionPolicy;
 
 /// 입력 필드의 종류 — 플랫폼 inputmode/keyboardType/inputType을 셸이 매핑한다.
 /// Text 외 필드에서는 제안·자동교정·개인화 학습을 끈다 (순정 키보드 관습).
@@ -81,7 +81,8 @@ pub enum ComposerEvent {
     Key(char),
     Backspace,
     Separator(char),
-    CandidateSelected(usize),
+    /// 후보 목록은 Engine이 소유하므로 인덱스가 아니라 고른 표시 텍스트가 온다.
+    CandidateSelected(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -123,13 +124,36 @@ pub struct Candidate {
     pub kind: CandidateKind,
 }
 
+/// 합성기가 후보 바에 요청하는 것. 랭킹은 언어와 직교한 `suggest`가 하므로 합성기는
+/// "무엇을 기준으로 찾을지"만 말한다.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum SuggestionRequest {
+    #[default]
+    None,
+    /// 진행 중인 어휘의 완성·교정. key는 팩 인코딩에 맞춘 사전 조회 키다.
+    Word { key: String },
+}
+
+/// 어절이 끝났다는 신호. 자동교정 여부·학습·다음 단어 예측은 Engine이 판단하므로
+/// 합성기는 무엇이 끝났는지만 알린다.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WordBoundary {
+    /// 경계를 만든 문자 — Engine이 확정 텍스트 끝에 붙인다
+    pub separator: char,
+    /// 끝난 어휘의 사전 조회 키
+    pub key: String,
+    /// 그 어휘의 표시 형태. 자동교정을 쓰는 골격에서는 이만큼을 지우고 치환한다.
+    pub surface: String,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ComposerOutput {
     /// commit 적용 전에 삭제할 확정 텍스트의 그래핌 수 (제안 치환·확정 취소용)
     pub delete_before_commit: usize,
     pub commit: Option<CommittedText>,
     pub composing: Option<ComposingText>,
-    pub candidates: Vec<Candidate>,
+    pub boundary: Option<WordBoundary>,
+    pub suggest: SuggestionRequest,
 }
 
 /// 익스텐션 프로세스 kill 대비 직렬화 대상. 표현 형식(바이트 인코딩)은 FFI 계층에서 결정한다.
@@ -145,25 +169,18 @@ pub enum ComposerState {
     },
 }
 
-/// Composer가 판단에 쓰는 주변 상태 묶음. 새 의존이 생겨도 trait 시그니처는 불변.
-pub struct ComposerEnvironment<'call> {
-    /// composing이 없을 때 커서 앞 확정 텍스트를 채택(adopt)해 합성을 재개하는 통로
-    pub context: &'call EditorContext,
-    /// 활성 언어팩 — 미다운로드 언어에서는 None이며 합성 자체는 팩 없이도 동작해야 한다.
-    /// 필요한 섹션(lexicon, language_model)만 꺼내 쓴다 — LM 교체는 팩 배포로 끝난다.
-    pub pack: Option<&'call Pack<'call>>,
-    /// 온디바이스 개인화 — 기록 여부는 context.incognito를 반드시 확인한다
-    pub personalization: &'call mut PersonalizationStore,
-}
-
+/// 스크립트 조합만 맡는다 — 사전 조회·랭킹·자동교정·학습은 전부 바깥(suggest, engine)의 일이다.
+/// `context`는 composing이 없을 때 커서 앞 확정 텍스트를 채택(adopt)해 합성을 재개하는 통로다.
 pub trait Composer: Send {
-    fn feed(&mut self, event: ComposerEvent, environment: &mut ComposerEnvironment<'_>)
-    -> ComposerOutput;
+    fn feed(&mut self, event: ComposerEvent, context: &EditorContext) -> ComposerOutput;
 
     /// 커서 이동·포커스 이탈 시 진행 중 composing을 언어별 정책으로 강제 확정한다.
     fn finalize(&mut self) -> Option<CommittedText>;
 
     fn is_composing(&self) -> bool;
+
+    /// 이 골격에 맞는 랭킹 정책 — 조회 키 인코딩과 자동교정 사용 여부.
+    fn suggestion_policy(&self) -> SuggestionPolicy;
 
     fn snapshot(&self) -> ComposerState;
 

@@ -6,15 +6,16 @@
 use std::sync::Arc;
 
 use crate::contract::{
-    Candidate, Composer, ComposerEnvironment, ComposerEvent, ComposerOutput, EditorContext, Effect,
-    InputEvent, Pack,
+    Candidate, Composer, ComposerEvent, ComposerOutput, EditorContext, Effect, InputEvent, Pack,
+    SuggestionRequest,
 };
 use crate::keyboard::{
-    FrameMetrics, Keyboard, KeyboardFrame, KeyboardMetrics, FrameKey, ShellRequest,
+    FrameKey, FrameMetrics, Keyboard, KeyboardFrame, KeyboardMetrics, ShellRequest,
 };
 use crate::lang::Language;
 use crate::pack::PackError;
 use crate::personalization::{PersonalizationState, PersonalizationStore};
+use crate::suggest::{Suggester, Suggestion, SuggestionSources};
 
 /// 언어팩 바이트의 소유자. 온디바이스에서는 mmap, 테스트·평가에서는 `Vec<u8>`이며
 /// 둘 다 `AsRef<[u8]>`이므로 별도 구현이 필요 없다.
@@ -41,12 +42,17 @@ pub struct PressResult {
 pub struct Engine {
     language: Language,
     composer: Box<dyn Composer>,
+    suggester: Suggester,
     keyboard: Keyboard,
     personalization: PersonalizationStore,
     /// 팩 교체로 키보드를 다시 만들어도 셸이 주입한 표시 환경은 이어져야 한다
     metrics: KeyboardMetrics,
     pack: Option<Arc<dyn PackBytes>>,
-    showing_candidates: bool,
+    /// 후보 목록은 Engine이 소유한다 — 셸은 인덱스로 고르고, 학습·문맥 추적에 쓰는
+    /// 조회 키는 표시 텍스트와 함께 여기에만 남는다
+    suggestions: Vec<Suggestion>,
+    /// 직전에 확정된 어휘의 조회 키 — 언어모델 문맥
+    previous_word: Option<String>,
 }
 
 impl Engine {
@@ -60,12 +66,14 @@ impl Engine {
     pub fn with_composer(language: Language, composer: Box<dyn Composer>) -> Self {
         Engine {
             language,
+            suggester: Suggester::new(composer.suggestion_policy()),
             composer,
             keyboard: Keyboard::new(language.builtin_layout(), language),
             personalization: PersonalizationStore::new(),
             metrics: KeyboardMetrics::default(),
             pack: None,
-            showing_candidates: false,
+            suggestions: Vec::new(),
+            previous_word: None,
         }
     }
 
@@ -155,10 +163,9 @@ impl Engine {
                 if was_composing {
                     effects.push(Effect::ClearComposing);
                 }
-                if self.showing_candidates {
-                    self.showing_candidates = false;
-                    effects.push(Effect::UpdateCandidates(Vec::new()));
-                }
+                // 커서가 옮겨 갔으므로 직전 어휘는 더 이상 문맥이 아니다
+                self.previous_word = None;
+                self.replace_suggestions(Vec::new(), &mut effects);
                 effects
             }
             InputEvent::CursorDrag(steps) => {
@@ -170,13 +177,20 @@ impl Engine {
                 }
                 effects
             }
-            InputEvent::Key(character) => self.feed(ComposerEvent::Key(character), context),
-            InputEvent::Backspace => self.feed(ComposerEvent::Backspace, context),
+            InputEvent::Key(character) => self.feed(ComposerEvent::Key(character), context, None),
+            InputEvent::Backspace => self.feed(ComposerEvent::Backspace, context, None),
             InputEvent::Separator(character) => {
-                self.feed(ComposerEvent::Separator(character), context)
+                self.feed(ComposerEvent::Separator(character), context, None)
             }
             InputEvent::CandidateSelected(index) => {
-                self.feed(ComposerEvent::CandidateSelected(index), context)
+                let Some(selected) = self.suggestions.get(index).cloned() else {
+                    return Vec::new();
+                };
+                self.feed(
+                    ComposerEvent::CandidateSelected(selected.text.clone()),
+                    context,
+                    Some(selected),
+                )
             }
         }
     }
@@ -190,46 +204,111 @@ impl Engine {
         self.personalization = PersonalizationStore::restore(state);
     }
 
-    fn feed(&mut self, event: ComposerEvent, context: &EditorContext) -> Vec<Effect> {
-        // Arc를 지역으로 복제해 팩 바이트 대여와 합성기·개인화 가변 대여를 분리한다
+    /// 합성기를 돌린 뒤 랭킹·자동교정·학습을 얹어 Effect로 옮긴다.
+    /// `selected`는 후보 선택으로 어절이 끝난 경우의 그 후보다.
+    fn feed(
+        &mut self,
+        event: ComposerEvent,
+        context: &EditorContext,
+        selected: Option<Suggestion>,
+    ) -> Vec<Effect> {
+        // Arc를 지역으로 복제해 팩 바이트 대여와 엔진의 가변 대여를 분리한다
         let holder = self.pack.clone();
         let pack = holder
             .as_ref()
             .and_then(|holder| Pack::open(holder.bytes()).ok());
         let was_composing = self.composer.is_composing();
-        let mut environment = ComposerEnvironment {
-            context,
-            pack: pack.as_ref(),
-            personalization: &mut self.personalization,
-        };
-        let output = self.composer.feed(event, &mut environment);
-        self.translate(output, was_composing)
-    }
+        let output = self.composer.feed(event, context);
+        let assistance = context.field.assistance_enabled();
 
-    fn translate(&mut self, output: ComposerOutput, was_composing: bool) -> Vec<Effect> {
+        let ComposerOutput {
+            mut delete_before_commit,
+            commit,
+            composing,
+            boundary,
+            suggest,
+        } = output;
+        let mut commit_text = commit.map(|text| text.surface).unwrap_or_default();
+
+        // 어절이 끝났는가 — 경계 문자를 쳤거나 후보를 골랐거나
+        let confirmed = match boundary {
+            Some(boundary) => {
+                let correction = if assistance {
+                    self.suggester
+                        .autocorrection(&boundary.key, &self.sources(pack.as_ref()))
+                } else {
+                    None
+                };
+                let key = match correction {
+                    Some(correction) => {
+                        delete_before_commit += boundary.surface.chars().count();
+                        commit_text.push_str(&correction.text);
+                        correction.key
+                    }
+                    None => boundary.key,
+                };
+                commit_text.push(boundary.separator);
+                Some(key)
+            }
+            None => selected.map(|suggestion| suggestion.key),
+        };
+
+        let suggestions = match &confirmed {
+            Some(key) => {
+                if assistance && !context.incognito && !key.is_empty() {
+                    self.personalization.record(key);
+                }
+                self.previous_word = (!key.is_empty()).then(|| key.clone());
+                if assistance {
+                    self.suggester.predict_next(&self.sources(pack.as_ref()))
+                } else {
+                    Vec::new()
+                }
+            }
+            None => match &suggest {
+                SuggestionRequest::Word { key } if assistance => {
+                    self.suggester.suggest(key, &self.sources(pack.as_ref()))
+                }
+                _ => Vec::new(),
+            },
+        };
+
         let mut effects = Vec::new();
-        if output.delete_before_commit > 0 {
-            effects.push(Effect::DeleteBackward(output.delete_before_commit));
+        if delete_before_commit > 0 {
+            effects.push(Effect::DeleteBackward(delete_before_commit));
         }
-        if let Some(committed) = output.commit {
-            effects.push(Effect::CommitText(committed.surface));
+        if !commit_text.is_empty() {
+            effects.push(Effect::CommitText(commit_text));
         }
-        match output.composing {
+        match composing {
             Some(composing) => effects.push(Effect::SetComposing(composing)),
             None if was_composing => effects.push(Effect::ClearComposing),
             None => {}
         }
-        self.update_candidates(output.candidates, &mut effects);
+        self.replace_suggestions(suggestions, &mut effects);
         effects
     }
 
-    fn update_candidates(&mut self, candidates: Vec<Candidate>, effects: &mut Vec<Effect>) {
-        if !candidates.is_empty() {
-            self.showing_candidates = true;
-            effects.push(Effect::UpdateCandidates(candidates));
-        } else if self.showing_candidates {
-            self.showing_candidates = false;
-            effects.push(Effect::UpdateCandidates(Vec::new()));
+    fn sources<'call>(&'call self, pack: Option<&'call Pack<'call>>) -> SuggestionSources<'call> {
+        SuggestionSources {
+            pack,
+            personalization: &self.personalization,
+            previous_word: self.previous_word.as_deref(),
         }
+    }
+
+    fn replace_suggestions(&mut self, suggestions: Vec<Suggestion>, effects: &mut Vec<Effect>) {
+        if suggestions.is_empty() && self.suggestions.is_empty() {
+            return;
+        }
+        let candidates = suggestions
+            .iter()
+            .map(|suggestion| Candidate {
+                text: suggestion.text.clone(),
+                kind: suggestion.kind.clone(),
+            })
+            .collect();
+        self.suggestions = suggestions;
+        effects.push(Effect::UpdateCandidates(candidates));
     }
 }

@@ -1,6 +1,10 @@
 //! 온디바이스 개인화 스토어 — 언어팩(읽기 전용)과 분리된 쓰기 가능 상태.
 //! 시각 대신 논리 시계(기록 틱)를 쓰므로 플랫폼 무관·결정론적이며 스냅샷에 그대로 담긴다.
 //! 가중치 상수는 v1 휴리스틱 — 평가 게이트를 통과하는 범위에서 튜닝한다.
+//!
+//! 저장 단위는 표시 형태가 아니라 **사전 조회 키**다. 팩 lexicon과 같은 공간에 있어야
+//! 접두 검색이 성립하기 때문이다 (한글은 자모 ASCII — "안내"의 접두는 "안ㄴ"이 아니라
+//! 키 공간에서만 제대로 잡힌다).
 
 use std::collections::BTreeMap;
 
@@ -80,7 +84,7 @@ impl PersonalizationStore {
             .is_some_and(|entry| entry.count >= LEARNED_THRESHOLD)
     }
 
-    /// prefix로 시작하는 개인화 단어 — 사전에 없는 사용자 어휘(이름 등)의 제안 원천
+    /// prefix로 시작하는 개인화 표제어 — 사전에 없는 사용자 어휘(이름 등)의 제안 원천
     pub fn complete(&self, prefix: &str, limit: usize) -> Vec<(String, u32)> {
         let mut completions: Vec<(String, u32)> = self
             .entries

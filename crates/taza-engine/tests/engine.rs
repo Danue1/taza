@@ -1,10 +1,15 @@
+use std::sync::Arc;
 use taza_engine::contract::{
-    Candidate, CandidateKind, CommittedText, Composer, ComposerEnvironment, ComposerEvent,
-    ComposerOutput, ComposerState, EditorContext, Effect, InputEvent,
+    Candidate, CandidateKind, CommittedText, Composer, ComposerEvent, ComposerOutput,
+    ComposerState, EditorContext, Effect, InputEvent, SuggestionRequest,
 };
 use taza_engine::engine::Engine;
 use taza_engine::lang::Language;
 use taza_engine::lang::direct::DirectComposer;
+use taza_engine::pack::SectionKind;
+use taza_engine::suggest::{KeyEncoding, SuggestionPolicy};
+use taza_toolchain::PackWriter;
+use taza_toolchain::lexicon::LexiconBuilder;
 
 #[test]
 fn direct_composer_commits_every_key() {
@@ -25,27 +30,23 @@ fn direct_composer_commits_every_key() {
 }
 
 /// 자동교정 제안 치환("teh" → "the")처럼 확정 텍스트를 지우고 다시 쓰는 Composer의
-/// 출력이 Effect로 올바르게 번역되는지 검증하는 스텁
+/// 출력이 Effect로 올바르게 번역되는지 검증하는 스텁. 후보 목록은 Engine이 사전에서
+/// 만들므로 여기서는 조회 키만 낸다.
 struct ReplacingComposer;
 
 impl Composer for ReplacingComposer {
-    fn feed(
-        &mut self,
-        event: ComposerEvent,
-        _environment: &mut ComposerEnvironment<'_>,
-    ) -> ComposerOutput {
+    fn feed(&mut self, event: ComposerEvent, _context: &EditorContext) -> ComposerOutput {
         match event {
             ComposerEvent::Key(_) => ComposerOutput {
-                candidates: vec![Candidate {
-                    text: "the".to_string(),
-                    kind: CandidateKind::Correction,
-                }],
+                suggest: SuggestionRequest::Word {
+                    key: "teh".to_string(),
+                },
                 ..ComposerOutput::default()
             },
-            ComposerEvent::CandidateSelected(_) => ComposerOutput {
+            ComposerEvent::CandidateSelected(text) => ComposerOutput {
                 delete_before_commit: 3,
                 commit: Some(CommittedText {
-                    surface: "the".to_string(),
+                    surface: text,
                     reading: None,
                     corrected_from: Some("teh".to_string()),
                 }),
@@ -63,6 +64,14 @@ impl Composer for ReplacingComposer {
         false
     }
 
+    fn suggestion_policy(&self) -> SuggestionPolicy {
+        SuggestionPolicy {
+            encoding: KeyEncoding::Utf8,
+            autocorrect: false,
+            limit: 3,
+        }
+    }
+
     fn snapshot(&self) -> ComposerState {
         ComposerState::Direct
     }
@@ -72,7 +81,13 @@ impl Composer for ReplacingComposer {
 
 #[test]
 fn candidate_replacement_translates_to_delete_then_commit() {
+    let mut lexicon = LexiconBuilder::new();
+    lexicon.insert("the", 100);
+    let mut writer = PackWriter::new("en");
+    writer.add_section(SectionKind::Lexicon, lexicon.build());
+
     let mut engine = Engine::with_composer(Language::English, Box::new(ReplacingComposer));
+    engine.load_pack(Arc::new(writer.finish())).unwrap();
     let context = EditorContext::unavailable();
 
     let effects = engine.handle(InputEvent::Key('h'), &context);

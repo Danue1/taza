@@ -19,6 +19,7 @@ fn english_pack() -> Vec<u8> {
         ("help", 50),
         ("quick", 30),
         ("best", 20),
+        ("say", 10),
     ] {
         lexicon.insert(word, frequency);
     }
@@ -27,6 +28,8 @@ fn english_pack() -> Vec<u8> {
         ("the", "quick", 50),
         ("the", "best", 30),
         ("quick", "help", 10),
+        // hello(80) > help(50)를 뒤집을 만한 문맥 — 재랭킹 검증용
+        ("say", "help", 100),
     ] {
         ngram.insert_bigram(left, right, weight);
     }
@@ -159,6 +162,20 @@ fn candidate_selection_replaces_word_and_starts_new_sequence() {
 }
 
 #[test]
+fn previous_word_reranks_current_suggestions() {
+    let bytes = english_pack();
+    let mut harness = Harness::new(&bytes);
+    // 문맥이 없으면 사전 빈도대로 hello(80) > help(50)
+    harness.type_text("hel");
+    assert_eq!(harness.candidates[0], "hello");
+
+    // "say" 뒤에서는 언어모델이 help를 끌어올린다
+    let mut harness = Harness::new(&bytes);
+    harness.type_text("say hel");
+    assert_eq!(harness.candidates[0], "help");
+}
+
+#[test]
 fn backspace_shrinks_word_and_updates_suggestions() {
     let bytes = english_pack();
     let mut harness = Harness::new(&bytes);
@@ -244,25 +261,24 @@ fn works_without_lexicon() {
 
 #[test]
 fn suggestion_kinds_distinguish_completion_from_correction() {
-    use taza_engine::contract::{Composer, ComposerEnvironment, ComposerEvent};
+    use taza_engine::contract::Composer;
     use taza_engine::personalization::PersonalizationStore;
+    use taza_engine::suggest::{Suggester, SuggestionSources};
     let bytes = english_pack();
     let pack = Pack::open(&bytes).unwrap();
-    let mut composer = LatinComposer::new();
-    let context = EditorContext::unavailable();
-    let mut personalization = PersonalizationStore::new();
-    let mut environment = ComposerEnvironment {
-        context: &context,
-        pack: Some(&pack),
-        personalization: &mut personalization,
-    };
-    composer.feed(ComposerEvent::Key('t'), &mut environment);
-    composer.feed(ComposerEvent::Key('e'), &mut environment);
-    let output = composer.feed(ComposerEvent::Key('h'), &mut environment);
-    let correction = output
-        .candidates
+    let suggester = Suggester::new(LatinComposer::new().suggestion_policy());
+    let personalization = PersonalizationStore::new();
+    let suggestions = suggester.suggest(
+        "teh",
+        &SuggestionSources {
+            pack: Some(&pack),
+            personalization: &personalization,
+            previous_word: None,
+        },
+    );
+    let correction = suggestions
         .iter()
-        .find(|candidate| candidate.text == "the")
+        .find(|suggestion| suggestion.text == "the")
         .unwrap();
     assert_eq!(correction.kind, CandidateKind::Correction);
 }

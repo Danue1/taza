@@ -135,6 +135,18 @@ fn personalization_boosts_frequent_word() {
     assert_eq!(harness.candidates[0], "안내");
 }
 
+/// 사전에 없는 사용자 어휘가 한국어에서도 접두 완성으로 제안된다. 개인화 스토어가
+/// 표시 형태가 아니라 자모 키 공간에 담기므로 성립한다 — "안다"의 접두는 "안ㄷ"이지
+/// "안"이 아니기 때문에, 표시 공간에서는 접두 검색 자체가 어긋난다.
+#[test]
+fn personalized_word_absent_from_lexicon_is_completed() {
+    let bytes = korean_pack();
+    let mut harness = Harness::new(&bytes);
+    harness.type_jamo("ㅇㅏㄴㄷㅏ ㅇㅏㄴㄷㅏ ");
+    harness.type_jamo("ㅇㅏㄴ");
+    assert_eq!(harness.candidates[0], "안다");
+}
+
 #[test]
 fn works_without_pack() {
     let mut engine = Engine::new(Language::Korean).unwrap();

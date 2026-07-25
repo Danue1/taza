@@ -9,3 +9,4 @@ pub mod lang;
 pub mod pack;
 pub mod personalization;
 mod policy;
+pub mod suggest;

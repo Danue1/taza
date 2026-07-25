@@ -1,11 +1,12 @@
-use super::jamo::{
-    compose_word, decode_jamo_ascii, decompose, encode_jamo_ascii, is_jamo, recompose, render_all,
-};
+use super::jamo::{compose_word, encode_jamo_ascii, is_jamo, recompose, render_all};
 use crate::contract::{
-    Candidate, CandidateKind, CommittedText, Composer, ComposerEnvironment, ComposerEvent,
-    ComposerOutput, ComposerState, ComposingText, EditorContext,
+    CommittedText, Composer, ComposerEvent, ComposerOutput, ComposerState, ComposingText,
+    EditorContext, SuggestionRequest, WordBoundary,
 };
 use crate::policy::double_space_period;
+use crate::suggest::{KeyEncoding, SuggestionPolicy};
+
+use super::jamo::decompose;
 
 const SUGGESTION_LIMIT: usize = 3;
 
@@ -17,7 +18,6 @@ pub struct HangulComposer {
     composing_jamo: Vec<char>,
     /// 현재 어절 전체의 자모 — composing 창(2음절)보다 길 수 있으며 제안의 기준이다
     word_jamo: Vec<char>,
-    candidates: Vec<Candidate>,
 }
 
 impl HangulComposer {
@@ -55,53 +55,10 @@ impl HangulComposer {
         1
     }
 
-    fn suggest(&mut self, environment: &ComposerEnvironment<'_>) {
-        self.candidates.clear();
-        if self.word_jamo.is_empty() || !environment.context.field.assistance_enabled() {
-            return;
-        }
-        let Some(lexicon) = environment.pack.and_then(|pack| pack.lexicon()) else {
-            return;
-        };
-        let Some(encoded) = encode_jamo_ascii(&self.word_jamo) else {
-            return;
-        };
-        let personalization = &*environment.personalization;
-        let mut ranked: Vec<(u32, u32, String)> = Vec::new();
-        let mut push = |distance: u32, frequency: u32, encoded_word: &str| {
-            let Some(jamo) = decode_jamo_ascii(encoded_word) else {
-                return;
-            };
-            let display = compose_word(&jamo);
-            let weight = frequency + personalization.weight(&display);
-            ranked.push((distance, weight, display));
-        };
-        for completion in lexicon.complete(&encoded, SUGGESTION_LIMIT + 1) {
-            push(0, completion.frequency, &completion.word);
-        }
-        for correction in lexicon.corrections(&encoded, 1, SUGGESTION_LIMIT + 1) {
-            push(correction.distance, correction.frequency, &correction.word);
-        }
-        ranked.sort_by(|a, b| {
-            a.0.cmp(&b.0)
-                .then_with(|| b.1.cmp(&a.1))
-                .then_with(|| a.2.cmp(&b.2))
-        });
-        for (_, _, display) in ranked {
-            if self.candidates.len() >= SUGGESTION_LIMIT {
-                break;
-            }
-            if self
-                .candidates
-                .iter()
-                .any(|candidate| candidate.text == display)
-            {
-                continue;
-            }
-            self.candidates.push(Candidate {
-                text: display,
-                kind: CandidateKind::Prediction,
-            });
+    fn suggest(&self) -> SuggestionRequest {
+        match encode_jamo_ascii(&self.word_jamo) {
+            Some(key) if !key.is_empty() => SuggestionRequest::Word { key },
+            _ => SuggestionRequest::None,
         }
     }
 
@@ -117,7 +74,7 @@ impl HangulComposer {
         ComposerOutput {
             commit,
             composing,
-            candidates: self.candidates.clone(),
+            suggest: self.suggest(),
             ..ComposerOutput::default()
         }
     }
@@ -139,49 +96,39 @@ impl HangulComposer {
         self.composing_output(commit)
     }
 
-    fn record_word(&self, environment: &mut ComposerEnvironment<'_>) {
-        if environment.context.incognito || !environment.context.field.assistance_enabled() {
-            return;
-        }
-        let display = compose_word(&self.word_jamo);
-        if !display.is_empty() {
-            environment.personalization.record(&display);
-        }
-    }
-
-    fn clear_word(&mut self) {
-        self.word_jamo.clear();
-        self.candidates.clear();
-    }
-
-    fn commit_all(&mut self, trailing: Option<char>) -> Option<CommittedText> {
-        let mut text = render_all(&recompose(&self.composing_jamo));
+    fn commit_all(&mut self) -> Option<CommittedText> {
+        let text = render_all(&recompose(&self.composing_jamo));
         self.composing_jamo.clear();
-        if let Some(character) = trailing {
-            text.push(character);
-        }
         (!text.is_empty()).then(|| CommittedText::plain(text))
+    }
+
+    fn end_word(&mut self, separator: char) -> ComposerOutput {
+        let boundary = WordBoundary {
+            separator,
+            key: encode_jamo_ascii(&self.word_jamo).unwrap_or_default(),
+            surface: compose_word(&self.word_jamo),
+        };
+        self.word_jamo.clear();
+        ComposerOutput {
+            commit: self.commit_all(),
+            boundary: Some(boundary),
+            ..ComposerOutput::default()
+        }
     }
 }
 
 impl Composer for HangulComposer {
-    fn feed(
-        &mut self,
-        event: ComposerEvent,
-        environment: &mut ComposerEnvironment<'_>,
-    ) -> ComposerOutput {
+    fn feed(&mut self, event: ComposerEvent, context: &EditorContext) -> ComposerOutput {
         match event {
             ComposerEvent::Key(character) if is_jamo(character) => {
-                let adopted = self.try_adopt(environment.context);
+                let adopted = self.try_adopt(context);
                 let mut output = self.push_jamo(character);
-                self.suggest(environment);
-                output.candidates = self.candidates.clone();
                 output.delete_before_commit = adopted;
                 output
             }
             ComposerEvent::Separator(' ') if self.composing_jamo.is_empty() => {
-                self.clear_word();
-                match double_space_period(environment.context) {
+                self.word_jamo.clear();
+                match double_space_period(context) {
                     Some(output) => output,
                     None => ComposerOutput {
                         commit: Some(CommittedText::plain(" ".to_string())),
@@ -190,17 +137,12 @@ impl Composer for HangulComposer {
                 }
             }
             ComposerEvent::Key(character) | ComposerEvent::Separator(character) => {
-                self.record_word(environment);
-                self.clear_word();
-                ComposerOutput {
-                    commit: self.commit_all(Some(character)),
-                    ..ComposerOutput::default()
-                }
+                self.end_word(character)
             }
             ComposerEvent::Backspace => {
-                let adopted = self.try_adopt(environment.context);
+                let adopted = self.try_adopt(context);
                 if adopted == 0 && self.composing_jamo.is_empty() {
-                    self.clear_word();
+                    self.word_jamo.clear();
                     return ComposerOutput {
                         delete_before_commit: 1,
                         ..ComposerOutput::default()
@@ -208,27 +150,22 @@ impl Composer for HangulComposer {
                 }
                 self.composing_jamo.pop();
                 self.word_jamo.pop();
-                self.suggest(environment);
                 let mut output = self.composing_output(None);
                 output.delete_before_commit = adopted;
                 output
             }
-            ComposerEvent::CandidateSelected(index) => {
-                let Some(candidate) = self.candidates.get(index).cloned() else {
-                    return ComposerOutput::default();
-                };
+            ComposerEvent::CandidateSelected(text) => {
                 // 어절 중 composing 창 밖으로 이미 확정된 앞부분을 지우고, commit이
                 // composing 구간을 치환한다. 선택 뒤 타이핑은 새 입력 시퀀스.
                 let word_length = compose_word(&self.word_jamo).chars().count();
-                let composing_length = render_all(&recompose(&self.composing_jamo)).chars().count();
-                if !environment.context.incognito {
-                    environment.personalization.record(&candidate.text);
-                }
+                let composing_length = render_all(&recompose(&self.composing_jamo))
+                    .chars()
+                    .count();
                 self.composing_jamo.clear();
-                self.clear_word();
+                self.word_jamo.clear();
                 ComposerOutput {
                     delete_before_commit: word_length - composing_length,
-                    commit: Some(CommittedText::plain(format!("{} ", candidate.text))),
+                    commit: Some(CommittedText::plain(format!("{text} "))),
                     ..ComposerOutput::default()
                 }
             }
@@ -236,12 +173,21 @@ impl Composer for HangulComposer {
     }
 
     fn finalize(&mut self) -> Option<CommittedText> {
-        self.clear_word();
-        self.commit_all(None)
+        self.word_jamo.clear();
+        self.commit_all()
     }
 
     fn is_composing(&self) -> bool {
         !self.composing_jamo.is_empty()
+    }
+
+    fn suggestion_policy(&self) -> SuggestionPolicy {
+        SuggestionPolicy {
+            encoding: KeyEncoding::HangulJamoDubeolsik,
+            // 조합 자체가 표시 단위라 경계 교정 대신 후보 선택으로 고친다 (순정 관습)
+            autocorrect: false,
+            limit: SUGGESTION_LIMIT,
+        }
     }
 
     fn snapshot(&self) -> ComposerState {

@@ -20,7 +20,7 @@ mod reader;
 
 pub use reader::{Pack, PackError};
 
-pub const FORMAT_VERSION: u16 = 3;
+pub const FORMAT_VERSION: u16 = 4;
 
 pub const MAGIC: &[u8; 4] = b"TAZA";
 

@@ -186,6 +186,7 @@ fn main() -> ExitCode {
 mod tests {
     use super::compile;
     use taza_engine::pack::Pack;
+    use taza_engine::suggest::Dictionary;
 
     #[test]
     fn compiles_tsv_into_pack() {
@@ -279,7 +280,19 @@ mod tests {
         let lexicon = pack.lexicon().unwrap();
         // 안녕 = ㅇㅏㄴㄴㅕㅇ = dkssud
         assert_eq!(lexicon.frequency("dkssud"), Some(90));
-        assert_eq!(lexicon.complete("dkss", 10).len(), 2);
+        assert_eq!(
+            lexicon
+                .search(
+                    &taza_engine::suggest::Query {
+                        key: "dkss",
+                        max_distance: 0,
+                        extending: true,
+                    },
+                    10
+                )
+                .len(),
+            2
+        );
         assert!(compile("ko", "hello\t10\n", None, None, true).is_err());
     }
 

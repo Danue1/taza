@@ -5,6 +5,7 @@
 pub mod dictionary;
 pub mod encoding;
 mod score;
+mod search;
 
 pub use dictionary::{Dictionary, Entry, Query};
 pub use encoding::KeyEncoding;
@@ -12,16 +13,15 @@ pub use encoding::KeyEncoding;
 use crate::contract::{CandidateKind, Pack};
 use crate::personalization::PersonalizationStore;
 
-/// 자동교정을 시도하는 최소 단어 길이 — 짧은 단어는 오교정 위험이 이득보다 크다.
-const AUTOCORRECT_MINIMUM_LENGTH: usize = 2;
-
-/// 한 번의 조회에서 허용하는 편집 거리.
-const MAX_DISTANCE: u32 = 1;
-
 /// 언어모델에서 끌어와 재랭킹할 후보 수. 팩의 문맥 그룹은 이득 순으로 정렬돼 있는데
 /// 최종 순위는 거기에 낱말 빈도를 더한 값이라, 그룹 앞에서 limit개만 꺼내면 결합력만
 /// 강한 희귀어가 자리를 다 차지한다.
 const LANGUAGE_MODEL_POOL: usize = 32;
+
+/// 사전에서 표시할 개수의 몇 배를 끌어올지. 사전 탐색은 빈도와 편집거리만 보고 자르는데
+/// 최종 순위에는 개인화와 문맥이 더해지므로, 표시할 만큼만 끌어오면 재랭킹이 뒤집을
+/// 재료가 없다.
+const DICTIONARY_POOL_FACTOR: usize = 4;
 
 /// 언어별로 달라지는 랭킹 정책. 합성기가 자기 골격에 맞는 값을 선언한다.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -72,7 +72,8 @@ impl Suggester {
         let lexicon = sources.pack.and_then(|pack| pack.lexicon());
         let query = Query {
             key,
-            max_distance: MAX_DISTANCE,
+            max_distance: search::edit_budget(key.chars().count()),
+            extending: true,
         };
         let mut ranked: Vec<(i64, Suggestion)> = Vec::new();
 
@@ -91,7 +92,7 @@ impl Suggester {
         }
 
         if let Some(lexicon) = &lexicon {
-            for entry in lexicon.search(&query, self.policy.limit + 1) {
+            for entry in lexicon.search(&query, self.policy.limit * DICTIONARY_POOL_FACTOR) {
                 let score = score::combine(
                     entry.frequency,
                     sources.personalization.weight(&entry.key),
@@ -201,20 +202,20 @@ impl Suggester {
 
     /// 단어 경계에서 원문을 대신할 교정. 없으면 원문을 그대로 둔다.
     pub fn autocorrection(&self, key: &str, sources: &SuggestionSources<'_>) -> Option<Suggestion> {
-        if !self.policy.autocorrect
-            || key.chars().count() < AUTOCORRECT_MINIMUM_LENGTH
-            // 학습된 어휘(사용자 사전)는 사전에 없어도 교정하지 않는다
-            || sources.personalization.is_learned(key)
-        {
+        // 학습된 어휘(사용자 사전)는 사전에 없어도 교정하지 않는다.
+        // 짧은 입력의 오교정은 편집 예산(edit_budget)이 0을 주는 것으로 막힌다.
+        if !self.policy.autocorrect || sources.personalization.is_learned(key) {
             return None;
         }
         let lexicon = sources.pack.and_then(|pack| pack.lexicon())?;
         if lexicon.contains(key) {
             return None;
         }
+        // 이미 끝난 어절이므로 뒤에 글자가 남는 표제어는 교정이 아니다
         let query = Query {
             key,
-            max_distance: MAX_DISTANCE,
+            max_distance: search::edit_budget(key.chars().count()),
+            extending: false,
         };
         let best = lexicon
             .search(&query, 1)

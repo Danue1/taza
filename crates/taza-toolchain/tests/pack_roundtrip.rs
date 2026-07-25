@@ -1,7 +1,16 @@
-use taza_engine::pack::lexicon::Completion;
+use taza_engine::suggest::{Dictionary, Entry, Query};
 use taza_engine::pack::{Pack, PackError, SectionKind};
 use taza_toolchain::PackWriter;
 use taza_toolchain::lexicon::LexiconBuilder;
+
+/// 진행 중인 낱말의 완성 조회 — 뒤에 남는 글자에 비용을 물리지 않는다.
+fn completion_query(key: &str) -> Query<'_> {
+    Query {
+        key,
+        max_distance: 0,
+        extending: true,
+    }
+}
 
 fn build_pack(language: &str, words: &[(&str, u32)]) -> Vec<u8> {
     let mut lexicon = LexiconBuilder::new();
@@ -40,23 +49,26 @@ fn prefix_completion_orders_by_frequency() {
     let pack = Pack::open(&bytes).unwrap();
     let lexicon = pack.lexicon().unwrap();
     assert_eq!(
-        lexicon.complete("the", 3),
+        lexicon.search(&completion_query("the"), 3),
         vec![
-            Completion {
-                word: "the".to_string(),
-                frequency: 100
+            Entry {
+                key: "the".to_string(),
+                frequency: 100,
+                distance: 0
             },
-            Completion {
-                word: "then".to_string(),
-                frequency: 70
+            Entry {
+                key: "then".to_string(),
+                frequency: 70,
+                distance: 0
             },
-            Completion {
-                word: "they".to_string(),
-                frequency: 70
+            Entry {
+                key: "they".to_string(),
+                frequency: 70,
+                distance: 0
             },
         ]
     );
-    assert!(lexicon.complete("z", 3).is_empty());
+    assert!(lexicon.search(&completion_query("z"), 3).is_empty());
 }
 
 #[test]
@@ -65,11 +77,11 @@ fn multibyte_words_roundtrip() {
     let pack = Pack::open(&bytes).unwrap();
     let lexicon = pack.lexicon().unwrap();
     assert_eq!(lexicon.frequency("안녕"), Some(90));
-    let completions = lexicon.complete("안", 10);
+    let completions = lexicon.search(&completion_query("안"), 10);
     assert_eq!(
         completions
             .iter()
-            .map(|c| c.word.as_str())
+            .map(|entry| entry.key.as_str())
             .collect::<Vec<_>>(),
         vec!["안녕", "안녕하세요", "안내"]
     );

@@ -14,7 +14,8 @@ struct BuildNode {
 }
 
 /// 하위 그래프의 동일성 판정 키 — 빈도와 (엣지, 확정된 자식 offset) 목록이 같으면
-/// 두 하위 그래프는 구분되지 않으므로 한 노드를 공유한다.
+/// 두 하위 그래프는 구분되지 않으므로 한 노드를 공유한다. 하위 트리 최고 빈도는
+/// 이 둘에서 결정되므로 판정 키에 넣지 않아도 공유가 어긋나지 않는다.
 type NodeSignature = (u16, Vec<(u8, u32)>);
 
 impl LexiconBuilder {
@@ -50,34 +51,38 @@ impl LexiconBuilder {
     /// 굴절이 많은 언어에서 섹션이 크게 줄어든다. 리더는 노드를 offset으로만 다루므로
     /// 공유는 조회 경로에 영향을 주지 않는다.
     pub fn build(self) -> Vec<u8> {
+        /// 반환값은 (노드 offset, 하위 트리 최고 빈도).
         fn serialize(
             node: &BuildNode,
             buffer: &mut Vec<u8>,
-            shared: &mut HashMap<NodeSignature, u32>,
-        ) -> u32 {
-            let children: Vec<(u8, u32)> = node
-                .children
-                .iter()
-                .map(|(byte, child)| (*byte, serialize(child, buffer, shared)))
-                .collect();
+            shared: &mut HashMap<NodeSignature, (u32, u16)>,
+        ) -> (u32, u16) {
+            let mut maximum = node.frequency;
+            let mut children: Vec<(u8, u32)> = Vec::with_capacity(node.children.len());
+            for (byte, child) in &node.children {
+                let (offset, child_maximum) = serialize(child, buffer, shared);
+                maximum = maximum.max(child_maximum);
+                children.push((*byte, offset));
+            }
             let signature: NodeSignature = (node.frequency, children);
-            if let Some(&offset) = shared.get(&signature) {
-                return offset;
+            if let Some(&(offset, maximum)) = shared.get(&signature) {
+                return (offset, maximum);
             }
             let offset = buffer.len() as u32;
             buffer.extend_from_slice(&node.frequency.to_le_bytes());
+            buffer.extend_from_slice(&maximum.to_le_bytes());
             buffer.extend_from_slice(&(signature.1.len() as u16).to_le_bytes());
             for &(byte, child_offset) in &signature.1 {
                 buffer.push(byte);
                 buffer.extend_from_slice(&child_offset.to_le_bytes());
             }
-            shared.insert(signature, offset);
-            offset
+            shared.insert(signature, (offset, maximum));
+            (offset, maximum)
         }
 
         let mut buffer = vec![0u8; 4];
         let mut shared = HashMap::new();
-        let root_offset = serialize(&self.root, &mut buffer, &mut shared);
+        let (root_offset, _) = serialize(&self.root, &mut buffer, &mut shared);
         buffer[0..4].copy_from_slice(&root_offset.to_le_bytes());
         buffer
     }

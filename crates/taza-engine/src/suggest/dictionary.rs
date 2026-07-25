@@ -5,8 +5,12 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Query<'key> {
     pub key: &'key str,
-    /// 0이면 접두 완성만, 그보다 크면 그 거리 안의 교정까지 찾는다
+    /// 허용 편집 거리. 0이면 완성만 찾는다.
     pub max_distance: u32,
+    /// 아직 입력이 끝나지 않았다고 보고 표제어 뒤에 남는 글자를 비용 없이 허용할지.
+    /// 진행 중인 낱말의 완성에는 참("th"는 "theme"의 거리 0), 이미 끝난 어절의 교정에는
+    /// 거짓이다 — 끝난 어절을 더 긴 낱말로 바꾸는 것은 교정이 아니다.
+    pub extending: bool,
 }
 
 /// 사전 한 곳에서 나온 표제어. 전부 조회 키 공간의 값이다.
@@ -29,28 +33,7 @@ pub trait Dictionary {
 
 impl Dictionary for crate::pack::lexicon::Lexicon<'_> {
     fn search(&self, query: &Query<'_>, limit: usize) -> Vec<Entry> {
-        let mut entries: Vec<Entry> = self
-            .complete(query.key, limit)
-            .into_iter()
-            .map(|completion| Entry {
-                key: completion.word,
-                frequency: completion.frequency,
-                distance: 0,
-            })
-            .collect();
-        if query.max_distance > 0 {
-            entries.extend(
-                self.corrections(query.key, query.max_distance, limit)
-                    .into_iter()
-                    .filter(|correction| correction.distance > 0)
-                    .map(|correction| Entry {
-                        key: correction.word,
-                        frequency: correction.frequency,
-                        distance: correction.distance,
-                    }),
-            );
-        }
-        entries
+        crate::suggest::search::search(self, query, limit)
     }
 
     fn contains(&self, key: &str) -> bool {
@@ -62,6 +45,9 @@ impl Dictionary for crate::pack::lexicon::Lexicon<'_> {
 /// 접두 완성만 내고, 점수는 사용 가중치를 그대로 쓴다.
 impl Dictionary for crate::personalization::PersonalizationStore {
     fn search(&self, query: &Query<'_>, limit: usize) -> Vec<Entry> {
+        if !query.extending {
+            return Vec::new();
+        }
         self.complete(query.key, limit)
             .into_iter()
             .map(|(key, weight)| Entry {

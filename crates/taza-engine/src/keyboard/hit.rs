@@ -111,9 +111,12 @@ pub(crate) fn key_signal_at(layout: &KeyboardLayout, x: f32, y: f32, pressed: ch
     for (row_index, row) in layout.rows.iter().enumerate() {
         let bounds = row_bounds(layout, row_index);
         for (key_index, key) in row.keys.iter().enumerate() {
-            let KeyAction::Character { base, .. } = key.action else {
+            let Some(base) = neighbor_character(&key.action) else {
                 continue;
             };
+            if !confusable(pressed, base) {
+                continue;
+            }
             let weight = gaussian_weight(&bounds[key_index], heights[row_index], x, y);
             if weight > 0.0 {
                 scored.push((weight, base));
@@ -153,6 +156,24 @@ pub(crate) fn key_signal_at(layout: &KeyboardLayout, x: f32, y: f32, pressed: ch
         return KeySignal::certain(pressed);
     }
     KeySignal { keys }
+}
+
+/// 이 키를 잘못 눌렀을 때 실제로 들어갔을 글자. 멀티탭 키는 처음 누르면 주기의 첫
+/// 글자가 나오므로 그것이 이웃으로서의 값이다 — 빼놓으면 문자면이 통째로 멀티탭인
+/// 배열에서 이웃 정보가 하나도 남지 않는다.
+fn neighbor_character(action: &KeyAction) -> Option<char> {
+    match action {
+        KeyAction::Character { base, .. } => Some(*base),
+        KeyAction::Multitap(cycle) => cycle.first().copied(),
+        _ => None,
+    }
+}
+
+/// 두 키를 헷갈릴 만한가. 이웃 후보는 **조회 키가 될 수 있는 같은 갈래**여야 뜻이 있다 —
+/// 사전에 숫자로 된 표제어가 없으므로, 글자를 노리다 숫자 행을 스친 것을 후보에 남기면
+/// 그 자리와 확률 몫이 통째로 버려지고 진짜 이웃 글자의 몫만 깎인다.
+fn confusable(pressed: char, candidate: char) -> bool {
+    pressed.is_alphabetic() == candidate.is_alphabetic()
 }
 
 /// 키 중심에서의 거리를 키 크기로 정규화한 가우시안. 키가 넓으면 그만큼 너그러워진다.

@@ -93,6 +93,8 @@ impl Harness {
                         .collect();
                 }
                 Effect::MoveCursor(_) => panic!("이 하네스는 커서를 옮기지 않는다"),
+                // 라틴 배열에는 멀티탭 키가 없다
+                Effect::SetTimer(_) => {}
                 Effect::SetComposing(_) | Effect::ClearComposing => {
                     panic!("라틴 골격은 composing을 쓰지 않는다")
                 }
@@ -120,6 +122,87 @@ fn typing_commits_immediately_and_suggests() {
     assert_eq!(harness.committed, "th");
     // 원문("th")은 첫 자리를 지키고 랭킹 후보가 그 뒤에 온다
     assert_eq!(harness.shown, vec!["th", "the", "they", "then"]);
+}
+
+/// 자동 대문자화가 문장 첫 자리마다 shift를 올리므로, 대문자를 접지 않으면 문장을
+/// 여는 낱말마다 예측이 끊기고 대문자 하나가 오타로 계산돼 엉뚱한 낱말이 올라온다.
+#[test]
+fn sentence_initial_capital_still_predicts_and_keeps_its_case() {
+    let bytes = english_pack();
+    let mut harness = Harness::new(&bytes);
+    harness.type_text("Th");
+    assert_eq!(harness.shown, vec!["Th", "The", "They", "Then"]);
+}
+
+/// 전부 대문자로 치면 후보도 전부 대문자다 — 되씌우는 꼴이 친 꼴을 따른다.
+#[test]
+fn all_caps_input_yields_all_caps_candidates() {
+    let bytes = english_pack();
+    let mut harness = Harness::new(&bytes);
+    harness.type_text("TH");
+    assert_eq!(harness.shown, vec!["TH", "THE", "THEY", "THEN"]);
+}
+
+/// 사전에 있는 낱말은 문장 첫 자리에서도 교정 대상이 아니다.
+#[test]
+fn capitalized_known_word_is_not_autocorrected() {
+    let bytes = english_pack();
+    let mut harness = Harness::new(&bytes);
+    harness.type_text("The ");
+    assert_eq!(harness.committed, "The ");
+}
+
+/// 교정은 대문자 꼴을 지킨 채 일어난다 — 문장 첫 낱말의 오타를 고치면서 소문자로
+/// 되돌려 버리면 자동 대문자화가 방금 한 일이 없던 것이 된다.
+#[test]
+fn autocorrection_keeps_the_typed_capitalization() {
+    let bytes = english_pack();
+    let mut harness = Harness::new(&bytes);
+    harness.type_text("Teh ");
+    assert_eq!(harness.committed, "The ");
+}
+
+/// 짝맞춤 부호는 기본으로 켜져 있고 아포스트로피를 U+2019로 바꾼다. 그 글자가 어절을
+/// 끊으면 영어 축약형이 통째로 사전에 닿지 못한다 — 사전은 축약형을 싣고 있는데도.
+#[test]
+fn smart_apostrophe_keeps_the_word_together() {
+    let mut lexicon = LexiconBuilder::new();
+    lexicon.insert("don't", 40000);
+    lexicon.insert("does", 30000);
+    let mut writer = PackWriter::new("en");
+    writer.add_section(SectionKind::Lexicon, lexicon.build());
+    let bytes = writer.finish();
+
+    let mut harness = Harness::new(&bytes);
+    harness.type_text("don't");
+    // 화면에는 짝맞춤 아포스트로피가 들어가고
+    assert_eq!(harness.committed, "don\u{2019}t");
+    // 후보는 그 꼴 그대로 나온다 — 고른 것과 친 것이 화면에서 달라 보이면 안 된다
+    assert_eq!(harness.shown, vec!["don\u{2019}t"]);
+
+    // 어절이 이어지므로 완성도 받는다
+    let mut harness = Harness::new(&bytes);
+    harness.type_text("don'");
+    assert_eq!(harness.shown, vec!["don\u{2019}", "don\u{2019}t"]);
+}
+
+/// 곧은 따옴표를 쓰는 앱(코드 입력란 등)에서는 접을 것이 없으므로 그대로 조회한다.
+#[test]
+fn straight_apostrophe_still_reaches_the_same_entry() {
+    let mut lexicon = LexiconBuilder::new();
+    lexicon.insert("don't", 40000);
+    let mut writer = PackWriter::new("en");
+    writer.add_section(SectionKind::Lexicon, lexicon.build());
+    let bytes = writer.finish();
+
+    let mut harness = Harness::new(&bytes);
+    harness.engine.set_preferences(UserPreferences {
+        smart_punctuation: false,
+        ..UserPreferences::default()
+    });
+    harness.type_text("don'");
+    assert_eq!(harness.committed, "don'");
+    assert_eq!(harness.shown, vec!["don'", "don't"]);
 }
 
 #[test]

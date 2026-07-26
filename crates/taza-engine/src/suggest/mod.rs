@@ -4,6 +4,7 @@
 
 pub mod dictionary;
 pub mod encoding;
+mod lookup;
 mod score;
 mod search;
 
@@ -100,8 +101,15 @@ impl Suggester {
             return Vec::new();
         }
         let lexicon = sources.pack.and_then(|pack| pack.lexicon());
+        // 사전은 소문자 표제어만 담으므로 대문자가 섞인 키는 접어서 찾고, 찾아낸 표제어에
+        // 원문의 꼴을 되씌운다
+        let folded = lookup::fold(key);
+        let lookup_key = folded.as_ref().map_or(key, |(folded, _)| folded.as_str());
+        let restore = folded
+            .as_ref()
+            .map_or(lookup::VERBATIM, |(_, restore)| *restore);
         let query = Query {
-            key,
+            key: lookup_key,
             max_cost: search::edit_budget(key.chars().count()),
             touches: sources.touches,
             extending: true,
@@ -137,11 +145,11 @@ impl Suggester {
                 } else {
                     CandidateKind::Correction
                 };
-                self.push_ranked(&mut ranked, score, entry.key, kind);
+                self.push_ranked(&mut ranked, score, entry.key, kind, restore);
             }
         }
         // 사전에 없는 사용자 어휘(이름 등) — 개인화 스토어만이 아는 표제어
-        for entry in sources.learned_entries(&query, self.policy.limit) {
+        for (entry, restore) in self.learned_lookup(key, restore, &query, sources) {
             if lexicon
                 .as_ref()
                 .is_some_and(|lexicon| lexicon.contains(&entry.key))
@@ -154,11 +162,23 @@ impl Suggester {
                 self.language_model_weight(&entry.key, sources),
                 entry.cost,
             );
-            self.push_ranked(&mut ranked, score, entry.key, CandidateKind::Prediction);
+            self.push_ranked(
+                &mut ranked,
+                score,
+                entry.key,
+                CandidateKind::Prediction,
+                restore,
+            );
         }
-        for (combined, weight) in self.learned_with_affix(key, sources) {
+        for (combined, weight) in self.learned_with_affix(lookup_key, sources) {
             let score = score::combine(weight, 0, 0, 0);
-            self.push_ranked(&mut ranked, score, combined, CandidateKind::Prediction);
+            self.push_ranked(
+                &mut ranked,
+                score,
+                combined,
+                CandidateKind::Prediction,
+                restore,
+            );
         }
 
         ranked.sort_by(|left, right| {
@@ -178,8 +198,37 @@ impl Suggester {
             }
             suggestions.push(suggestion);
         }
-        suggestions.extend(self.annotations_for(key, sources));
+        suggestions.extend(self.annotations_for(lookup_key, sources));
         suggestions
+    }
+
+    /// 개인화 스토어에서 찾은 표제어와, 그 표제어에 되씌울 꼴.
+    ///
+    /// 스토어는 사용자가 확정한 꼴 그대로 담는다 — 고유명사에서는 대문자가 곧 뜻이라
+    /// 접어서 넣을 수 없다. 그래서 접은 키뿐 아니라 원문 키로도 찾는다. 원문 키로 찾은
+    /// 것은 이미 제 꼴을 갖고 있으므로 되씌우지 않는다.
+    fn learned_lookup(
+        &self,
+        key: &str,
+        restore: lookup::Restore,
+        query: &Query<'_>,
+        sources: &SuggestionSources<'_>,
+    ) -> Vec<(Entry, lookup::Restore)> {
+        let mut found: Vec<(Entry, lookup::Restore)> = sources
+            .learned_entries(query, self.policy.limit)
+            .into_iter()
+            .map(|entry| (entry, restore))
+            .collect();
+        if key == query.key {
+            return found;
+        }
+        let typed = Query { key, ..*query };
+        for entry in sources.learned_entries(&typed, self.policy.limit) {
+            if !found.iter().any(|(kept, _)| kept.key == entry.key) {
+                found.push((entry, lookup::VERBATIM));
+            }
+        }
+        found
     }
 
     /// 지금 치고 있는 어절에 달린 이모지·기호·얼굴 문자. 낱말 후보 뒤에 갈래 순서대로
@@ -241,6 +290,7 @@ impl Suggester {
                 score,
                 prediction.word,
                 CandidateKind::Prediction,
+                lookup::VERBATIM,
             );
         }
         ranked.sort_by(|left, right| {
@@ -264,12 +314,19 @@ impl Suggester {
             return None;
         }
         let lexicon = sources.pack.and_then(|pack| pack.lexicon())?;
-        if lexicon.contains(key) {
+        // 조회는 접은 키로 — 접지 않으면 문장 첫 낱말("The")이 사전에 없는 말로 보여
+        // 교정 대상이 된다
+        let folded = lookup::fold(key);
+        let lookup_key = folded.as_ref().map_or(key, |(folded, _)| folded.as_str());
+        let restore = folded
+            .as_ref()
+            .map_or(lookup::VERBATIM, |(_, restore)| *restore);
+        if lexicon.contains(lookup_key) {
             return None;
         }
         // 이미 끝난 어절이므로 뒤에 글자가 남는 표제어는 교정이 아니다
         let query = Query {
-            key,
+            key: lookup_key,
             max_cost: search::edit_budget(key.chars().count()),
             touches: sources.touches,
             extending: false,
@@ -290,7 +347,7 @@ impl Suggester {
         if corrected - typed <= score::AUTOCORRECT_MARGIN {
             return None;
         }
-        let text = self.policy.encoding.decode(&best.key)?;
+        let text = restore.apply(&self.policy.encoding.decode(&best.key)?);
         Some(Suggestion {
             key: best.key,
             text,
@@ -360,8 +417,14 @@ impl Suggester {
         score: i64,
         key: String,
         kind: CandidateKind,
+        restore: lookup::Restore,
     ) {
-        let Some(text) = self.policy.encoding.decode(&key) else {
+        let Some(text) = self
+            .policy
+            .encoding
+            .decode(&key)
+            .map(|text| restore.apply(&text))
+        else {
             return;
         };
         ranked.push((

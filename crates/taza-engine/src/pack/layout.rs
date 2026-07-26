@@ -9,20 +9,35 @@
 //!
 //! 와이어 레이아웃 (little-endian):
 //! ```text
-//! 0u8 | layout_count u8
-//! 배열마다: name_length u8 | name UTF-8 × n | layer_count u8
+//! marker u8 | layout_count u8
+//! 배열마다: name_length u8 | name UTF-8 × n
+//!           | (marker=1일 때만) skeleton_length u8 | skeleton UTF-8 × n
+//!           | layer_count u8
 //! 레이어마다: panel_per_mille u16 | row_count u8
 //!   행마다: height_per_mille u16 | key_count u8
 //!     키마다: kind u8 | width_per_mille u16 | base u32 | shifted u32
 //!             | alternate_count u8 | alternate u32 × n
-//!             | (kind=8일 때만) text_length u8 | text UTF-8 × n
+//!             | (kind=8·10일 때만) text_length u8 | text UTF-8 × n
 //! ```
 //! kind: 1=Character, 2=Shift, 3=Backspace, 4=Space, 5=Enter,
-//! 6=LayerSwitch(base=대상 레이어), 7=LanguageSwitch, 8=Text, 9=Blank.
+//! 6=LayerSwitch(base=대상 레이어), 7=LanguageSwitch, 8=Text, 9=Blank, 10=Multitap.
 //! base/shifted는 Character·LayerSwitch만 의미하고, alternate는 Character만 의미한다.
 //!
-//! 맨 앞의 0은 배열 목록이 실렸다는 표시다 — 배열이 하나뿐이던 시절의 팩은 그 자리에
-//! layer_count가 있었고 레이어가 0개인 팩은 없으므로, 두 형식이 서로를 가리지 않는다.
+//! 맨 앞의 marker는 그 뒤에 무엇이 오는지를 밝힌다: 0=배열 목록, 1=배열 목록 + 배열별
+//! 골격 표기. 배열이 하나뿐이던 시절의 팩은 그 자리에 layer_count가 있었으므로 레이어가
+//! 딱 하나인 옛 팩은 marker=1과 겹친다 — 표시 바이트만으로는 갈리지 않으니, 새 형식으로
+//! 읽어 보고 섹션을 정확히 채웠을 때만 새 형식으로 인정한다(`deserialize`).
+
+/// 글자 하나의 대문자. 대문자가 두 글자 이상이 되는 글자(ß→SS)는 키 한 칸에도 변형
+/// 문자 팝업 한 칸에도 담을 수 없으므로 그대로 둔다 — 그런 글자는 배열이 시프트 표기를
+/// 직접 적어야 한다.
+pub fn uppercase(character: char) -> char {
+    let mut upper = character.to_uppercase();
+    match (upper.next(), upper.next()) {
+        (Some(single), None) => single,
+        _ => character,
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum KeyAction {
@@ -33,6 +48,9 @@ pub enum KeyAction {
     /// 한 번에 여러 글자를 넣는 키 (`.com` 등). 필드 성격이 불러오는 키가 주로 이것이라
     /// 히트 테스트의 이웃 확률에는 참여하지 않는다 — 어느 키인지가 이미 확실하다.
     Text(String),
+    /// 이어 누를 때마다 글자가 갈리는 키 (천지인의 ㄱ→ㅋ→ㄲ). 무엇이 몇 번째인지는
+    /// 배열 데이터가 정하고, 지금 몇 번째인지는 코어가 시간과 직전 키로 판정한다.
+    Multitap(Vec<char>),
     Shift,
     Backspace,
     Space,
@@ -82,34 +100,62 @@ pub struct KeyboardLayoutSet {
 #[derive(Debug, Clone, PartialEq)]
 pub struct NamedLayoutSet {
     pub name: String,
+    /// 이 배열이 요구하는 조합 골격의 태그. 대개 비어 있고(언어가 밝힌 골격을 쓴다),
+    /// 같은 언어 안에서 조합 규칙이 다른 배열(천지인)만 자기 골격을 밝힌다.
+    pub skeleton: Option<String>,
     pub layouts: KeyboardLayoutSet,
+}
+
+fn read_text<'bytes>(bytes: &'bytes [u8], offset: &mut usize) -> Option<&'bytes str> {
+    let length = *bytes.get(*offset)? as usize;
+    *offset += 1;
+    let text = std::str::from_utf8(bytes.get(*offset..*offset + length)?).ok()?;
+    *offset += length;
+    Some(text)
 }
 
 /// 팩이 싣는 배열 전부. 첫 항목이 그 언어의 기본 배열이다.
 pub fn deserialize(bytes: &[u8]) -> Option<Vec<NamedLayoutSet>> {
-    let mut offset = 0usize;
-    // 배열이 하나뿐이던 시절의 팩 — 이름은 팩 메타데이터의 것을 쓰라는 뜻으로 비운다
-    if bytes.first()? != &0 {
-        return Some(vec![NamedLayoutSet {
-            name: String::new(),
-            layouts: deserialize_set(bytes, &mut offset)?,
-        }]);
+    // 표시 바이트만으로는 옛 형식과 갈리지 않는다: 레이어가 딱 하나인 옛 팩은 그 자리에
+    // 1이 적혀 있어 `marker=1`(골격 표기가 붙은 새 형식)과 겹친다. 그래서 새 형식으로
+    // 읽어 보고 **섹션을 정확히 채웠을 때만** 새 형식으로 인정한다 — 옛 팩을 새 형식으로
+    // 읽으면 길이가 남거나 모자란다.
+    if matches!(bytes.first(), Some(0 | 1))
+        && let Some(layouts) = deserialize_named(bytes)
+    {
+        return Some(layouts);
     }
-    offset += 1;
+    // 배열이 하나뿐이던 시절의 팩 — 이름은 팩 메타데이터의 것을 쓰라는 뜻으로 비운다
+    let mut offset = 0usize;
+    Some(vec![NamedLayoutSet {
+        name: String::new(),
+        skeleton: None,
+        layouts: deserialize_set(bytes, &mut offset)?,
+    }])
+}
+
+/// 이름(과 골격)이 붙은 배열 목록. 섹션을 남김없이 쓰지 않으면 이 형식이 아니다.
+fn deserialize_named(bytes: &[u8]) -> Option<Vec<NamedLayoutSet>> {
+    let marker = *bytes.first()?;
+    let mut offset = 1usize;
     let layout_count = *bytes.get(offset)? as usize;
     offset += 1;
     let mut layouts = Vec::with_capacity(layout_count);
     for _ in 0..layout_count {
-        let name_length = *bytes.get(offset)? as usize;
-        offset += 1;
-        let name = std::str::from_utf8(bytes.get(offset..offset + name_length)?).ok()?;
-        offset += name_length;
+        let name = read_text(bytes, &mut offset)?.to_string();
+        let skeleton = match marker {
+            1 => Some(read_text(bytes, &mut offset)?)
+                .filter(|tag| !tag.is_empty())
+                .map(str::to_string),
+            _ => None,
+        };
         layouts.push(NamedLayoutSet {
-            name: name.to_string(),
+            name,
+            skeleton,
             layouts: deserialize_set(bytes, &mut offset)?,
         });
     }
-    Some(layouts)
+    (offset == bytes.len()).then_some(layouts)
 }
 
 /// 배열 한 벌을 읽고 `cursor`를 그 뒤로 옮긴다. 실패하면 커서는 옮기지 않는다 —
@@ -158,12 +204,8 @@ fn deserialize_set(bytes: &[u8], cursor: &mut usize) -> Option<KeyboardLayoutSet
                         base: char::from_u32(base)?,
                         shifted: char::from_u32(shifted)?,
                     },
-                    8 => {
-                        let length = read_u8(&mut offset)? as usize;
-                        let text = std::str::from_utf8(bytes.get(offset..offset + length)?).ok()?;
-                        offset += length;
-                        KeyAction::Text(text.to_string())
-                    }
+                    8 => KeyAction::Text(read_text(bytes, &mut offset)?.to_string()),
+                    10 => KeyAction::Multitap(read_text(bytes, &mut offset)?.chars().collect()),
                     2 => KeyAction::Shift,
                     3 => KeyAction::Backspace,
                     4 => KeyAction::Space,

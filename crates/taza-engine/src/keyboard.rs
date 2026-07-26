@@ -36,6 +36,10 @@ const NUMBER_ROW_KEYS: [(char, &str); 10] = [
 /// 넓어져도 손가락이 같은 만큼 움직인다.
 const CURSOR_DRAG_STEP_POINTS: f32 = 5.0;
 
+/// 멀티탭 주기가 살아 있는 시간(밀리초). 짧으면 이어 누르려던 손이 새 글자를 내고,
+/// 길면 같은 자음을 잇달아 치는 낱말("학교")에서 앞 글자가 갈린다.
+const MULTITAP_TIMEOUT_MILLISECONDS: u32 = 700;
+
 /// 글자 배율의 상한. 이보다 키우면 라벨이 키 밖으로 번진다 — 접근성 크기 단계는
 /// 본문 글꼴 기준 2배를 넘지만, 키 하나에 글자 하나가 들어가야 하는 자리에는 그대로
 /// 쓸 수 없다.
@@ -351,6 +355,8 @@ pub struct PressOutcome {
     /// shift 등 상태 변화로 프레임을 다시 그려야 하는지
     pub layout_changed: bool,
     pub request: Option<ShellRequest>,
+    /// 멀티탭 주기를 끊을 시한(밀리초). 이어 누르면 새로 시작한다.
+    pub timer: Option<u32>,
 }
 
 /// 레이아웃 묶음 + 레이어·shift 상태에서 프레임을 만들고, 터치 좌표를 InputEvent로
@@ -373,6 +379,16 @@ pub struct Keyboard {
     /// 레이어와 필드를 모두 적용한 배열. 프레임과 히트 테스트가 같은 것을 봐야 눌린
     /// 자리와 그려진 자리가 어긋나지 않으므로 한 번 만들어 두고 함께 쓴다.
     active: KeyboardLayout,
+    /// 지금 돌고 있는 멀티탭 주기. 같은 키를 이어 눌렀는지를 자리로 판정한다 —
+    /// 시각은 셸의 타이머가 재고, 다 되면 `expire_multitap`으로 끊어 준다.
+    multitap: Option<Multitap>,
+}
+
+/// 이어 누르는 중인 멀티탭 키.
+struct Multitap {
+    key: KeyPosition,
+    /// 지금 나와 있는 글자가 주기의 몇 번째인가
+    index: usize,
 }
 
 /// 스페이스바를 길게 눌러 끄는 커서 이동의 진행 상태. 판정(몇 칸 옮길지)은 코어가,
@@ -399,6 +415,7 @@ impl Keyboard {
                 rows: Vec::new(),
                 panel_rows: 0.0,
             },
+            multitap: None,
         };
         keyboard.rebuild();
         keyboard
@@ -613,8 +630,16 @@ impl Keyboard {
 
     fn key_label(&self, action: &KeyAction) -> String {
         match action {
-            KeyAction::Character { .. } => self.key_character(action).unwrap().to_string(),
+            KeyAction::Character { .. } => {
+                crate::lang::keycap_form(self.key_character(action).unwrap()).to_string()
+            }
             KeyAction::Text(text) => text.clone(),
+            // 주기에 든 글자를 모두 적는다 — 몇 번 눌러야 무엇이 나오는지가 키에 보여야 한다
+            KeyAction::Multitap(cycle) => cycle
+                .iter()
+                .copied()
+                .map(crate::lang::keycap_form)
+                .collect(),
             // 고정된 shift는 순정처럼 다른 기호로 알린다 — 한 번 누르면 풀린다는 뜻이
             // 라벨에서 드러나야 한다
             KeyAction::Shift => if self.shift == ShiftState::Locked {
@@ -634,7 +659,9 @@ impl Keyboard {
 
     fn key_role(&self, action: &KeyAction) -> KeyRole {
         match action {
-            KeyAction::Character { .. } | KeyAction::Text(_) => KeyRole::Character,
+            KeyAction::Character { .. } | KeyAction::Text(_) | KeyAction::Multitap(_) => {
+                KeyRole::Character
+            }
             KeyAction::Shift => KeyRole::Shift,
             KeyAction::Backspace => KeyRole::Backspace,
             KeyAction::Space => KeyRole::Space,
@@ -651,18 +678,30 @@ impl Keyboard {
 
     /// 길게 눌러 고를 수 있는 것들 — 배열이 밝힌 변형 앞에 지금 누르고 있는 글자를 세운다.
     /// 그래야 팝업이 열린 뒤에도 손을 그대로 떼면 치던 글자가 들어간다(순정 관례).
+    ///
+    /// shift가 올라가 있으면 변형도 대문자로 나온다 — 순정이 그렇고, 그러지 않으면
+    /// É·Ü·Ç 같은 글자에 닿을 길이 아예 없어진다. 독일어는 명사가 모두 대문자로 시작하고
+    /// 프랑스어는 문장 첫 É가 흔하므로, QWERTZ·AZERTY에서는 이 길이 막히면 곤란하다.
     fn key_alternates(&self, action: &KeyAction, declared: &[char]) -> Vec<String> {
         if !self.preferences.key_alternates {
             return Vec::new();
         }
+        let cased = |character: char| {
+            if self.shifted() {
+                crate::pack::layout::uppercase(character)
+            } else {
+                character
+            }
+        };
         let Some(character) = self.key_character(action) else {
-            return declared.iter().map(char::to_string).collect();
+            return declared.iter().map(|&c| cased(c).to_string()).collect();
         };
         if declared.is_empty() {
             return Vec::new();
         }
+        // 누르고 있는 글자는 이미 shift가 반영된 것이라 다시 올리지 않는다
         std::iter::once(character)
-            .chain(declared.iter().copied())
+            .chain(declared.iter().copied().map(cased))
             .map(|character| character.to_string())
             .collect()
     }
@@ -719,6 +758,11 @@ impl Keyboard {
         let action = self.layout().rows[position.row].keys[position.index]
             .action
             .clone();
+        if let KeyAction::Multitap(cycle) = action {
+            return self.press_multitap(position, &cycle, x, y);
+        }
+        // 주기를 끊는 것은 시각만이 아니다 — 다른 키로 손이 옮겨 가면 그 자리에서 끝난다
+        self.multitap = None;
         match action {
             KeyAction::Shift => {
                 self.shift = if self.shifted() {
@@ -732,6 +776,7 @@ impl Keyboard {
                     event: None,
                     layout_changed: true,
                     request: None,
+                    timer: None,
                 }
             }
             KeyAction::Character { .. } => {
@@ -753,6 +798,7 @@ impl Keyboard {
                     event: Some(InputEvent::Key(signal)),
                     layout_changed,
                     request: None,
+                    timer: None,
                 }
             }
             KeyAction::LayerSwitch { target } => {
@@ -767,39 +813,85 @@ impl Keyboard {
                     event: None,
                     layout_changed: true,
                     request: None,
+                    timer: None,
                 }
             }
             KeyAction::Text(text) => PressOutcome {
                 event: Some(InputEvent::Text(text)),
                 layout_changed: false,
                 request: None,
+                timer: None,
             },
             KeyAction::Blank => PressOutcome {
                 event: None,
                 layout_changed: false,
                 request: None,
+                timer: None,
             },
             KeyAction::LanguageSwitch => PressOutcome {
                 event: None,
                 layout_changed: false,
                 request: Some(ShellRequest::NextLanguage),
+                timer: None,
             },
             KeyAction::Backspace => PressOutcome {
                 event: Some(InputEvent::Backspace),
                 layout_changed: false,
                 request: None,
+                timer: None,
             },
             KeyAction::Space => PressOutcome {
                 event: Some(InputEvent::Separator(' ')),
                 layout_changed: false,
                 request: None,
+                timer: None,
             },
             KeyAction::Enter => PressOutcome {
                 event: Some(InputEvent::Separator('\n')),
                 layout_changed: false,
                 request: None,
+                timer: None,
             },
+            KeyAction::Multitap(_) => unreachable!("멀티탭 키는 앞에서 처리했다"),
         }
+    }
+
+    /// 이어 누르면 주기의 다음 글자로 갈아 끼운다. 같은 키인지는 자리로 보고, 주기가
+    /// 아직 살아 있는지는 셸이 재는 시각(`expire_multitap`)이 정한다.
+    fn press_multitap(&mut self, key: KeyPosition, cycle: &[char], x: f32, y: f32) -> PressOutcome {
+        let Some(&first) = cycle.first() else {
+            return PressOutcome {
+                event: None,
+                layout_changed: false,
+                request: None,
+                timer: None,
+            };
+        };
+        // 이어 누른 것인지는 주기가 살아 있었는가로 정한다. 주기가 한 바퀴 돌아
+        // 첫 글자로 되돌아온 것도 여전히 이어 누른 것이다 — 자리로 보지 않으면 그때
+        // 갈아 끼우는 대신 글자가 하나 더 붙는다(ㄱ→ㅋ→ㄲ→ㄲㄱ).
+        let continuing = matches!(&self.multitap, Some(current) if current.key == key);
+        let index = match &self.multitap {
+            Some(current) if current.key == key => (current.index + 1) % cycle.len(),
+            _ => 0,
+        };
+        self.multitap = Some(Multitap { key, index });
+        let character = cycle.get(index).copied().unwrap_or(first);
+        PressOutcome {
+            event: Some(match continuing {
+                true => InputEvent::Retap(character),
+                // 주기를 여는 첫 누름은 평범한 글자 입력이므로 이웃 확률도 그대로 싣는다
+                false => InputEvent::Key(hit::key_signal_at(self.layout(), x, y, character)),
+            }),
+            layout_changed: false,
+            request: None,
+            timer: Some(MULTITAP_TIMEOUT_MILLISECONDS),
+        }
+    }
+
+    /// 멀티탭 시한이 다 됐다 — 다음에 같은 키를 눌러도 새 글자로 시작한다.
+    pub(crate) fn expire_multitap(&mut self) {
+        self.multitap = None;
     }
 
     /// 길게 눌러 고를 수 있는 변형 문자를 실제 입력 이벤트로 바꾼다. 팝업에서 고른

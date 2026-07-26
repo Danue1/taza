@@ -216,6 +216,19 @@ impl EditorContext {
     pub fn unavailable() -> Self {
         EditorContext::default()
     }
+
+    /// 방금 낸 Effect가 셸에 **아직 적용되지 않은** 시점의 문맥. 커서 앞 텍스트는 이미
+    /// 실제와 어긋나 있으므로 없는 것으로 다룬다 — 지운 글자가 그대로 남아 있는 문맥으로
+    /// 합성을 재개하면(채택) 그것을 도로 주워 온다.
+    ///
+    /// 한 번의 입력을 지우기·넣기 두 걸음으로 푸는 자리가 이 문맥을 쓴다: 멀티탭을 이어
+    /// 누를 때와 천지인 모음을 갈아 끼울 때다.
+    pub fn unapplied(&self) -> Self {
+        EditorContext {
+            text_before_cursor: None,
+            ..self.clone()
+        }
+    }
 }
 
 /// 셸이 코어로 보내는 입력. 터치 좌표를 키로 판정하는 일은 코어가 하므로
@@ -227,6 +240,9 @@ pub enum InputEvent {
     Key(KeySignal),
     /// 한 번에 여러 글자를 넣는 키(`.com` 등). 진행 중 조합은 먼저 확정된다.
     Text(String),
+    /// 같은 멀티탭 키를 이어 누름(천지인의 ㄱ→ㅋ→ㄲ) — 직전 글자를 갈아 끼운다.
+    /// 몇 번째 누름인지는 코어가 판정하므로 셸은 이 이벤트를 만들지 않는다.
+    Retap(char),
     Backspace,
     Separator(char),
     CandidateSelected(usize),
@@ -254,6 +270,11 @@ pub enum Effect {
     /// 커서를 논리적으로 옮긴다(부호 = 방향, 단위 = 코드포인트).
     /// RTL에서도 의미는 "논리적 이동"으로 고정 — 시각적 방향은 플랫폼이 해석한다.
     MoveCursor(i32),
+    /// 밀리초 뒤에 `Engine::timer_fired`를 부르라는 요청. 앞선 타이머는 갈아 끼운다 —
+    /// 멀티탭 주기가 이어질 때마다 시한이 새로 시작해야 하기 때문이다. 끄는 명령은 없다:
+    /// 주기가 이미 끝난 뒤에 울린 타이머는 코어에서 아무 일도 하지 않으므로, 셸이
+    /// "지금 꺼도 되는가"를 판단할 일이 없다.
+    SetTimer(u32),
 }
 
 /// 레이아웃이 물리 키를 언어별 논리 문자로 해석한 뒤 Composer에 전달한다.

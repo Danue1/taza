@@ -1,5 +1,11 @@
 //! 한글 자모 코덱 — 음절↔자모 분해·조합과 두벌식 ASCII 인코딩. 합성기(hangul)와
 //! 팩 컴파일러(taza-toolchain)가 같은 규칙을 써야 하므로 별도 모듈로 둔다.
+//!
+//! **자리는 자모가 스스로 밝힌다**: 배열이 호환 자모(ㄱ, U+3131)를 내면 그 자모가
+//! 초성인지 종성인지는 앞뒤를 보고 추론해야 하고(두벌식), 조합용 자모(초성 U+1100·
+//! 중성 U+1161·종성 U+11A8)를 내면 자리가 코드포인트에 이미 실려 있다(세벌식).
+//! 그래서 세벌식은 새 합성기가 아니라 배열 데이터다 — 추론하지 않는다는 규칙 하나만
+//! 지키면 도깨비불이 세벌식에서 저절로 일어나지 않는다.
 
 /// 두벌식 자판 대응 ASCII 인코딩 — 한국어 lexicon은 이 형태로 팩에 저장한다.
 /// trie의 바이트 단위 편집거리(OSA)가 정확히 자모 단위 편집거리가 되게 하는 장치다.
@@ -57,7 +63,8 @@ pub fn compose_word(jamo_sequence: &[char]) -> String {
 pub fn encode_jamo_ascii(jamo_sequence: &[char]) -> Option<String> {
     jamo_sequence
         .iter()
-        .map(|&jamo| {
+        .flat_map(|&jamo| typing_units(jamo))
+        .map(|jamo| {
             JAMO_TO_ASCII
                 .iter()
                 .find(|&&(candidate, _)| candidate == jamo)
@@ -93,6 +100,44 @@ const JONGSEONG: [char; 27] = [
     'ㄱ', 'ㄲ', 'ㄳ', 'ㄴ', 'ㄵ', 'ㄶ', 'ㄷ', 'ㄹ', 'ㄺ', 'ㄻ', 'ㄼ', 'ㄽ', 'ㄾ', 'ㄿ', 'ㅀ', 'ㅁ',
     'ㅂ', 'ㅄ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ',
 ];
+
+/// 자모가 음절에서 서는 자리.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum JamoPlace {
+    Initial,
+    Medial,
+    Final,
+    /// 자리를 밝히지 않은 자모 — 앞뒤를 보고 정한다(두벌식).
+    Inferred,
+}
+
+/// 입력 자모 하나를 자리와 호환 자모로 가른다. 음절을 그리는 일도 사전을 찾는 일도
+/// 호환 자모로 하므로, 조합용 자모는 여기서 한 번만 옮긴다.
+pub(crate) fn place(character: char) -> Option<(JamoPlace, char)> {
+    let code = character as u32;
+    // 조합용 자모 세 구역은 각각 CHOSEONG·JUNGSEONG·JONGSEONG과 같은 순서다
+    if (0x1100..0x1100 + CHOSEONG.len() as u32).contains(&code) {
+        return Some((JamoPlace::Initial, CHOSEONG[(code - 0x1100) as usize]));
+    }
+    if (0x1161..0x1161 + JUNGSEONG.len() as u32).contains(&code) {
+        return Some((JamoPlace::Medial, JUNGSEONG[(code - 0x1161) as usize]));
+    }
+    if (0x11A8..0x11A8 + JONGSEONG.len() as u32).contains(&code) {
+        return Some((JamoPlace::Final, JONGSEONG[(code - 0x11A8) as usize]));
+    }
+    (is_consonant(character) || is_vowel(character)).then_some((JamoPlace::Inferred, character))
+}
+
+/// 자모 하나가 두벌식으로 몇 번의 타건인가 — 복합 모음·겹받침은 두벌식에서 두 번이다.
+/// 사전은 두벌식 타건 순서로 저장되므로, 어느 배열로 쳤든 조회 키는 이 단위로 만든다.
+fn typing_units(character: char) -> Vec<char> {
+    let compatibility = place(character).map_or(character, |(_, jamo)| jamo);
+    if is_vowel(compatibility) {
+        split_jungseong(compatibility)
+    } else {
+        split_jongseong(compatibility)
+    }
+}
 
 fn combine_jungseong(first: char, second: char) -> Option<char> {
     match (first, second) {
@@ -192,7 +237,14 @@ fn is_vowel(jamo: char) -> bool {
 }
 
 pub fn is_jamo(character: char) -> bool {
-    is_consonant(character) || is_vowel(character)
+    place(character).is_some()
+}
+
+/// 키캡에 찍을 글자 — 조합용 자모는 홀로 놓이면 글꼴에 따라 점선 동그라미를 달거나
+/// 좁게 찌그러지므로, 사람에게 보일 때만 호환 자모로 옮긴다. 합성기가 다루는 값은
+/// 자리를 잃으면 안 되므로 그대로 둔다.
+pub fn keycap_form(character: char) -> char {
+    place(character).map_or(character, |(_, jamo)| jamo)
 }
 
 fn is_single_jongseong(jamo: char) -> bool {
@@ -225,6 +277,12 @@ impl Syllable {
             jongseong: Vec::new(),
             jamo_count: 1,
         }
+    }
+
+    /// 중성을 받아들일 수 있는 자리인가. 초성이 초성으로 쓰일 수 있는 자모일 때만이다 —
+    /// 홀로 놓인 겹받침(ㄳ)은 초성 자리에 서 있어도 음절을 이루지 못한다.
+    fn awaits_jungseong(&self) -> bool {
+        self.choseong.is_some_and(is_consonant) && self.jungseong.is_none()
     }
 
     fn jongseong_character(&self) -> Option<char> {
@@ -265,53 +323,118 @@ impl Syllable {
 /// 상태 전이 대신 매 이벤트마다 전체 재구성한다.
 pub(crate) fn recompose(jamo_sequence: &[char]) -> Vec<Syllable> {
     let mut syllables: Vec<Syllable> = Vec::new();
-    for &jamo in jamo_sequence {
-        if is_vowel(jamo) {
-            match syllables.last_mut() {
-                Some(last) if !last.jongseong.is_empty() => {
-                    let stolen = last.jongseong.pop().unwrap();
-                    last.jamo_count -= 1;
-                    let mut next = Syllable::from_consonant(stolen);
-                    next.jungseong = Some(jamo);
-                    next.jamo_count = 2;
-                    syllables.push(next);
-                }
-                Some(last) if last.choseong.is_some() && last.jungseong.is_none() => {
-                    last.jungseong = Some(jamo);
-                    last.jamo_count += 1;
-                }
-                Some(last)
-                    if last.jungseong.is_some()
-                        && combine_jungseong(last.jungseong.unwrap(), jamo).is_some() =>
-                {
-                    last.jungseong = combine_jungseong(last.jungseong.unwrap(), jamo);
-                    last.jamo_count += 1;
-                }
-                _ => syllables.push(Syllable::from_vowel(jamo)),
-            }
-        } else {
-            match syllables.last_mut() {
-                Some(last)
-                    if last.choseong.is_some()
-                        && last.jungseong.is_some()
-                        && last.jongseong.is_empty()
-                        && is_single_jongseong(jamo) =>
-                {
-                    last.jongseong.push(jamo);
-                    last.jamo_count += 1;
-                }
-                Some(last)
-                    if last.jongseong.len() == 1
-                        && combine_jongseong(last.jongseong[0], jamo).is_some() =>
-                {
-                    last.jongseong.push(jamo);
-                    last.jamo_count += 1;
-                }
-                _ => syllables.push(Syllable::from_consonant(jamo)),
-            }
+    for &character in jamo_sequence {
+        let Some((place, jamo)) = place(character) else {
+            continue;
+        };
+        match place {
+            // 자리를 밝힌 초성은 언제나 새 음절을 연다 — 앞 음절의 종성을 넘겨다보지
+            // 않으므로 세벌식에는 도깨비불이 없다
+            JamoPlace::Initial => syllables.push(Syllable::from_consonant(jamo)),
+            JamoPlace::Medial => push_medial(&mut syllables, jamo),
+            JamoPlace::Final => push_final(&mut syllables, jamo),
+            JamoPlace::Inferred if is_vowel(jamo) => push_inferred_vowel(&mut syllables, jamo),
+            JamoPlace::Inferred => push_inferred_consonant(&mut syllables, jamo),
         }
     }
     syllables
+}
+
+/// 자리를 밝힌 중성 — 종성을 빼앗지 않는다.
+fn push_medial(syllables: &mut Vec<Syllable>, jamo: char) {
+    match syllables.last_mut() {
+        Some(last) if last.awaits_jungseong() => {
+            last.jungseong = Some(jamo);
+            last.jamo_count += 1;
+        }
+        // 복합 모음을 낱자로 치는 배열(세벌식 390)을 위해 결합은 남겨 둔다
+        Some(last)
+            if last.jongseong.is_empty()
+                && last
+                    .jungseong
+                    .and_then(|current| combine_jungseong(current, jamo))
+                    .is_some() =>
+        {
+            last.jungseong = combine_jungseong(last.jungseong.unwrap(), jamo);
+            last.jamo_count += 1;
+        }
+        _ => syllables.push(Syllable::from_vowel(jamo)),
+    }
+}
+
+/// 자리를 밝힌 종성 — 겹받침을 한 키로 내는 배열이 있으므로 홑받침 여부를 따지지 않는다.
+fn push_final(syllables: &mut Vec<Syllable>, jamo: char) {
+    match syllables.last_mut() {
+        Some(last)
+            if last.choseong.is_some() && last.jungseong.is_some() && last.jongseong.is_empty() =>
+        {
+            last.jongseong.push(jamo);
+            last.jamo_count += 1;
+        }
+        Some(last)
+            if last.jongseong.len() == 1
+                && combine_jongseong(last.jongseong[0], jamo).is_some() =>
+        {
+            last.jongseong.push(jamo);
+            last.jamo_count += 1;
+        }
+        _ => syllables.push(Syllable::from_consonant(jamo)),
+    }
+}
+
+fn push_inferred_vowel(syllables: &mut Vec<Syllable>, jamo: char) {
+    match syllables.last_mut() {
+        // 도깨비불 — 앞 음절의 마지막 종성이 다음 음절의 초성이 된다
+        Some(last)
+            if last
+                .jongseong
+                .last()
+                .is_some_and(|&last| is_consonant(last)) =>
+        {
+            let stolen = last.jongseong.pop().unwrap();
+            last.jamo_count -= 1;
+            let mut next = Syllable::from_consonant(stolen);
+            next.jungseong = Some(jamo);
+            next.jamo_count = 2;
+            syllables.push(next);
+        }
+        Some(last) if last.awaits_jungseong() => {
+            last.jungseong = Some(jamo);
+            last.jamo_count += 1;
+        }
+        Some(last)
+            if last
+                .jungseong
+                .and_then(|current| combine_jungseong(current, jamo))
+                .is_some() =>
+        {
+            last.jungseong = combine_jungseong(last.jungseong.unwrap(), jamo);
+            last.jamo_count += 1;
+        }
+        _ => syllables.push(Syllable::from_vowel(jamo)),
+    }
+}
+
+fn push_inferred_consonant(syllables: &mut Vec<Syllable>, jamo: char) {
+    match syllables.last_mut() {
+        Some(last)
+            if last.choseong.is_some()
+                && last.jungseong.is_some()
+                && last.jongseong.is_empty()
+                && is_single_jongseong(jamo) =>
+        {
+            last.jongseong.push(jamo);
+            last.jamo_count += 1;
+        }
+        Some(last)
+            if last.jongseong.len() == 1
+                && combine_jongseong(last.jongseong[0], jamo).is_some() =>
+        {
+            last.jongseong.push(jamo);
+            last.jamo_count += 1;
+        }
+        _ => syllables.push(Syllable::from_consonant(jamo)),
+    }
 }
 
 pub(crate) fn render_all(syllables: &[Syllable]) -> String {

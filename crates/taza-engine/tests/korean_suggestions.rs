@@ -64,6 +64,8 @@ impl Harness {
                 Effect::SetComposing(text) => self.composing = Some(text.text),
                 Effect::ClearComposing => self.composing = None,
                 Effect::MoveCursor(_) => panic!("이 하네스는 커서를 옮기지 않는다"),
+                // 두벌식에는 멀티탭 키가 없다
+                Effect::SetTimer(_) => {}
                 Effect::DeleteBackward(count) => {
                     for _ in 0..count {
                         self.committed.pop();

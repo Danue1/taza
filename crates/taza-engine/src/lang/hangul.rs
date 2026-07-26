@@ -78,6 +78,12 @@ impl HangulComposer {
         }
     }
 
+    /// 합성에 아무 일도 일어나지 않았음을 알리는 출력 — 지금 조합 창을 그대로 다시
+    /// 내놓는다. 천지인처럼 타건 하나가 아직 글자가 되지 못한 상태를 표현할 통로다.
+    pub(crate) fn unchanged(&self) -> ComposerOutput {
+        self.composing_output(None)
+    }
+
     fn push_jamo(&mut self, jamo: char) -> ComposerOutput {
         self.composing_jamo.push(jamo);
         self.word_jamo.push(jamo);

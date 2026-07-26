@@ -3,8 +3,11 @@ use crate::contract::{
     SuggestionRequest, WordBoundary,
 };
 
+/// 짝맞춤 아포스트로피는 곧은 것과 똑같이 어절 안에 선다 — 순정도 축약형에 이 글자를
+/// 넣고 그 낱말을 계속 예측한다. 어절 글자로 보지 않으면 `don't`가 `don`과 `t`로 갈려
+/// 축약형이 사전에 닿지 못한다. 조회 키로 옮길 때 곧은 것으로 접는다(`suggest::lookup`).
 fn is_word_character(character: char) -> bool {
-    character.is_alphabetic() || character == '\''
+    character.is_alphabetic() || character == '\'' || character == '\u{2019}'
 }
 
 /// 라틴 골격: composing 없이 글자를 즉시 확정하고(플랫폼 관습 — 영어는 marked text를

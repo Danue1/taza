@@ -53,7 +53,7 @@ fn main() {
                 }
                 Effect::SetComposing(text) => composing = text.text,
                 Effect::ClearComposing => composing.clear(),
-                Effect::MoveCursor(_) => {}
+                Effect::MoveCursor(_) | Effect::SetTimer(_) => {}
                 Effect::DeleteBackward(count) => {
                     for _ in 0..count {
                         committed.pop();

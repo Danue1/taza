@@ -5,6 +5,8 @@
 //! 늘어도 코어와 FFI는 그대로여야 한다. 그래서 표시 이름·키캡 표기·조회 키 인코딩은
 //! 팩 메타데이터가 선언하고, 코드에는 팩을 아직 못 받았을 때 쓰는 내장 선언만 남는다.
 
+#[cfg(feature = "lang-hangul")]
+pub mod cheonjiin;
 #[cfg(feature = "lang-latin")]
 pub mod direct;
 #[cfg(feature = "lang-hangul")]
@@ -19,6 +21,20 @@ use crate::keyboard::{KeyboardLayoutSet, layouts};
 use crate::pack::metadata::keys;
 use crate::suggest::{KeyEncoding, SuggestionPolicy};
 
+/// 키캡에 찍을 글자. 자리를 밝힌 자모(세벌식 배열의 초성·중성·종성)는 홀로 놓이면
+/// 글꼴이 점선 동그라미를 달거나 좁게 그리므로, 사람에게 보일 때만 호환 자모로 옮긴다.
+/// 합성기가 받는 값은 자리를 잃으면 안 되므로 그대로 흘러간다.
+pub(crate) fn keycap_form(character: char) -> char {
+    #[cfg(feature = "lang-hangul")]
+    {
+        jamo::keycap_form(character)
+    }
+    #[cfg(not(feature = "lang-hangul"))]
+    {
+        character
+    }
+}
+
 /// 조합 골격 — 어떤 방식으로 입력을 글자로 만드는가. 언어와 달리 이것은 코드다.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ComposerSkeleton {
@@ -28,6 +44,8 @@ pub enum ComposerSkeleton {
     Latin,
     /// 자모 오토마타 + marked text
     Hangul,
+    /// 자모 오토마타 + 천지인 모음 조합(하늘·땅·사람) + 자음 멀티탭
+    HangulCheonjiin,
 }
 
 /// 후보 개수 상한 — 후보 바에 실제로 들어가는 수라 골격과 무관하다.
@@ -43,6 +61,7 @@ impl ComposerSkeleton {
             ComposerSkeleton::Direct => "direct",
             ComposerSkeleton::Latin => "latin",
             ComposerSkeleton::Hangul => "hangul",
+            ComposerSkeleton::HangulCheonjiin => "hangul-cheonjiin",
         }
     }
 
@@ -51,6 +70,7 @@ impl ComposerSkeleton {
             "direct" => Some(ComposerSkeleton::Direct),
             "latin" => Some(ComposerSkeleton::Latin),
             "hangul" => Some(ComposerSkeleton::Hangul),
+            "hangul-cheonjiin" => Some(ComposerSkeleton::HangulCheonjiin),
             _ => None,
         }
     }
@@ -82,6 +102,16 @@ impl ComposerSkeleton {
                     None
                 }
             }
+            ComposerSkeleton::HangulCheonjiin => {
+                #[cfg(feature = "lang-hangul")]
+                {
+                    Some(Box::new(cheonjiin::CheonjiinComposer::new()))
+                }
+                #[cfg(not(feature = "lang-hangul"))]
+                {
+                    None
+                }
+            }
         }
     }
 
@@ -95,7 +125,7 @@ impl ComposerSkeleton {
     /// 팩에 레이아웃 섹션이 없을 때 쓰는 내장 배열.
     fn builtin_layout(self) -> KeyboardLayoutSet {
         match self {
-            ComposerSkeleton::Hangul => layouts::dubeolsik(),
+            ComposerSkeleton::Hangul | ComposerSkeleton::HangulCheonjiin => layouts::dubeolsik(),
             _ => layouts::qwerty(),
         }
     }

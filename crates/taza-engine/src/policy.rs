@@ -91,12 +91,19 @@ pub(crate) fn sentence_start(text_before_cursor: Option<&str>) -> bool {
     trimmed.len() < text.len() && SENTENCE_TERMINATORS.contains(&last)
 }
 
-/// 짝맞춤 부호·자동 짝 넣기가 만든 입력. 합성기를 거치지 않고 확정되므로 조합이
-/// 진행 중이지 않을 때만 성립한다(호출자가 판단한다).
-pub(crate) struct PunctuationOutcome {
-    pub output: ComposerOutput,
-    /// 넣은 뒤 커서를 되돌릴 칸수 — 자동 짝 넣기에서만 음수다
-    pub cursor_offset: i32,
+/// 부호 규칙이 내린 판단.
+pub(crate) enum PunctuationOutcome {
+    /// 친 글자를 다른 글자 하나로 바꿔 넣는다(곧은 따옴표 → 짝맞춤 따옴표). **어절
+    /// 안에 들어갈 수 있으므로** 합성기를 거친다 — 어절을 끊어 버리면 축약형(`don't`)이
+    /// 낱말로 이어지지 않아 예측도 교정도 받지 못한다.
+    Substitute(char),
+    /// 합성기를 거치지 않고 그대로 확정하는 편집(줄표·자동 짝 넣기). 어느 것도 어절
+    /// 안에 설 수 없으므로 여기서 어절이 끊긴다.
+    Commit {
+        output: ComposerOutput,
+        /// 넣은 뒤 커서를 되돌릴 칸수 — 자동 짝 넣기에서만 음수다
+        cursor_offset: i32,
+    },
 }
 
 /// 곧은 따옴표를 짝맞춤 따옴표로 바꾼다. 여는 자리인지는 앞 글자가 정한다 —
@@ -136,7 +143,7 @@ pub(crate) fn punctuation(
     let text = context.text_before_cursor.as_deref();
     // 앱이 곧은 따옴표를 요구했으면 사용자 설정보다 그쪽이 세다
     let smart = preferences.smart_punctuation && traits.smart_punctuation;
-    let plain = |delete: usize, commit: String, cursor_offset: i32| PunctuationOutcome {
+    let plain = |delete: usize, commit: String, cursor_offset: i32| PunctuationOutcome::Commit {
         output: ComposerOutput {
             delete_before_commit: delete,
             commit: Some(CommittedText::plain(commit)),
@@ -161,7 +168,7 @@ pub(crate) fn punctuation(
     {
         return Some(plain(0, format!("{effective}{closing}"), -1));
     }
-    substituted.map(|quote| plain(0, quote.to_string(), 0))
+    substituted.map(PunctuationOutcome::Substitute)
 }
 
 #[cfg(test)]
@@ -191,23 +198,17 @@ mod tests {
     #[test]
     fn quotes_open_and_close_by_what_precedes_them() {
         let preferences = UserPreferences::default();
-        let opening =
-            punctuation('"', &preferences, FieldTraits::default(), &context("said ")).unwrap();
-        assert_eq!(
-            opening.output.commit,
-            Some(CommittedText::plain("\u{201C}".to_string()))
-        );
-        let closing = punctuation(
+        let quote = |before: &str| match punctuation(
             '"',
             &preferences,
             FieldTraits::default(),
-            &context("said \u{201C}hi"),
-        )
-        .unwrap();
-        assert_eq!(
-            closing.output.commit,
-            Some(CommittedText::plain("\u{201D}".to_string()))
-        );
+            &context(before),
+        ) {
+            Some(PunctuationOutcome::Substitute(character)) => character,
+            _ => panic!("따옴표는 글자 치환이다"),
+        };
+        assert_eq!(quote("said "), '\u{201C}');
+        assert_eq!(quote("said \u{201C}hi"), '\u{201D}');
     }
 
     #[test]
@@ -218,11 +219,15 @@ mod tests {
         };
         let outcome =
             punctuation('(', &preferences, FieldTraits::default(), &context("call")).unwrap();
-        assert_eq!(
-            outcome.output.commit,
-            Some(CommittedText::plain("()".to_string()))
-        );
-        assert_eq!(outcome.cursor_offset, -1);
+        let PunctuationOutcome::Commit {
+            output,
+            cursor_offset,
+        } = outcome
+        else {
+            panic!("자동 짝 넣기는 합성기를 거치지 않는다");
+        };
+        assert_eq!(output.commit, Some(CommittedText::plain("()".to_string())));
+        assert_eq!(cursor_offset, -1);
     }
 
     #[test]
@@ -247,9 +252,12 @@ mod tests {
         let preferences = UserPreferences::default();
         let outcome =
             punctuation('-', &preferences, FieldTraits::default(), &context("wait-")).unwrap();
-        assert_eq!(outcome.output.delete_before_commit, 1);
+        let PunctuationOutcome::Commit { output, .. } = outcome else {
+            panic!("줄표는 합성기를 거치지 않는다");
+        };
+        assert_eq!(output.delete_before_commit, 1);
         assert_eq!(
-            outcome.output.commit,
+            output.commit,
             Some(CommittedText::plain("\u{2014}".to_string()))
         );
         assert!(

@@ -273,12 +273,28 @@ pub struct FfiCandidate {
 
 #[derive(uniffi::Enum)]
 pub enum FfiEffect {
-    CommitText { text: String },
-    SetComposing { text: String, caret: u32 },
+    CommitText {
+        text: String,
+    },
+    SetComposing {
+        text: String,
+        caret: u32,
+    },
     ClearComposing,
-    DeleteBackward { code_points: u32 },
-    UpdateCandidates { candidates: Vec<FfiCandidate> },
-    MoveCursor { offset: i32 },
+    DeleteBackward {
+        code_points: u32,
+    },
+    UpdateCandidates {
+        candidates: Vec<FfiCandidate>,
+    },
+    MoveCursor {
+        offset: i32,
+    },
+    /// 밀리초 뒤에 `timer_fired`를 부르라는 요청. 앞선 타이머는 갈아 끼운다 —
+    /// 끄는 명령은 없다(이미 끝난 주기에 울린 타이머는 아무 일도 하지 않는다).
+    SetTimer {
+        milliseconds: u32,
+    },
 }
 
 /// 통합 검색면에 담기는 항목 하나.
@@ -488,6 +504,7 @@ fn convert_effect(effect: Effect) -> FfiEffect {
             candidates: candidates.into_iter().map(convert_candidate).collect(),
         },
         Effect::MoveCursor(offset) => FfiEffect::MoveCursor { offset },
+        Effect::SetTimer(milliseconds) => FfiEffect::SetTimer { milliseconds },
     }
 }
 
@@ -702,6 +719,12 @@ impl KeyboardSession {
             .unwrap()
             .handle(input_event, &convert_context(&context));
         effects.into_iter().map(convert_effect).collect()
+    }
+
+    /// 멀티탭 시한이 다 됐다고 셸이 알려 준다 — 다음에 같은 키를 눌러도 주기가 아니라
+    /// 새 글자로 시작한다. 이미 끝난 주기에 울린 타이머는 아무 일도 하지 않는다.
+    pub fn timer_fired(&self) {
+        self.engine.lock().unwrap().timer_fired();
     }
 
     /// 터치 좌표(정규화) → 코어 히트 테스트 → 합성까지 한 번에.

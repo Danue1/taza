@@ -1,4 +1,6 @@
-use taza_engine::contract::{EditorContext, Effect, FieldKind, FieldTraits, InputEvent};
+use taza_engine::contract::{
+    EditorContext, Effect, FieldKind, FieldTraits, InputEvent, UserPreferences,
+};
 use taza_engine::engine::Engine;
 use taza_engine::keyboard::{
     FormFactor, KeyLegend, KeyRole, KeySignal, Keyboard, KeyboardFrame, KeyboardMetrics,
@@ -213,6 +215,7 @@ fn layout_from_pack_roundtrip_drives_keyboard() {
     let mut source = layouts::dubeolsik();
     source.layers[0].rows[0].height_ratio = 0.8;
     let named = vec![taza_engine::pack::layout::NamedLayoutSet {
+        skeleton: None,
         name: "두벌식".to_string(),
         layouts: source.clone(),
     }];
@@ -332,6 +335,86 @@ fn alternates_reach_the_shell_and_come_back_as_input() {
     // 변형이 없는 키는 빈 목록 — 셸은 롱프레스 팝업을 띄우지 않는다
     let (x, y) = key_center(&frame, "g");
     assert!(keyboard.key_at(x, y).alternates.is_empty());
+}
+
+/// shift가 올라가 있으면 변형도 대문자로 나온다. 그러지 않으면 É·Ü·Ç에 닿을 길이
+/// 아예 없어지는데, QWERTZ·AZERTY를 고르는 이유가 바로 그 글자들이다.
+#[test]
+fn alternates_follow_shift_into_uppercase() {
+    let mut keyboard = Keyboard::new(
+        layouts::qwerty(),
+        LanguageDescriptor::builtin("en").unwrap(),
+    );
+    assert!(keyboard.toggle_shift_lock());
+    let frame = keyboard.frame();
+    let (x, y) = key_center(&frame, "E");
+    assert_eq!(
+        keyboard.key_at(x, y).alternates,
+        ["E", "È", "É", "Ê", "Ë", "Ē", "Ė", "Ę"]
+    );
+    // 대문자가 두 글자가 되는 글자(ß→SS)는 팝업 한 칸에 담기지 않으므로 그대로 둔다
+    let (x, y) = key_center(&frame, "S");
+    assert_eq!(keyboard.key_at(x, y).alternates, ["S", "ß", "Ś", "Š"]);
+
+    assert!(keyboard.toggle_shift_lock());
+    let frame = keyboard.frame();
+    let (x, y) = key_center(&frame, "e");
+    assert_eq!(
+        keyboard.key_at(x, y).alternates,
+        ["e", "è", "é", "ê", "ë", "ē", "ė", "ę"]
+    );
+}
+
+/// 이웃 후보는 조회 키가 될 수 있는 같은 갈래여야 한다. 숫자 행을 켜면 숫자 키가 글자
+/// 바로 위에 서는데, 사전에 숫자 표제어가 없으므로 그것이 후보 자리와 확률 몫을
+/// 가져가면 진짜 이웃 글자의 몫만 깎인다.
+#[test]
+fn the_number_row_does_not_take_probability_from_letters() {
+    let signal_for = |number_row: bool| {
+        let mut keyboard = Keyboard::new(
+            layouts::qwerty(),
+            LanguageDescriptor::builtin("en").unwrap(),
+        );
+        keyboard.set_preferences(UserPreferences {
+            number_row,
+            ..UserPreferences::default()
+        });
+        let frame = keyboard.frame();
+        let key = frame
+            .rows
+            .iter()
+            .flatten()
+            .find(|key| key.label == "e")
+            .unwrap();
+        // 숫자 행과 맞닿은 위쪽 가장자리 — 숫자가 끼어든다면 여기서 끼어든다
+        let (x, y) = (
+            key.bounds.x + key.bounds.width / 2.0,
+            key.bounds.y + key.bounds.height * 0.15,
+        );
+        match keyboard.press_at(x, y).event {
+            Some(InputEvent::Key(signal)) => signal,
+            other => panic!("글자 키가 아님: {other:?}"),
+        }
+    };
+
+    let without = signal_for(false);
+    let with = signal_for(true);
+    assert_eq!(with.character(), 'e');
+    assert!(
+        with.candidates()
+            .iter()
+            .all(|key| key.character.is_alphabetic()),
+        "숫자가 이웃 후보에 들어옴: {:?}",
+        with.candidates()
+    );
+    // 숫자 행이 있으나 없으나 글자끼리의 확률은 같다
+    for candidate in without.candidates() {
+        assert!(
+            (with.probability_of(candidate.character) - candidate.probability).abs() < 1e-5,
+            "{}의 확률이 숫자 행 때문에 달라짐",
+            candidate.character
+        );
+    }
 }
 
 #[test]
@@ -708,4 +791,109 @@ layer1*0.15 space*0.55 enter*0.3
     // 없는 이름은 조용히 무시된다 — 팩 갱신으로 사라진 배열이 설정에 남아 있을 수 있다
     assert!(!engine.select_layout("Colemak"));
     assert_eq!(engine.layout_name(), "Dvorak");
+}
+
+/// 세벌식은 새 합성기가 아니라 배열 데이터다 — 키가 자리를 밝힌 자모(초성 U+1100 등)를
+/// 멀티탭은 주기를 한 바퀴 돌아 첫 글자로 되돌아와도 여전히 **갈아 끼우기**다. 그것을
+/// 새 입력으로 내면 넷째 누름에서 글자가 하나 더 붙는다(ㄱ→ㅋ→ㄲ→ㄲㄱ). 주기가 끊긴
+/// 뒤에야 새 입력이다.
+#[test]
+fn multitap_replaces_even_when_the_cycle_wraps() {
+    use taza_engine::pack::layout::{
+        KeyAction, KeyboardLayout, KeyboardLayoutSet, LayoutKey, LayoutRow,
+    };
+
+    let multitap = |cycle: &str| LayoutKey {
+        action: KeyAction::Multitap(cycle.chars().collect()),
+        width_ratio: 0.5,
+        alternates: Vec::new(),
+    };
+    let layout_set = KeyboardLayoutSet {
+        layers: vec![KeyboardLayout {
+            panel_rows: 0.0,
+            rows: vec![LayoutRow {
+                keys: vec![multitap("ㄱㅋㄲ"), multitap("ㄴㄹ")],
+                height_ratio: 1.0,
+            }],
+        }],
+    };
+    let mut keyboard = Keyboard::new(layout_set, LanguageDescriptor::builtin("ko").unwrap());
+
+    let mut press = |x: f32| {
+        let outcome = keyboard.press_at(x, 0.5);
+        // 이어 누르는 동안에는 시한이 매번 새로 시작한다
+        assert!(outcome.timer.is_some());
+        match outcome.event {
+            Some(InputEvent::Key(signal)) => format!("새로 {}", signal.character()),
+            Some(InputEvent::Retap(character)) => format!("갈아 {character}"),
+            other => panic!("글자가 나오지 않음: {other:?}"),
+        }
+    };
+
+    let typed: Vec<String> = (0..4).map(|_| press(0.25)).collect();
+    assert_eq!(
+        typed,
+        ["새로 ㄱ", "갈아 ㅋ", "갈아 ㄲ", "갈아 ㄱ"],
+        "주기가 한 바퀴 돈 뒤 글자가 덧붙었다"
+    );
+
+    // 손이 다른 키로 옮겨 가면 주기가 그 자리에서 끝난다
+    assert_eq!(press(0.75), "새로 ㄴ");
+    assert_eq!(press(0.25), "새로 ㄱ");
+}
+
+/// 내고, 키캡에는 사람이 읽는 호환 자모가 찍힌다.
+#[test]
+fn sebeolsik_keys_carry_their_place_and_show_compatibility_jamo() {
+    use std::sync::Arc;
+    use taza_engine::engine::PackBytes;
+    use taza_engine::pack::SectionKind;
+    use taza_toolchain::PackWriter;
+
+    let text = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../data/korean-layout.txt"
+    ))
+    .unwrap();
+    let mut writer = PackWriter::new("ko");
+    writer.add_section(
+        SectionKind::Layout,
+        taza_toolchain::layout::serialize(&taza_toolchain::layout::parse(&text).unwrap()),
+    );
+    let bytes = writer.finish();
+
+    let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap()).unwrap();
+    engine
+        .load_pack(Arc::new(bytes) as Arc<dyn PackBytes>)
+        .unwrap();
+    assert_eq!(
+        engine.available_layouts(),
+        vec!["두벌식", "세벌식 최종", "천지인"]
+    );
+    assert!(engine.select_layout("세벌식 최종"));
+
+    let frame = engine.frame();
+    let labels: Vec<&str> = frame.rows[2].iter().map(|key| key.label.as_str()).collect();
+    assert_eq!(
+        labels,
+        ["ㅇ", "ㄴ", "ㅣ", "ㅏ", "ㅡ", "ㄴ", "ㅇ", "ㄱ", "ㅈ", "ㅂ"]
+    );
+
+    // 초성 ㄱ · 중성 ㅏ · 종성 ㄱ — 자리가 자모에 실려 있으므로 도깨비불이 없다
+    let context = EditorContext::unavailable();
+    let mut composing = None;
+    for (row, index) in [(2, 7), (2, 3), (3, 2)] {
+        let bounds = engine.frame().rows[row][index].bounds;
+        let result = engine.press_at(
+            bounds.x + bounds.width / 2.0,
+            bounds.y + bounds.height / 2.0,
+            &context,
+        );
+        for effect in result.effects {
+            if let Effect::SetComposing(text) = effect {
+                composing = Some(text.text);
+            }
+        }
+    }
+    assert_eq!(composing.as_deref(), Some("각"));
 }

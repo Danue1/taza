@@ -115,6 +115,8 @@ impl Typist {
                         .collect();
                 }
                 Effect::SetComposing(_) | Effect::ClearComposing => {}
+                // 평가 하네스에는 시간이 흐르지 않는다 — 멀티탭 주기가 끊기는 일이 없다
+                Effect::SetTimer(_) => {}
                 Effect::MoveCursor(_) => panic!("평가 하네스는 커서를 옮기지 않는다"),
             }
         }

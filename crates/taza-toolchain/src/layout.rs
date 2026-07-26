@@ -7,6 +7,7 @@
 //! 길게 눌러 고르는 변형이다. 제어 키는 이름으로: `shift`, `backspace`, `space`,
 //! `enter`, `language`(다음 언어), `layer0`~`layer3`(레이어 전환), `blank`(빈 자리).
 //! 시프트 표기 없이 여러 글자를 적으면 한 번에 넣는 키다 (`.com`).
+//! `ㄱ|ㅋ|ㄲ`처럼 세로줄로 이으면 이어 누를 때마다 갈리는 멀티탭 키다(천지인).
 //! 기본 폭 0.1. 행 맨 앞의 `*<수>` 토큰은 그 행의 높이(표준 행 대비 배수, 기본 1.0)다.
 //! ```text
 //! ㅂ:ㅃ ㅈ:ㅉ ㄷ:ㄸ ㄱ:ㄲ ㅅ:ㅆ ㅛ ㅕ ㅑ ㅐ:ㅒ ㅔ:ㅖ
@@ -26,29 +27,37 @@ const DEFAULT_ROW_HEIGHT: f32 = 1.0;
 
 /// 한 파일에 배열을 여러 벌 적을 수 있다 — `=== <이름>` 줄이 새 배열을 연다. 이름 줄이
 /// 하나도 없으면 파일 전체가 이름 없는 배열 한 벌이고, 이름은 레시피가 댄다.
+/// `=== <이름> : <골격>`으로 적으면 그 배열이 쓸 조합 골격을 밝힌다 — 같은 언어 안에서
+/// 조합 규칙이 다른 배열(천지인)만 필요한 표기이고, 없으면 언어의 골격을 쓴다.
 ///
 /// 뒤에 오는 배열이 레이어를 덜 적으면 첫 배열의 나머지 레이어를 그대로 물려받는다.
 /// 배열끼리 다른 것은 대개 문자면뿐이라(QWERTY와 Dvorak의 심볼면은 같다) 이 규칙이
 /// 없으면 심볼면 세 벌이 배열마다 복사된다.
 pub fn parse(text: &str) -> Result<Vec<NamedLayoutSet>, String> {
-    let mut blocks: Vec<(String, String)> = Vec::new();
+    let mut blocks: Vec<(String, Option<String>, String)> = Vec::new();
     for line in text.lines() {
         match line.trim().strip_prefix("===") {
-            Some(name) => blocks.push((name.trim().to_string(), String::new())),
+            Some(heading) => {
+                let (name, skeleton) = match heading.split_once(':') {
+                    Some((name, skeleton)) => (name.trim(), Some(skeleton.trim().to_string())),
+                    None => (heading.trim(), None),
+                };
+                blocks.push((name.to_string(), skeleton, String::new()))
+            }
             None => match blocks.last_mut() {
-                Some((_, body)) => {
+                Some((_, _, body)) => {
                     body.push_str(line);
                     body.push('\n');
                 }
                 // 이름 줄보다 앞에 있는 내용은 이름 없는 첫 배열이다
-                None => blocks.push((String::new(), format!("{line}\n"))),
+                None => blocks.push((String::new(), None, format!("{line}\n"))),
             },
         }
     }
     // 첫 이름 줄보다 앞에 머리말만 있는 파일에서는 이름 없는 빈 블록이 생긴다
-    blocks.retain(|(name, body)| !name.is_empty() || has_content(body));
+    blocks.retain(|(name, _, body)| !name.is_empty() || has_content(body));
     let mut named: Vec<NamedLayoutSet> = Vec::new();
-    for (name, body) in blocks {
+    for (name, skeleton, body) in blocks {
         // 이름만 있고 내용이 없는 블록은 오타이므로 그냥 지나가지 않는다
         let mut layouts = parse_set(&body)?;
         if let Some(first) = named.first()
@@ -58,7 +67,11 @@ pub fn parse(text: &str) -> Result<Vec<NamedLayoutSet>, String> {
                 .layers
                 .extend_from_slice(&first.layouts.layers[layouts.layers.len()..]);
         }
-        named.push(NamedLayoutSet { name, layouts });
+        named.push(NamedLayoutSet {
+            name,
+            skeleton,
+            layouts,
+        });
     }
     if named.is_empty() {
         return Err("레이아웃에 행이 없음".to_string());
@@ -66,18 +79,14 @@ pub fn parse(text: &str) -> Result<Vec<NamedLayoutSet>, String> {
     Ok(named)
 }
 
-/// 글자 하나의 대문자 — 대문자가 두 글자 이상이 되는 경우(ß→SS)는 키 하나에 담을 수
-/// 없으므로 그대로 둔다. 그런 글자는 배열이 시프트 표기를 직접 적어야 한다.
+/// 한 글자짜리 표기의 대문자 — 여러 글자를 한 번에 넣는 키(`.com`)는 대문자가 없다.
+/// 글자 하나를 올리는 규칙 자체는 코어와 같아야 하므로 코어 것을 쓴다.
 fn uppercase(characters: &str) -> String {
     let mut iterator = characters.chars();
     let (Some(character), None) = (iterator.next(), iterator.next()) else {
         return characters.to_string();
     };
-    let mut upper = character.to_uppercase();
-    match (upper.next(), upper.next()) {
-        (Some(single), None) => single.to_string(),
-        _ => characters.to_string(),
-    }
+    taza_engine::pack::layout::uppercase(character).to_string()
 }
 
 fn has_content(text: &str) -> bool {
@@ -152,6 +161,33 @@ fn parse_set(text: &str) -> Result<KeyboardLayoutSet, String> {
                 "layer2" => KeyAction::LayerSwitch { target: 2 },
                 "layer3" => KeyAction::LayerSwitch { target: 3 },
                 "blank" => KeyAction::Blank,
+                // 세로줄로 이은 글자들은 이어 누를 때마다 갈린다 — 세로줄 자체가 키인
+                // 경우와 겹치지 않도록 양쪽이 온전할 때만 구분자로 읽는다
+                characters
+                    if characters
+                        .split('|')
+                        .filter(|part| !part.is_empty())
+                        .count()
+                        > 1
+                        && !characters.starts_with('|')
+                        && !characters.ends_with('|') =>
+                {
+                    KeyAction::Multitap(
+                        characters
+                            .split('|')
+                            .map(|part| {
+                                let mut iterator = part.chars();
+                                match (iterator.next(), iterator.next()) {
+                                    (Some(character), None) => Ok(character),
+                                    _ => Err(format!(
+                                        "{}행: 멀티탭 글자는 1글자여야 함: {part:?}",
+                                        line_number + 1
+                                    )),
+                                }
+                            })
+                            .collect::<Result<Vec<char>, String>>()?,
+                    )
+                }
                 characters => {
                     let (base, shifted) = match characters.split_once(':') {
                         Some((base, shifted)) if !base.is_empty() && !shifted.is_empty() => {
@@ -207,14 +243,19 @@ fn parse_set(text: &str) -> Result<KeyboardLayoutSet, String> {
 /// 섹션 바이트 레이아웃은 `taza_engine::pack::layout` 참조.
 pub fn serialize(named: &[NamedLayoutSet]) -> Vec<u8> {
     assert!(named.len() <= u8::MAX as usize);
-    let mut output = vec![0u8, named.len() as u8];
+    let mut output = vec![1u8, named.len() as u8];
     for entry in named {
-        assert!(entry.name.len() <= u8::MAX as usize);
-        output.push(entry.name.len() as u8);
-        output.extend_from_slice(entry.name.as_bytes());
+        write_text(&entry.name, &mut output);
+        write_text(entry.skeleton.as_deref().unwrap_or_default(), &mut output);
         serialize_set(&entry.layouts, &mut output);
     }
     output
+}
+
+fn write_text(text: &str, output: &mut Vec<u8>) {
+    assert!(text.len() <= u8::MAX as usize);
+    output.push(text.len() as u8);
+    output.extend_from_slice(text.as_bytes());
 }
 
 fn serialize_set(layout_set: &KeyboardLayoutSet, output: &mut Vec<u8>) {
@@ -241,6 +282,7 @@ fn serialize_set(layout_set: &KeyboardLayoutSet, output: &mut Vec<u8>) {
                     KeyAction::LanguageSwitch => (7, 0, 0),
                     KeyAction::Text(_) => (8, 0, 0),
                     KeyAction::Blank => (9, 0, 0),
+                    KeyAction::Multitap(_) => (10, 0, 0),
                 };
                 output.push(kind);
                 let width_per_mille = (key.width_ratio * 1000.0).round() as u16;
@@ -252,10 +294,12 @@ fn serialize_set(layout_set: &KeyboardLayoutSet, output: &mut Vec<u8>) {
                 for alternate in &key.alternates {
                     output.extend_from_slice(&(*alternate as u32).to_le_bytes());
                 }
-                if let KeyAction::Text(text) = &key.action {
-                    assert!(text.len() <= u8::MAX as usize);
-                    output.push(text.len() as u8);
-                    output.extend_from_slice(text.as_bytes());
+                match &key.action {
+                    KeyAction::Text(text) => write_text(text, output),
+                    KeyAction::Multitap(cycle) => {
+                        write_text(&cycle.iter().collect::<String>(), output)
+                    }
+                    _ => {}
                 }
             }
         }

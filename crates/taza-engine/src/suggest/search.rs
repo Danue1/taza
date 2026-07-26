@@ -51,6 +51,7 @@ pub(crate) fn search(lexicon: &Lexicon<'_>, query: &Query<'_>, limit: usize) -> 
     let mut search = Search {
         lexicon,
         query: query.key.as_bytes(),
+        touch_at_byte: touch_at_byte(query.key, query.touches.len()),
         touches: query.touches,
         max_cost: query.max_cost,
         extending: query.extending,
@@ -79,9 +80,25 @@ fn frequency_score(entry: &Entry) -> i64 {
     score::combine(entry.frequency, 0, 0, entry.cost)
 }
 
+/// 조회 키의 바이트 자리마다 그 자리를 친 터치가 몇 번째인지. DP는 바이트 자리로 도는데
+/// 터치는 **타건 하나에 하나**라, 순 ASCII가 아닌 키에서는 둘이 어긋난다(é는 2바이트).
+/// 이어지는 바이트와 터치가 모자라는 앞자리는 None이며, 그 자리에서는 이웃 확률을 쓰지
+/// 않고 평범한 치환 비용으로 돌아간다.
+fn touch_at_byte(key: &str, touch_count: usize) -> Vec<Option<usize>> {
+    // 터치는 키의 끝에서부터 맞춘다 — 커서를 옮겨 이어 친 어절은 앞부분의 터치가 없다
+    let offset = key.chars().count().saturating_sub(touch_count);
+    let mut map = vec![None; key.len()];
+    for (character_index, (byte_index, _)) in key.char_indices().enumerate() {
+        map[byte_index] = character_index.checked_sub(offset);
+    }
+    map
+}
+
 struct Search<'call, 'bytes> {
     lexicon: &'call Lexicon<'bytes>,
     query: &'call [u8],
+    /// 바이트 자리 → 그 자리를 친 터치 번호 (`touch_at_byte`)
+    touch_at_byte: Vec<Option<usize>>,
     touches: &'call [KeySignal],
     max_cost: u32,
     extending: bool,
@@ -133,9 +150,18 @@ impl Search<'_, '_> {
         if self.query[position] == byte {
             return 0;
         }
-        let offset = self.query.len().saturating_sub(self.touches.len());
-        let Some(signal) = position
-            .checked_sub(offset)
+        // 이웃 확률은 키 하나가 글자 하나인 자리에서만 뜻이 있다. 여러 바이트로 적히는
+        // 글자는 그 자리에서 바이트 하나를 글자로 되읽을 수 없으므로(0xC3은 글자가
+        // 아니다) 평범한 치환으로 둔다 — 그런 글자는 길게 눌러 고른 것이라 애초에
+        // 이웃이 없기도 하다.
+        if !byte.is_ascii() || !self.query[position].is_ascii() {
+            return SUBSTITUTION;
+        }
+        let Some(signal) = self
+            .touch_at_byte
+            .get(position)
+            .copied()
+            .flatten()
             .and_then(|index| self.touches.get(index))
         else {
             return SUBSTITUTION;

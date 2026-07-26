@@ -1,5 +1,5 @@
 use taza_engine::contract::{
-    Composer, ComposerEvent, EditorContext, Effect, InputEvent, UserPreferences,
+    Composer, ComposerEvent, EditorContext, Effect, InputEvent, SuggestionRequest, UserPreferences,
 };
 use taza_engine::engine::Engine;
 use taza_engine::keyboard::KeySignal;
@@ -38,7 +38,7 @@ fn run(events: &str) -> (String, Option<String>) {
                         committed.pop();
                     }
                 }
-                Effect::UpdateCandidates(_) => {}
+                Effect::UpdateCandidates(_) | Effect::SetTimer(_) => {}
             }
         }
     }
@@ -121,6 +121,64 @@ fn tense_consonants_cannot_be_jongseong() {
 fn jongseong_clusters() {
     assert_text("ㄷㅏㄹㄱ", "", Some("닭"));
     assert_text("ㄱㅏㅂㅅ", "", Some("값"));
+}
+
+/// 세벌식이 내는 타건 — 초성·중성·종성을 제 키로 치므로 완성형 음절의 정준 분해가 곧
+/// 타건 순서다. 조합용 자모를 소스에 그대로 적으면 눈에는 완성형과 구별되지 않아
+/// 읽는 사람이 무엇을 시험하는지 알 수 없다.
+fn sebeolsik(text: &str) -> String {
+    let mut events = String::new();
+    for syllable in text.chars() {
+        let offset = syllable as u32 - 0xAC00;
+        events.push(char::from_u32(0x1100 + offset / 588).unwrap());
+        events.push(char::from_u32(0x1161 + (offset / 28) % 21).unwrap());
+        if !offset.is_multiple_of(28) {
+            events.push(char::from_u32(0x11A7 + offset % 28).unwrap());
+        }
+    }
+    events
+}
+
+/// 세벌식은 자리를 밝힌 자모를 내므로 합성기가 앞뒤를 추론하지 않는다 — 두벌식에서
+/// "가바"가 되는 타건이 세벌식에서는 종성을 제자리에 남긴다.
+#[test]
+fn sebeolsik_has_no_dokkaebibul() {
+    // 갑 + 중성 ㅏ
+    assert_text(&format!("{}\u{1161}", sebeolsik("갑")), "", Some("갑ㅏ"));
+    assert_text(&sebeolsik("각각"), "", Some("각각"));
+    assert_text(&sebeolsik("각각각"), "각", Some("각각"));
+}
+
+/// 겹받침을 한 키로 내는 자리가 있으므로 자모 하나가 곧 한 타건이다 — Backspace도
+/// 그 단위로 되돌린다.
+#[test]
+fn sebeolsik_types_clusters_with_one_key() {
+    assert_text(&sebeolsik("값"), "", Some("값"));
+    assert_text(&format!("{}<", sebeolsik("값")), "", Some("가"));
+}
+
+/// 복합 모음 키가 없는 자리(세벌식 최종의 ㅘ)는 중성 둘을 이어 쳐서 만든다.
+#[test]
+fn sebeolsik_combines_compound_vowels_from_two_keys() {
+    assert_text("\u{1100}\u{1169}\u{1161}\u{11AB}", "", Some("관"));
+}
+
+/// 사전은 두벌식 타건 순서로 저장되므로, 어느 배열로 쳤든 조회 키는 같아야 한다.
+#[test]
+fn sebeolsik_and_dubeolsik_look_up_the_same_key() {
+    let context = EditorContext::unavailable();
+    let lookup = |events: &str| {
+        let mut composer = HangulComposer::new();
+        let mut request = SuggestionRequest::None;
+        for character in events.chars() {
+            request = composer
+                .feed(ComposerEvent::Key(character), &context)
+                .suggest;
+        }
+        request
+    };
+    assert_eq!(lookup(&sebeolsik("값")), lookup("ㄱㅏㅂㅅ"));
+    assert_eq!(lookup(&sebeolsik("관")), lookup("ㄱㅗㅏㄴ"));
 }
 
 #[test]

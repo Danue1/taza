@@ -19,7 +19,7 @@ keycap_label = "한"
 layout_name = "두벌식"
 composer_skeleton = "hangul"
 pack_version = 2
-layout = "../dubeolsik-layout.txt"
+layout = "../korean-layout.txt"
 source_directory = "korean.sources.d"
 
 [lexicon]

@@ -14,7 +14,7 @@ use crate::contract::{
 use crate::keyboard::{
     FrameKey, FrameMetrics, KeySignal, Keyboard, KeyboardFrame, KeyboardMetrics, ShellRequest,
 };
-use crate::lang::LanguageDescriptor;
+use crate::lang::{ComposerSkeleton, LanguageDescriptor};
 use crate::pack::PackError;
 use crate::pack::layout::NamedLayoutSet;
 use crate::personalization::{PersonalizationState, PersonalizationStore};
@@ -77,6 +77,9 @@ pub struct Engine {
     /// 하나다. 어느 것으로 칠지는 설정이 정한다.
     layouts: Vec<NamedLayoutSet>,
     selected_layout: usize,
+    /// 지금 꽂혀 있는 합성기의 골격 — 배열이 자기 골격을 밝히면 갈아 끼우므로,
+    /// 무엇이 꽂혀 있는지를 알아야 헛되이 다시 만들지 않는다
+    active_skeleton: ComposerSkeleton,
     personalization: PersonalizationStore,
     /// 팩 교체로 키보드를 다시 만들어도 셸이 주입한 표시 환경은 이어져야 한다
     metrics: KeyboardMetrics,
@@ -119,6 +122,7 @@ impl Engine {
     pub fn with_composer(language: LanguageDescriptor, composer: Box<dyn Composer>) -> Self {
         let builtin = NamedLayoutSet {
             name: language.layout_name.clone(),
+            skeleton: None,
             layouts: language.builtin_layout(),
         };
         Engine {
@@ -127,6 +131,7 @@ impl Engine {
             keyboard: Keyboard::new(builtin.layouts.clone(), language.clone()),
             layouts: vec![builtin],
             selected_layout: 0,
+            active_skeleton: language.skeleton,
             language,
             personalization: PersonalizationStore::new(),
             metrics: KeyboardMetrics::default(),
@@ -152,11 +157,8 @@ impl Engine {
         let declared = LanguageDescriptor::from_pack(&opened);
         let packed_layouts = opened.layouts();
         if let Some(declared) = declared {
-            if declared.skeleton != self.language.skeleton
-                && let Some(composer) = declared.skeleton.composer()
-            {
-                self.composer = composer;
-            }
+            // 합성기 교체는 배열을 고른 뒤에 한다(`apply_layout_skeleton`) — 골격을
+            // 밝히는 쪽이 언어와 배열 둘이라 한자리에서 정해야 어긋나지 않는다
             self.language = declared;
         }
         self.refresh_suggester();
@@ -166,6 +168,7 @@ impl Engine {
         self.layouts = packed_layouts.unwrap_or_else(|| {
             vec![NamedLayoutSet {
                 name: String::new(),
+                skeleton: None,
                 layouts: self.language.builtin_layout(),
             }]
         });
@@ -215,8 +218,29 @@ impl Engine {
         true
     }
 
+    /// 배열이 자기 골격을 밝혔으면 그 합성기로 갈아 끼운다 — 같은 언어 안에서도 조합
+    /// 규칙이 다른 배열(천지인)이 있기 때문이다. 밝히지 않은 배열은 언어의 골격을 쓴다.
+    /// 이 빌드에 그 골격이 없으면 쓰던 합성기에 머문다.
+    fn apply_layout_skeleton(&mut self) {
+        let declared = self
+            .layouts
+            .get(self.selected_layout)
+            .and_then(|entry| entry.skeleton.as_deref())
+            .and_then(ComposerSkeleton::from_tag);
+        let skeleton = declared.unwrap_or(self.language.skeleton);
+        if skeleton == self.active_skeleton {
+            return;
+        }
+        let Some(composer) = skeleton.composer() else {
+            return;
+        };
+        self.composer = composer;
+        self.active_skeleton = skeleton;
+    }
+
     /// 배열이 바뀌어도 셸이 알려 준 표시 환경·설정·필드 성격은 이어진다.
     fn rebuild_keyboard(&mut self) {
+        self.apply_layout_skeleton();
         let layers = self
             .layouts
             .get(self.selected_layout)
@@ -305,10 +329,13 @@ impl Engine {
     /// 터치 좌표 → 히트 테스트 → 합성까지 한 번에.
     pub fn press_at(&mut self, x: f32, y: f32, context: &EditorContext) -> PressResult {
         let outcome = self.keyboard.press_at(x, y);
-        let effects = match outcome.event {
+        let mut effects = match outcome.event {
             Some(event) => self.handle(event, context),
             None => Vec::new(),
         };
+        if let Some(milliseconds) = outcome.timer {
+            effects.push(Effect::SetTimer(milliseconds));
+        }
         // 방금 넣은 것까지 반영한 문맥으로 다음 글자의 shift를 정한다 — 셸이 문맥을
         // 다시 읽어 오기를 기다리면 마침표를 찍고 친 첫 글자가 소문자로 들어간다
         let applied = EditorContext {
@@ -321,6 +348,12 @@ impl Engine {
             layout_changed: outcome.layout_changed || shift_changed,
             request: outcome.request,
         }
+    }
+
+    /// 멀티탭 시한이 다 됐다고 셸이 알려 준다 — 다음에 같은 키를 눌러도 주기가 아니라
+    /// 새 글자로 시작한다. 이미 끝난 주기에 울린 타이머는 아무 일도 하지 않는다.
+    pub fn timer_fired(&mut self) {
+        self.keyboard.expire_multitap();
     }
 
     /// shift 키를 두 번 눌렀을 때(순정 관례) shift를 고정하거나 푼다. 고정할 수 없는
@@ -368,10 +401,10 @@ impl Engine {
                 effects
             }
             InputEvent::Key(signal) => {
-                let character = signal.character();
+                let mut character = signal.character();
                 // 부호 규칙은 합성기보다 먼저 본다 — 언어와 무관한 규칙을 언어 수만큼
-                // 늘리지 않기 위해서다. 조합 중에는 성립하지 않는다: 어절 안의 따옴표를
-                // 갈아치우면 사전 조회 키가 어긋난다("don't"의 조회 키가 달라진다).
+                // 늘리지 않기 위해서다. 조합 중에는 성립하지 않는다: 조합 창 안의 글자를
+                // 갈아치우면 합성기가 자기 상태와 어긋난 것을 보게 된다.
                 if !self.composer.is_composing()
                     && let Some(outcome) = crate::policy::punctuation(
                         character,
@@ -380,7 +413,12 @@ impl Engine {
                         context,
                     )
                 {
-                    return self.emit_punctuation(outcome);
+                    match outcome {
+                        // 짝맞춤 따옴표는 어절 안에 설 수 있다("don't") — 합성기를
+                        // 건너뛰면 그 자리에서 어절이 끊겨 축약형이 사전에 닿지 못한다
+                        PunctuationOutcome::Substitute(substituted) => character = substituted,
+                        outcome => return self.emit_punctuation(outcome),
+                    }
                 }
                 self.touches.push(signal);
                 self.feed(ComposerEvent::Key(character), context, None)
@@ -390,6 +428,18 @@ impl Engine {
             InputEvent::Text(text) => {
                 let mut effects = self.finalize_composition();
                 effects.push(Effect::CommitText(text));
+                effects
+            }
+            // 이어 누른 멀티탭 — 방금 넣은 글자를 지우고 주기의 다음 글자를 넣는다.
+            // 지우기와 넣기를 그대로 이어 쓰면 조합·어절 추적이 따로 볼 것이 없다.
+            InputEvent::Retap(character) => {
+                let mut effects = self.handle(InputEvent::Backspace, context);
+                // 지운 글자는 아직 문서에 남아 있다 — 그 문맥을 그대로 넘기면 합성 재개가
+                // 그것을 도로 주워 와 갈아 끼우는 대신 글자가 하나 더 붙는다
+                effects.extend(self.handle(
+                    InputEvent::Key(KeySignal::certain(character)),
+                    &context.unapplied(),
+                ));
                 effects
             }
             InputEvent::Backspace => {
@@ -418,15 +468,22 @@ impl Engine {
     /// 짝맞춤 부호·자동 짝 넣기의 결과를 Effect로 옮긴다. 합성기를 거치지 않으므로
     /// 어절 문맥은 여기서 끊는다 — 괄호나 따옴표 뒤는 새 어절이다.
     fn emit_punctuation(&mut self, outcome: PunctuationOutcome) -> Vec<Effect> {
+        let PunctuationOutcome::Commit {
+            output,
+            cursor_offset,
+        } = outcome
+        else {
+            unreachable!("글자 치환은 합성기를 거친다");
+        };
         let mut effects = Vec::new();
-        if outcome.output.delete_before_commit > 0 {
-            effects.push(Effect::DeleteBackward(outcome.output.delete_before_commit));
+        if output.delete_before_commit > 0 {
+            effects.push(Effect::DeleteBackward(output.delete_before_commit));
         }
-        if let Some(commit) = outcome.output.commit {
+        if let Some(commit) = output.commit {
             effects.push(Effect::CommitText(commit.surface));
         }
-        if outcome.cursor_offset != 0 {
-            effects.push(Effect::MoveCursor(outcome.cursor_offset));
+        if cursor_offset != 0 {
+            effects.push(Effect::MoveCursor(cursor_offset));
         }
         self.touches.clear();
         self.previous_word = None;

@@ -10,8 +10,7 @@ public final class KeyCapView: UIView {
         case control
         /// 언어 키 — 제어 키 바탕에 굵은 글자
         case language
-        /// 스페이스 — 순정은 문자 키와 같은 밝은 바탕에, 현재 언어를 작은 회색
-        /// 글자로 오른쪽에 흘려 놓는다
+        /// 스페이스 — 문자 키와 같은 밝은 바탕, 글자는 두지 않는다
         case space
         /// 검색 필드의 리턴키처럼 필드가 강조하는 키 — 순정은 강조색 바탕에 흰 글자
         case emphasized
@@ -31,7 +30,19 @@ public final class KeyCapView: UIView {
         didSet { updateColors() }
     }
 
-    private let appearance: Appearance
+    /// 스페이스바로 커서를 끄는 동안처럼 키가 잠시 물러나는 상태 — 순정은 라벨을 지우고
+    /// 키캡만 옅게 남겨, 지금 판이 글자를 받지 않는다는 것을 보인다.
+    public var isSkeleton: Bool = false {
+        didSet {
+            labelView.alpha = isSkeleton ? 0 : 1
+            layer.shadowOpacity = isSkeleton || appearance == .blank
+                ? 0
+                : TazaTheme.Key.shadowOpacity
+            updateColors()
+        }
+    }
+
+    public let appearance: Appearance
     private let labelView = UILabel()
 
     public init(
@@ -66,9 +77,8 @@ public final class KeyCapView: UIView {
 
         switch appearance {
         case .space:
-            labelView.textAlignment = .right
-            labelView.font = TazaTheme.Typography.spaceLabel
-            labelView.textColor = TazaTheme.Color.secondaryLabel
+            // 순정과 달리 현재 언어 표기를 두지 않는다 — 스페이스는 빈 바탕으로 둔다
+            labelView.text = nil
         case .language:
             labelView.textAlignment = .center
             labelView.font = TazaTheme.Typography.languageKeyLabel(size: fontSize)
@@ -83,11 +93,14 @@ public final class KeyCapView: UIView {
             labelView.textColor = TazaTheme.Color.label
         }
 
-        let trailingInset: CGFloat = appearance == .space ? -10 : -2
+        let trailingInset: CGFloat = -2
         NSLayoutConstraint.activate([
             labelView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2),
             labelView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: trailingInset),
-            labelView.centerYAnchor.constraint(equalTo: centerYAnchor),
+            labelView.centerYAnchor.constraint(
+                equalTo: centerYAnchor,
+                constant: appearance == .letter ? -TazaTheme.Key.letterLabelLift : 0
+            ),
         ])
 
         // 접근성은 계약의 일부 — 라벨·롤·상태를 코어가 준 값 그대로 노출한다.
@@ -133,6 +146,10 @@ public final class KeyCapView: UIView {
     private func updateColors() {
         if appearance == .blank {
             backgroundColor = .clear
+            return
+        }
+        if isSkeleton {
+            backgroundColor = TazaTheme.Color.keySurfaceSkeleton
             return
         }
         if appearance == .emphasized {

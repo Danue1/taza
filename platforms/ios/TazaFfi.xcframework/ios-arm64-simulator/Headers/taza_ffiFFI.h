@@ -356,6 +356,11 @@ void uniffi_taza_ffi_fn_method_keyboardsession_set_metrics(void*_Nonnull ptr, Ru
 void uniffi_taza_ffi_fn_method_keyboardsession_set_preferences(void*_Nonnull ptr, RustBuffer preferences, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_TOGGLE_SHIFT_LOCK
+#define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_TOGGLE_SHIFT_LOCK
+int8_t uniffi_taza_ffi_fn_method_keyboardsession_toggle_shift_lock(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_UPDATE_CURSOR_DRAG
 #define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_UPDATE_CURSOR_DRAG
 RustBuffer uniffi_taza_ffi_fn_method_keyboardsession_update_cursor_drag(void*_Nonnull ptr, float x, RustBuffer context, RustCallStatus *_Nonnull out_status
@@ -792,6 +797,12 @@ uint16_t uniffi_taza_ffi_checksum_method_keyboardsession_set_metrics(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_SET_PREFERENCES
 #define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_SET_PREFERENCES
 uint16_t uniffi_taza_ffi_checksum_method_keyboardsession_set_preferences(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_TOGGLE_SHIFT_LOCK
+#define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_TOGGLE_SHIFT_LOCK
+uint16_t uniffi_taza_ffi_checksum_method_keyboardsession_toggle_shift_lock(void
     
 );
 #endif

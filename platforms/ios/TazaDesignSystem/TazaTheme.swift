@@ -10,8 +10,6 @@ public enum TazaTheme {
     // MARK: - 색
 
     public enum Color {
-        /// 키보드 판 배경
-        public static let keyboardBackground = dynamic(light: 0xD1D3D9, dark: 0x2C2C2E)
         /// 문자 키
         public static let keySurface = dynamic(light: 0xFFFFFF, dark: 0x6B6B6D)
         /// shift·삭제·심볼처럼 문자가 아닌 키 (순정은 한 톤 어둡다)
@@ -21,6 +19,11 @@ public enum TazaTheme {
         public static let controlKeySurfacePressed = dynamic(light: 0xFFFFFF, dark: 0x6B6B6D)
         /// 켜진 shift 등 상태 표시
         public static let keySurfaceActive = dynamic(light: 0xFFFFFF, dark: 0x8E8E90)
+        /// 검색면 레일에서 지금 보고 있는 묶음을 알리는 바탕
+        public static let railMarker = dynamic(light: 0xC4C7CE, dark: 0x5A5A5C)
+        /// 커서를 끄는 동안 물러난 키 — 자리는 남기고 존재감만 지운다
+        public static let keySurfaceSkeleton = dynamic(light: 0xFFFFFF, dark: 0x6B6B6D)
+            .withAlphaComponent(0.35)
 
         public static let label = dynamic(light: 0x000000, dark: 0xFFFFFF)
         public static let secondaryLabel = dynamic(light: 0x6D6D72, dark: 0xA0A0A5)
@@ -56,29 +59,27 @@ public enum TazaTheme {
         public let candidateBarHeight: CGFloat
         /// 키 그리드 높이 — 키의 정규화 높이에 곱하면 실제 높이다
         public let gridHeight: CGFloat
+        /// 글자 키 글꼴 — 키 밖에서 같은 크기를 써야 하는 자리(변형 문자 팝업)가 쓴다.
+        /// 키 하나하나의 글꼴은 코어가 키마다 실어 보낸다(`KeyModel.fontSize`).
         public let letterFontSize: CGFloat
-        public let controlFontSize: CGFloat
 
         public var totalHeight: CGFloat { candidateBarHeight + gridHeight }
 
         public init(
             candidateBarHeight: CGFloat,
             gridHeight: CGFloat,
-            letterFontSize: CGFloat,
-            controlFontSize: CGFloat
+            letterFontSize: CGFloat
         ) {
             self.candidateBarHeight = candidateBarHeight
             self.gridHeight = gridHeight
             self.letterFontSize = letterFontSize
-            self.controlFontSize = controlFontSize
         }
 
         /// 코어가 아직 자기 크기를 모를 때의 첫 프레임용 — 표준 폰 세로 값이다.
         public static let placeholder = Metrics(
             candidateBarHeight: 44,
             gridHeight: 216,
-            letterFontSize: 22,
-            controlFontSize: 16
+            letterFontSize: 25
         )
     }
 
@@ -87,7 +88,12 @@ public enum TazaTheme {
     public enum Key {
         public static let horizontalGap: CGFloat = 6
         public static let verticalGapRatio: CGFloat = 0.22
-        public static let cornerRadius: CGFloat = 5
+        public static let cornerRadius: CGFloat = 7
+        /// shift 오른쪽·backspace 왼쪽처럼 글자 열과 갈라지는 자리에 더하는 여백
+        public static let edgeExtraGap: CGFloat = 8
+        /// 글자 키 라벨을 올리는 양 — 글자는 아래로 처져 보이므로 키 아래쪽에 여백을
+        /// 남겨 시각 중심을 기하 중심에 맞춘다
+        public static let letterLabelLift: CGFloat = 2
         /// 순정 키캡의 아래쪽 1pt 그림자
         public static let shadowColor = UIColor(red: 0.53, green: 0.53, blue: 0.55, alpha: 1)
         public static let shadowOpacity: Float = 0.9
@@ -103,9 +109,6 @@ public enum TazaTheme {
         public static func languageKeyLabel(size: CGFloat) -> UIFont {
             UIFont.systemFont(ofSize: size, weight: .semibold)
         }
-
-        /// 스페이스바의 현재 언어 표기 — 순정처럼 작고 흐리게
-        public static let spaceLabel = UIFont.systemFont(ofSize: 13)
 
         /// 후보 바 글꼴 — 낱말은 순정 예측 바와 같은 17pt이고, 곁들이는 것은 갈래마다
         /// 눈에 잡히는 크기가 달라 따로 잡는다(이모지는 크게, 글자로 그린 얼굴은 작게).
@@ -128,11 +131,11 @@ public enum TazaTheme {
             }
         }
 
-        public static let panelGroupLabel = UIFont.systemFont(ofSize: 12, weight: .semibold)
-        public static let panelRail = UIFont.systemFont(ofSize: 13)
 
         public static let popupItem = UIFont.systemFont(ofSize: 16)
         public static let popupItemSelected = UIFont.systemFont(ofSize: 16, weight: .semibold)
+        public static let popupItemDetail = UIFont.systemFont(ofSize: 13)
+        public static let popupBadge = UIFont.systemFont(ofSize: 15, weight: .semibold)
     }
 
     // MARK: - 팝업

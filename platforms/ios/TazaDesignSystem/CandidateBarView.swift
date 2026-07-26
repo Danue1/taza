@@ -24,7 +24,7 @@ public struct CandidateModel {
 /// (순정도 예측 바 자리를 유지한다).
 ///
 /// 낱말과 곁들이는 것(이모지·기호·얼굴 문자)은 **그룹 단위로 묶여** 한 줄에 인라인으로
-/// 늘어선다 — 그룹 사이는 순정 후보 바와 같은 1pt 구분선으로 가른다. 낱말 그룹만 남는
+/// 늘어선다 — 후보 사이와 그룹 사이 모두 순정 후보 바와 같은 1pt 구분선으로 가른다. 낱말 그룹만 남는
 /// 폭을 균등하게 나눠 갖고, 곁들이는 것은 제 글자 폭만 차지한다. 그래야 이모지가 떠도
 /// 낱말이 서던 자리가 크게 흔들리지 않는다.
 public final class CandidateBarView: UIView {
@@ -54,7 +54,7 @@ public final class CandidateBarView: UIView {
 
     public func setCandidates(_ candidates: [CandidateModel]) {
         stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
-        var wordButtons: [UIButton] = []
+        var wordSlots: [UIView] = []
         for (position, group) in groups(of: candidates).enumerated() {
             if position > 0 {
                 stack.addArrangedSubview(makeSeparator())
@@ -63,11 +63,21 @@ public final class CandidateBarView: UIView {
             groupStack.axis = .horizontal
             groupStack.distribution = .fill
             groupStack.spacing = group.kind == .word ? 0 : Metrics.itemSpacing
-            for item in group.items {
-                let button = makeButton(item.candidate, index: item.index)
-                groupStack.addArrangedSubview(button)
+            // 낱말 자리는 후보가 모자라도 셋을 지킨다 — 자리와 구분선이 그대로 있어야
+            // 후보가 바뀔 때마다 바가 다시 짜이지 않는다(순정 예측 바)
+            let slots = group.kind == .word
+                ? Metrics.wordSlots
+                : group.items.count
+            for slot in 0..<slots {
+                // 후보 사이도 그룹 사이와 같은 선으로 가른다
+                if slot > 0, group.kind == .word {
+                    groupStack.addArrangedSubview(makeSeparator())
+                }
+                let view: UIView = group.items[safe: slot]
+                    .map { makeButton($0.candidate, index: $0.index) } ?? UIView()
+                groupStack.addArrangedSubview(view)
                 if group.kind == .word {
-                    wordButtons.append(button)
+                    wordSlots.append(view)
                 }
             }
             if group.kind != .word {
@@ -84,8 +94,8 @@ public final class CandidateBarView: UIView {
             }
             stack.addArrangedSubview(groupStack)
         }
-        for button in wordButtons.dropFirst() {
-            button.widthAnchor.constraint(equalTo: wordButtons[0].widthAnchor).isActive = true
+        for slot in wordSlots.dropFirst() {
+            slot.widthAnchor.constraint(equalTo: wordSlots[0].widthAnchor).isActive = true
         }
     }
 
@@ -110,12 +120,18 @@ public final class CandidateBarView: UIView {
                 groups.append(Group(kind: candidate.group, items: [(index, candidate)]))
             }
         }
+        // 낱말 자리는 후보가 하나도 없어도 남는다 — 빈 바에도 셋으로 나뉜 자리가 보인다
+        if !groups.contains(where: { $0.kind == .word }) {
+            groups.insert(Group(kind: .word, items: []), at: 0)
+        }
         return groups
     }
 
     // MARK: - 그리기
 
     private enum Metrics {
+        /// 낱말 후보가 서는 자리 수 — 순정 예측 바와 같다
+        static let wordSlots = 3
         static let itemSpacing: CGFloat = 8
         static let groupInset: CGFloat = 12
         /// 낱말은 남는 폭을 나눠 갖는 자리라 좌우 여백을 좁게 잡아 글자 쪽에 폭을 넘긴다
@@ -155,21 +171,37 @@ public final class CandidateBarView: UIView {
 
     private func hint(for group: CandidateModel.Group) -> String {
         switch group {
-        case .word: "후보 선택"
-        case .emoji: "이모지 선택"
-        case .symbol: "기호 선택"
-        case .emoticon: "얼굴 문자 선택"
+        case .word: NSLocalizedString("후보 선택", comment: "후보 바 접근성 힌트")
+        case .emoji: NSLocalizedString("이모지 선택", comment: "후보 바 접근성 힌트")
+        case .symbol: NSLocalizedString("기호 선택", comment: "후보 바 접근성 힌트")
+        case .emoticon: NSLocalizedString("얼굴 문자 선택", comment: "후보 바 접근성 힌트")
         }
     }
 
+    /// 후보를 가르는 선 — 순정은 바 높이를 다 쓰지 않고 가운데 절반만 긋는다
     private func makeSeparator() -> UIView {
+        let holder = UIView()
+        holder.isAccessibilityElement = false
+        holder.setContentHuggingPriority(.required, for: .horizontal)
+        holder.setContentCompressionResistancePriority(.required, for: .horizontal)
+        holder.widthAnchor.constraint(equalToConstant: 1).isActive = true
         let separator = UIView()
         separator.backgroundColor = TazaTheme.Color.separator
-        separator.isAccessibilityElement = false
-        separator.setContentHuggingPriority(.required, for: .horizontal)
-        separator.widthAnchor.constraint(equalToConstant: 1).isActive = true
-        // 늘어나는 그룹 사이에서 구분선만 폭을 고정한다
-        separator.setContentCompressionResistancePriority(.required, for: .horizontal)
-        return separator
+        separator.translatesAutoresizingMaskIntoConstraints = false
+        holder.addSubview(separator)
+        NSLayoutConstraint.activate([
+            separator.widthAnchor.constraint(equalToConstant: 1),
+            separator.centerXAnchor.constraint(equalTo: holder.centerXAnchor),
+            separator.centerYAnchor.constraint(equalTo: holder.centerYAnchor),
+            separator.heightAnchor.constraint(equalTo: holder.heightAnchor, multiplier: 0.5),
+        ])
+        return holder
+    }
+
+}
+
+private extension Array {
+    subscript(safe index: Int) -> Element? {
+        indices.contains(index) ? self[index] : nil
     }
 }

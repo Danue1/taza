@@ -55,6 +55,28 @@ public struct LanguagePreferences {
         }
     }
 
+    /// 아직 쓰지 않는 언어 — 설정에서 추가할 수 있는 것들
+    public var availableLanguages: [TazaLanguage] {
+        let enabled = enabledLanguages
+        return TazaLanguage.all.filter { !enabled.contains($0) }
+    }
+
+    /// 새 언어는 순환 순서의 끝에 붙는다 — 쓰던 순서가 흔들리지 않게 한다.
+    public func enable(_ language: TazaLanguage) {
+        var languages = enabledLanguages
+        guard !languages.contains(language) else { return }
+        languages.append(language)
+        enabledLanguages = languages
+    }
+
+    /// 마지막 한 언어는 지울 수 없다 — 지우면 키보드가 그릴 배열이 남지 않는다.
+    public func disable(_ language: TazaLanguage) {
+        var languages = enabledLanguages
+        guard languages.count > 1, let index = languages.firstIndex(of: language) else { return }
+        languages.remove(at: index)
+        enabledLanguages = languages
+    }
+
     public var lastUsedLanguage: TazaLanguage {
         get {
             let stored = defaults.string(forKey: Key.lastUsedLanguage)

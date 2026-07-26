@@ -35,6 +35,10 @@ targets:
       properties:
         UILaunchScreen: {}
         CFBundleDisplayName: Taza
+        # 기본 언어는 한국어이고 영어를 함께 담는다 — 문자열은 Localizable.xcstrings가
+        # 갖고, 시스템이 내주는 버튼 라벨(편집·삭제)도 이 선언을 따라 번역된다.
+        CFBundleDevelopmentRegion: ko
+        CFBundleLocalizations: [ko, en]
         CFBundleURLTypes:
           - CFBundleURLName: io.danuel.taza
             CFBundleURLSchemes: [taza]
@@ -69,6 +73,8 @@ targets:
       path: TazaKeyboard/Info.plist
       properties:
         CFBundleDisplayName: Taza Keyboard
+        CFBundleDevelopmentRegion: ko
+        CFBundleLocalizations: [ko, en]
         NSExtension:
           NSExtensionPointIdentifier: com.apple.keyboard-service
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).KeyboardViewController

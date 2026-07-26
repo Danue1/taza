@@ -639,6 +639,12 @@ public protocol KeyboardSessionProtocol: AnyObject, Sendable {
      */
     func setPreferences(preferences: FfiUserPreferences) 
     
+    /**
+     * shift 키를 두 번 누른 것 — 두 번 누름을 알아보는 것은 플랫폼 제스처라 셸이 하고,
+     * 고정할 수 있는 배열인지와 그 뒤 상태는 코어가 정한다. 고정되면 true.
+     */
+    func toggleShiftLock()  -> Bool
+    
     func updateCursorDrag(x: Float, context: FfiEditorContext)  -> [FfiEffect]
     
 }
@@ -900,6 +906,17 @@ open func setPreferences(preferences: FfiUserPreferences)  {try! rustCall() {
 }
 }
     
+    /**
+     * shift 키를 두 번 누른 것 — 두 번 누름을 알아보는 것은 플랫폼 제스처라 셸이 하고,
+     * 고정할 수 있는 배열인지와 그 뒤 상태는 코어가 정한다. 고정되면 true.
+     */
+open func toggleShiftLock() -> Bool  {
+    return try!  FfiConverterBool.lift(try! rustCall() {
+    uniffi_taza_ffi_fn_method_keyboardsession_toggle_shift_lock(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
 open func updateCursorDrag(x: Float, context: FfiEditorContext) -> [FfiEffect]  {
     return try!  FfiConverterSequenceTypeFfiEffect.lift(try! rustCall() {
     uniffi_taza_ffi_fn_method_keyboardsession_update_cursor_drag(self.uniffiClonePointer(),
@@ -1033,13 +1050,21 @@ public func FfiConverterTypeFfiAnnotationPanel_lower(_ value: FfiAnnotationPanel
  */
 public struct FfiAnnotationPanelGroup {
     public var group: FfiCandidateGroup?
+    /**
+     * 이모지 묶음이면 그 자리 — 셸이 묶음마다 다른 표식을 세운다
+     */
+    public var category: FfiEmojiCategory?
     public var label: String
     public var items: [FfiAnnotationPanelItem]
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(group: FfiCandidateGroup?, label: String, items: [FfiAnnotationPanelItem]) {
+    public init(group: FfiCandidateGroup?, 
+        /**
+         * 이모지 묶음이면 그 자리 — 셸이 묶음마다 다른 표식을 세운다
+         */category: FfiEmojiCategory?, label: String, items: [FfiAnnotationPanelItem]) {
         self.group = group
+        self.category = category
         self.label = label
         self.items = items
     }
@@ -1055,6 +1080,9 @@ extension FfiAnnotationPanelGroup: Equatable, Hashable {
         if lhs.group != rhs.group {
             return false
         }
+        if lhs.category != rhs.category {
+            return false
+        }
         if lhs.label != rhs.label {
             return false
         }
@@ -1066,6 +1094,7 @@ extension FfiAnnotationPanelGroup: Equatable, Hashable {
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine(group)
+        hasher.combine(category)
         hasher.combine(label)
         hasher.combine(items)
     }
@@ -1081,6 +1110,7 @@ public struct FfiConverterTypeFfiAnnotationPanelGroup: FfiConverterRustBuffer {
         return
             try FfiAnnotationPanelGroup(
                 group: FfiConverterOptionTypeFfiCandidateGroup.read(from: &buf), 
+                category: FfiConverterOptionTypeFfiEmojiCategory.read(from: &buf), 
                 label: FfiConverterString.read(from: &buf), 
                 items: FfiConverterSequenceTypeFfiAnnotationPanelItem.read(from: &buf)
         )
@@ -1088,6 +1118,7 @@ public struct FfiConverterTypeFfiAnnotationPanelGroup: FfiConverterRustBuffer {
 
     public static func write(_ value: FfiAnnotationPanelGroup, into buf: inout [UInt8]) {
         FfiConverterOptionTypeFfiCandidateGroup.write(value.group, into: &buf)
+        FfiConverterOptionTypeFfiEmojiCategory.write(value.category, into: &buf)
         FfiConverterString.write(value.label, into: &buf)
         FfiConverterSequenceTypeFfiAnnotationPanelItem.write(value.items, into: &buf)
     }
@@ -1350,6 +1381,10 @@ public struct FfiFrameKey {
      */
     public var emphasized: Bool
     public var role: FfiKeyRole
+    /**
+     * 이 키 라벨의 글꼴 크기(pt) — 글자 키·기호 제어 키·낱말 제어 키가 서로 다르다
+     */
+    public var fontSize: Float
     public var alternates: [String]
 
     // Default memberwise initializers are never public by default, so we
@@ -1357,7 +1392,10 @@ public struct FfiFrameKey {
     public init(row: UInt32, index: UInt32, label: String, accessibilityLabel: String, bounds: FfiKeyBounds, shiftActive: Bool, 
         /**
          * 이 필드에서 강조색으로 그릴 키 (검색 필드의 리턴키 등)
-         */emphasized: Bool, role: FfiKeyRole, alternates: [String]) {
+         */emphasized: Bool, role: FfiKeyRole, 
+        /**
+         * 이 키 라벨의 글꼴 크기(pt) — 글자 키·기호 제어 키·낱말 제어 키가 서로 다르다
+         */fontSize: Float, alternates: [String]) {
         self.row = row
         self.index = index
         self.label = label
@@ -1366,6 +1404,7 @@ public struct FfiFrameKey {
         self.shiftActive = shiftActive
         self.emphasized = emphasized
         self.role = role
+        self.fontSize = fontSize
         self.alternates = alternates
     }
 }
@@ -1401,6 +1440,9 @@ extension FfiFrameKey: Equatable, Hashable {
         if lhs.role != rhs.role {
             return false
         }
+        if lhs.fontSize != rhs.fontSize {
+            return false
+        }
         if lhs.alternates != rhs.alternates {
             return false
         }
@@ -1416,6 +1458,7 @@ extension FfiFrameKey: Equatable, Hashable {
         hasher.combine(shiftActive)
         hasher.combine(emphasized)
         hasher.combine(role)
+        hasher.combine(fontSize)
         hasher.combine(alternates)
     }
 }
@@ -1437,6 +1480,7 @@ public struct FfiConverterTypeFfiFrameKey: FfiConverterRustBuffer {
                 shiftActive: FfiConverterBool.read(from: &buf), 
                 emphasized: FfiConverterBool.read(from: &buf), 
                 role: FfiConverterTypeFfiKeyRole.read(from: &buf), 
+                fontSize: FfiConverterFloat.read(from: &buf), 
                 alternates: FfiConverterSequenceString.read(from: &buf)
         )
     }
@@ -1450,6 +1494,7 @@ public struct FfiConverterTypeFfiFrameKey: FfiConverterRustBuffer {
         FfiConverterBool.write(value.shiftActive, into: &buf)
         FfiConverterBool.write(value.emphasized, into: &buf)
         FfiConverterTypeFfiKeyRole.write(value.role, into: &buf)
+        FfiConverterFloat.write(value.fontSize, into: &buf)
         FfiConverterSequenceString.write(value.alternates, into: &buf)
     }
 }
@@ -1483,8 +1528,10 @@ public struct FfiFrameMetrics {
      * 후보 바까지 포함한 입력 뷰 전체 높이
      */
     public var totalHeight: Float
+    /**
+     * 글자 키 글꼴 — 키 밖에서 같은 크기를 써야 하는 자리(변형 문자 팝업)가 쓴다
+     */
     public var letterFontSize: Float
-    public var controlFontSize: Float
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -1494,12 +1541,14 @@ public struct FfiFrameMetrics {
          */gridHeight: Float, candidateBarHeight: Float, 
         /**
          * 후보 바까지 포함한 입력 뷰 전체 높이
-         */totalHeight: Float, letterFontSize: Float, controlFontSize: Float) {
+         */totalHeight: Float, 
+        /**
+         * 글자 키 글꼴 — 키 밖에서 같은 크기를 써야 하는 자리(변형 문자 팝업)가 쓴다
+         */letterFontSize: Float) {
         self.gridHeight = gridHeight
         self.candidateBarHeight = candidateBarHeight
         self.totalHeight = totalHeight
         self.letterFontSize = letterFontSize
-        self.controlFontSize = controlFontSize
     }
 }
 
@@ -1522,9 +1571,6 @@ extension FfiFrameMetrics: Equatable, Hashable {
         if lhs.letterFontSize != rhs.letterFontSize {
             return false
         }
-        if lhs.controlFontSize != rhs.controlFontSize {
-            return false
-        }
         return true
     }
 
@@ -1533,7 +1579,6 @@ extension FfiFrameMetrics: Equatable, Hashable {
         hasher.combine(candidateBarHeight)
         hasher.combine(totalHeight)
         hasher.combine(letterFontSize)
-        hasher.combine(controlFontSize)
     }
 }
 
@@ -1549,8 +1594,7 @@ public struct FfiConverterTypeFfiFrameMetrics: FfiConverterRustBuffer {
                 gridHeight: FfiConverterFloat.read(from: &buf), 
                 candidateBarHeight: FfiConverterFloat.read(from: &buf), 
                 totalHeight: FfiConverterFloat.read(from: &buf), 
-                letterFontSize: FfiConverterFloat.read(from: &buf), 
-                controlFontSize: FfiConverterFloat.read(from: &buf)
+                letterFontSize: FfiConverterFloat.read(from: &buf)
         )
     }
 
@@ -1559,7 +1603,6 @@ public struct FfiConverterTypeFfiFrameMetrics: FfiConverterRustBuffer {
         FfiConverterFloat.write(value.candidateBarHeight, into: &buf)
         FfiConverterFloat.write(value.totalHeight, into: &buf)
         FfiConverterFloat.write(value.letterFontSize, into: &buf)
-        FfiConverterFloat.write(value.controlFontSize, into: &buf)
     }
 }
 
@@ -2412,6 +2455,121 @@ extension FfiEffect: Equatable, Hashable {}
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * 이모지가 검색면에서 서는 묶음 — 빌트인 키보드와 같은 갈래다
+ */
+
+public enum FfiEmojiCategory {
+    
+    case smileysAndPeople
+    case animalsAndNature
+    case foodAndDrink
+    case activities
+    case travelAndPlaces
+    case objects
+    case symbols
+    case flags
+}
+
+
+#if compiler(>=6)
+extension FfiEmojiCategory: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiEmojiCategory: FfiConverterRustBuffer {
+    typealias SwiftType = FfiEmojiCategory
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiEmojiCategory {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .smileysAndPeople
+        
+        case 2: return .animalsAndNature
+        
+        case 3: return .foodAndDrink
+        
+        case 4: return .activities
+        
+        case 5: return .travelAndPlaces
+        
+        case 6: return .objects
+        
+        case 7: return .symbols
+        
+        case 8: return .flags
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: FfiEmojiCategory, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .smileysAndPeople:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .animalsAndNature:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .foodAndDrink:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .activities:
+            writeInt(&buf, Int32(4))
+        
+        
+        case .travelAndPlaces:
+            writeInt(&buf, Int32(5))
+        
+        
+        case .objects:
+            writeInt(&buf, Int32(6))
+        
+        
+        case .symbols:
+            writeInt(&buf, Int32(7))
+        
+        
+        case .flags:
+            writeInt(&buf, Int32(8))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiEmojiCategory_lift(_ buf: RustBuffer) throws -> FfiEmojiCategory {
+    return try FfiConverterTypeFfiEmojiCategory.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiEmojiCategory_lower(_ value: FfiEmojiCategory) -> RustBuffer {
+    return FfiConverterTypeFfiEmojiCategory.lower(value)
+}
+
+
+extension FfiEmojiCategory: Equatable, Hashable {}
+
+
+
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 
 public enum FfiFieldKind {
     
@@ -3163,6 +3321,30 @@ fileprivate struct FfiConverterOptionTypeFfiCandidateGroup: FfiConverterRustBuff
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionTypeFfiEmojiCategory: FfiConverterRustBuffer {
+    typealias SwiftType = FfiEmojiCategory?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeFfiEmojiCategory.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeFfiEmojiCategory.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceString: FfiConverterRustBuffer {
     typealias SwiftType = [String]
 
@@ -3456,6 +3638,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_taza_ffi_checksum_method_keyboardsession_set_preferences() != 16590) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_taza_ffi_checksum_method_keyboardsession_toggle_shift_lock() != 60865) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_taza_ffi_checksum_method_keyboardsession_update_cursor_drag() != 8289) {

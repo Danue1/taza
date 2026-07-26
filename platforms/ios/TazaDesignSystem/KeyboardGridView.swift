@@ -5,6 +5,8 @@ import UIKit
 public struct KeyModel {
     public let label: String
     public let appearance: KeyCapView.Appearance
+    /// 코어가 정한 이 키 라벨의 글꼴 크기(pt)
+    public let fontSize: CGFloat
     /// 키보드 영역 기준 정규화 좌표
     public let bounds: CGRect
     public let accessibilityLabel: String
@@ -12,25 +14,34 @@ public struct KeyModel {
     public let accessibilityHint: String?
     public let alternates: [String]
     public let isActive: Bool
+    /// shift 오른쪽·backspace 왼쪽처럼 글자 열과 갈라지는 자리에 더할 여백(pt)
+    public let leadingExtraGap: CGFloat
+    public let trailingExtraGap: CGFloat
 
     public init(
         label: String,
         appearance: KeyCapView.Appearance,
+        fontSize: CGFloat,
         bounds: CGRect,
         accessibilityLabel: String,
         accessibilityValue: String? = nil,
         accessibilityHint: String? = nil,
         alternates: [String] = [],
-        isActive: Bool = false
+        isActive: Bool = false,
+        leadingExtraGap: CGFloat = 0,
+        trailingExtraGap: CGFloat = 0
     ) {
         self.label = label
         self.appearance = appearance
+        self.fontSize = fontSize
         self.bounds = bounds
         self.accessibilityLabel = accessibilityLabel
         self.accessibilityValue = accessibilityValue
         self.accessibilityHint = accessibilityHint
         self.alternates = alternates
         self.isActive = isActive
+        self.leadingExtraGap = leadingExtraGap
+        self.trailingExtraGap = trailingExtraGap
     }
 }
 
@@ -53,13 +64,13 @@ public final class KeyboardGridView: UIView {
     public var onAccessibilityActivate: ((CGPoint) -> Void)?
     public var onSelectAlternate: ((CGPoint, String) -> Void)?
 
-    private var metrics: TazaTheme.Metrics
-    private var keyViews: [(view: KeyCapView, bounds: CGRect)] = []
+    private var keyViews: [(view: KeyCapView, bounds: CGRect, leadingExtraGap: CGFloat, trailingExtraGap: CGFloat)] = []
     private var pressedView: KeyCapView?
+    /// 빈 자리 키의 화면 프레임 — 검색면 레일처럼 코어가 비워 둔 자리에 얹는 것이 쓴다
+    public private(set) var blankKeyFrame: CGRect = .zero
     private var longPressActive = false
 
-    public init(metrics: TazaTheme.Metrics) {
-        self.metrics = metrics
+    public init() {
         super.init(frame: .zero)
         backgroundColor = .clear
 
@@ -77,10 +88,6 @@ public final class KeyboardGridView: UIView {
         fatalError("사용하지 않음")
     }
 
-    public func update(metrics: TazaTheme.Metrics) {
-        self.metrics = metrics
-    }
-
     public func setFrame(_ model: KeyboardFrameModel) {
         keyViews.forEach { $0.view.removeFromSuperview() }
         keyViews = []
@@ -89,9 +96,7 @@ public final class KeyboardGridView: UIView {
                 let view = KeyCapView(
                     label: key.label,
                     appearance: key.appearance,
-                    fontSize: key.appearance == .letter
-                        ? metrics.letterFontSize
-                        : metrics.controlFontSize,
+                    fontSize: key.fontSize,
                     cornerRadius: TazaTheme.Key.cornerRadius,
                     accessibilityLabel: key.accessibilityLabel,
                     accessibilityHint: key.accessibilityHint,
@@ -106,28 +111,41 @@ public final class KeyboardGridView: UIView {
                 view.onSelectAlternate = { [weak self] alternate in
                     self?.onSelectAlternate?(center, alternate)
                 }
+                view.isSkeleton = isSkeleton
                 addSubview(view)
-                keyViews.append((view, key.bounds))
+                keyViews.append((view, key.bounds, key.leadingExtraGap, key.trailingExtraGap))
             }
         }
         setNeedsLayout()
     }
 
+    /// 스페이스바로 커서를 끄는 동안 판 전체를 물린다 — 지금 글자를 받지 않는다는 신호다
+    public var isSkeleton: Bool = false {
+        didSet {
+            UIView.animate(withDuration: 0.28) {
+                self.keyViews.forEach { $0.view.isSkeleton = self.isSkeleton }
+            }
+        }
+    }
+
     public override func layoutSubviews() {
         super.layoutSubviews()
         let horizontalGap = TazaTheme.Key.horizontalGap
-        for (view, normalized) in keyViews {
+        for (view, normalized, leadingExtraGap, trailingExtraGap) in keyViews {
             // 세로 간격은 키 높이를 따라간다 — 행 높이가 폼팩터·배열마다 달라도
             // 키가 차지하는 비율은 순정과 같게 유지된다
             let rowHeight = normalized.height * bounds.height
             let verticalGap = rowHeight * TazaTheme.Key.verticalGapRatio
             view.frame = CGRect(
-                x: normalized.minX * bounds.width + horizontalGap / 2,
+                x: normalized.minX * bounds.width + horizontalGap / 2 + leadingExtraGap,
                 y: normalized.minY * bounds.height + verticalGap / 2,
-                width: normalized.width * bounds.width - horizontalGap,
+                width: normalized.width * bounds.width - horizontalGap - leadingExtraGap - trailingExtraGap,
                 height: rowHeight - verticalGap
             )
         }
+        blankKeyFrame = keyViews
+            .first { $0.view.appearance == .blank }
+            .map(\.view.frame) ?? .zero
     }
 
     /// 화면 좌표 → 코어가 쓰는 정규화 좌표

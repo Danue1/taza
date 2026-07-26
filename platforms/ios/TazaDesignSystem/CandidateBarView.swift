@@ -118,6 +118,8 @@ public final class CandidateBarView: UIView {
     private enum Metrics {
         static let itemSpacing: CGFloat = 8
         static let groupInset: CGFloat = 12
+        /// 낱말은 남는 폭을 나눠 갖는 자리라 좌우 여백을 좁게 잡아 글자 쪽에 폭을 넘긴다
+        static let wordInset: CGFloat = 6
     }
 
     private func makeButton(_ candidate: CandidateModel, index: Int) -> UIButton {
@@ -129,10 +131,23 @@ public final class CandidateBarView: UIView {
                 .foregroundColor: TazaTheme.Color.label,
             ])
         )
+        // 후보 바는 한 줄이다 — 폭이 모자라면 줄을 늘리지 말고 꼬리를 자른다
+        configuration.titleLineBreakMode = .byTruncatingTail
+        let inset = candidate.group == .word ? Metrics.wordInset : 0
+        configuration.contentInsets = NSDirectionalEdgeInsets(
+            top: 0,
+            leading: inset,
+            bottom: 0,
+            trailing: inset
+        )
         let button = UIButton(
             configuration: configuration,
             primaryAction: UIAction { [weak self] _ in self?.onSelect?(index) }
         )
+        if candidate.group == .word {
+            // 바 전체가 넘칠 땐 낱말이 먼저 줄어든다 — 곁들이는 것은 제 폭을 지킨다
+            button.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        }
         button.accessibilityLabel = candidate.text
         button.accessibilityHint = hint(for: candidate.group)
         return button

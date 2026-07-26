@@ -7,7 +7,7 @@ extension KeyboardViewController {
             rows: frame.rows.map { row in
                 row.map { key in
                     KeyModel(
-                        label: key.label,
+                        label: legend(for: key),
                         appearance: appearance(for: key),
                         fontSize: CGFloat(key.fontSize),
                         bounds: CGRect(
@@ -16,7 +16,7 @@ extension KeyboardViewController {
                             width: CGFloat(key.bounds.width),
                             height: CGFloat(key.bounds.height)
                         ),
-                        accessibilityLabel: key.accessibilityLabel,
+                        accessibilityLabel: accessibilityLabel(for: key),
                         accessibilityValue: key.role == .languageSwitch
                             ? activeSession?.language().displayName
                             : nil,
@@ -29,6 +29,31 @@ extension KeyboardViewController {
                 }
             }
         )
+    }
+
+    /// 키에 적히는 글자. 낱말로 적히는 키(리턴키)는 코어가 갈래만 알려 주므로 화면
+    /// 언어로 옮기고, 나머지는 코어가 준 글자를 그대로 쓴다.
+    private func legend(for key: FfiFrameKey) -> String {
+        switch key.legend {
+        case .search: NSLocalizedString("검색", comment: "검색 필드의 리턴키")
+        case .return: key.label
+        case nil: key.label
+        }
+    }
+
+    /// VoiceOver가 읽는 이름. 코어는 역할만 알려 주고 문구는 화면 언어를 탄다 —
+    /// 접근성은 계약의 일부이되, 그 계약이 나르는 것은 신원이지 한국어 문장이 아니다.
+    private func accessibilityLabel(for key: FfiFrameKey) -> String {
+        switch key.role {
+        case .character: key.label
+        case .shift: NSLocalizedString("shift", comment: "shift 키")
+        case .backspace: NSLocalizedString("삭제", comment: "backspace 키")
+        case .space: NSLocalizedString("스페이스", comment: "스페이스 키")
+        case .enter: legend(for: key)
+        case .layerSwitch: NSLocalizedString("자판 전환", comment: "레이어 전환 키")
+        case .languageSwitch: NSLocalizedString("언어", comment: "언어 전환 키")
+        case .blank: ""
+        }
     }
 
     private func appearance(for key: FfiFrameKey) -> KeyCapView.Appearance {

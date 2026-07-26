@@ -10,6 +10,9 @@ cd "${repository_root}"
 profile=release
 library_name=libtaza_ffi.a
 
+# 의존성이 바뀌면 고지도 함께 바뀌어야 한다 — 목록을 손으로 맞추지 않는다
+cargo run --release -q -p taza-toolchain --bin taza-licenses
+
 cargo build --release -p taza-ffi --target aarch64-apple-ios
 cargo build --release -p taza-ffi --target aarch64-apple-ios-sim
 
@@ -17,7 +20,7 @@ cargo build --release -p taza-ffi --target aarch64-apple-ios-sim
 generated="${script_directory}/Generated"
 rm -rf "${generated}"
 mkdir -p "${generated}"
-cargo run --release -p taza-ffi --bin uniffi-bindgen -- generate \
+cargo run --release -p taza-ffi --features cli --bin uniffi-bindgen -- generate \
     --library "target/aarch64-apple-ios-sim/${profile}/libtaza_ffi.dylib" \
     --language swift \
     --out-dir "${generated}"

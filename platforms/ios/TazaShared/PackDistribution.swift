@@ -51,13 +51,25 @@ public enum PackInstallError: Error, LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .catalogUnavailable:
-            "언어팩 배포처가 설정되지 않았습니다."
+            NSLocalizedString("언어팩 배포처가 설정되지 않았습니다.", comment: "카탈로그 URL 없음")
         case .notInCatalog(let name):
-            "카탈로그에 \(name) 팩이 없습니다."
+            String(
+                format: NSLocalizedString("카탈로그에 %@ 팩이 없습니다.", comment: "카탈로그에 없는 팩"),
+                name
+            )
         case .installDirectoryUnavailable:
-            "App Group을 쓸 수 없어 언어팩을 설치할 자리가 없습니다."
+            NSLocalizedString(
+                "App Group을 쓸 수 없어 언어팩을 설치할 자리가 없습니다.",
+                comment: "App Group 미활성"
+            )
         case .formatTooNew(let version):
-            "이 앱보다 새로운 팩 포맷(\(version))입니다. 앱을 업데이트하세요."
+            String(
+                format: NSLocalizedString(
+                    "이 앱보다 새로운 팩 포맷(%lld)입니다. 앱을 업데이트하세요.",
+                    comment: "앱이 못 읽는 팩 포맷"
+                ),
+                Int(version)
+            )
         case .sizeMismatch(let expected, let actual):
             "받은 크기가 카탈로그와 다릅니다(기대 \(expected), 실제 \(actual))."
         }

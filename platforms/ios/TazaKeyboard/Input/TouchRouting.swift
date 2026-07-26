@@ -17,10 +17,33 @@ extension KeyboardViewController {
             activateKey(at: point)
             return
         }
-        if key.role == .shift, consumeShiftDoubleTap(session: session) {
+        if key.role == .shift,
+           keyboardPreferences.shiftDoubleTapLock,
+           consumeShiftDoubleTap(session: session)
+        {
             return
         }
         deferredPressPoint = point
+    }
+
+    /// 스페이스바를 좌우로 민 것 — 설정으로 켠 사람만 쓴다. 어느 키에서 시작했는지는
+    /// 코어가 판정한다.
+    func swiped(at point: CGPoint, toLeft: Bool) {
+        deferredPressPoint = nil
+        guard keyboardPreferences.spaceSwipeLanguage,
+              let session = activeSession,
+              session.keyAt(x: Float(point.x), y: Float(point.y)).role == .space
+        else {
+            return
+        }
+        let languages = preferences.enabledLanguages
+        guard languages.count > 1,
+              let index = languages.firstIndex(of: currentLanguage)
+        else {
+            return
+        }
+        let step = toLeft ? languages.count - 1 : 1
+        switchLanguage(to: languages[(index + step) % languages.count])
     }
 
     func touchEnded(at point: CGPoint) {
@@ -31,6 +54,7 @@ extension KeyboardViewController {
 
     func activateKey(at point: CGPoint) {
         guard let session = activeSession else { return }
+        playKeyFeedback()
         let result = session.pressAt(
             x: Float(point.x),
             y: Float(point.y),
@@ -40,7 +64,17 @@ extension KeyboardViewController {
         if result.requestsNextLanguage {
             switchLanguage(to: preferences.language(after: currentLanguage))
         }
+        // 자동 대문자화가 shift를 올렸을 수 있다 — 코어가 프레임 갱신 여부까지 알려 준다
         if result.layoutChanged {
+            refreshFrame()
+        }
+    }
+
+    /// 좌표를 거치지 않은 입력(삭제 반복·후보 선택 등)을 넣은 뒤 문장 시작 여부를 다시
+    /// 본다. `pressAt`은 스스로 하므로 여기 오지 않는다.
+    func refreshAutoShift() {
+        guard let session = activeSession else { return }
+        if session.syncAutoShift(context: currentContext()) {
             refreshFrame()
         }
     }

@@ -63,16 +63,36 @@ public final class KeyboardGridView: UIView {
     public var onTouchEnded: ((CGPoint) -> Void)?
     public var onAccessibilityActivate: ((CGPoint) -> Void)?
     public var onSelectAlternate: ((CGPoint, String) -> Void)?
+    /// 좌우로 민 제스처 — 시작 자리(정규화)와 방향을 넘긴다. 어느 키에서 시작했는지는
+    /// 코어가 판정하므로 셸은 좌표만 나른다.
+    public var onSwipe: ((CGPoint, Bool) -> Void)?
+
+    /// 글자 키를 누르는 동안 그 글자를 키 위에 크게 띄운다(순정 관례).
+    public var showsKeyPreview = true
+    /// 키에 테두리를 그린다. 값이 바뀌면 다음 `setFrame`부터 반영된다.
+    public var showsKeyBorders = false {
+        didSet {
+            guard showsKeyBorders != oldValue, let model = currentModel else { return }
+            setFrame(model)
+        }
+    }
 
     private var keyViews: [(view: KeyCapView, bounds: CGRect, leadingExtraGap: CGFloat, trailingExtraGap: CGFloat)] = []
     private var pressedView: KeyCapView?
     /// 빈 자리 키의 화면 프레임 — 검색면 레일처럼 코어가 비워 둔 자리에 얹는 것이 쓴다
     public private(set) var blankKeyFrame: CGRect = .zero
     private var longPressActive = false
+    private var currentModel: KeyboardFrameModel?
+    private let previewView = KeyPreviewView()
+    /// 민 제스처가 어디서 시작했는지 — 제스처 인식기는 시작 자리를 알려 주지 않는다
+    private var touchOrigin: CGPoint?
 
     public init() {
         super.init(frame: .zero)
         backgroundColor = .clear
+
+        previewView.isHidden = true
+        addSubview(previewView)
 
         let longPress = UILongPressGestureRecognizer(
             target: self,
@@ -81,6 +101,15 @@ public final class KeyboardGridView: UIView {
         longPress.minimumPressDuration = 0.35
         longPress.cancelsTouchesInView = false
         addGestureRecognizer(longPress)
+
+        for direction in [UISwipeGestureRecognizer.Direction.left, .right] {
+            let swipe = UISwipeGestureRecognizer(target: self, action: #selector(handleSwipe(_:)))
+            swipe.direction = direction
+            // 민 것으로 판정되면 그 터치는 글자가 되지 않아야 한다
+            swipe.cancelsTouchesInView = true
+            swipe.require(toFail: longPress)
+            addGestureRecognizer(swipe)
+        }
     }
 
     @available(*, unavailable)
@@ -89,6 +118,8 @@ public final class KeyboardGridView: UIView {
     }
 
     public func setFrame(_ model: KeyboardFrameModel) {
+        currentModel = model
+        hidePreview()
         keyViews.forEach { $0.view.removeFromSuperview() }
         keyViews = []
         for row in model.rows {
@@ -101,7 +132,8 @@ public final class KeyboardGridView: UIView {
                     accessibilityLabel: key.accessibilityLabel,
                     accessibilityHint: key.accessibilityHint,
                     accessibilityValue: key.accessibilityValue,
-                    alternates: key.alternates
+                    alternates: key.alternates,
+                    showsBorder: showsKeyBorders
                 )
                 view.isActive = key.isActive
                 let center = CGPoint(x: key.bounds.midX, y: key.bounds.midY)
@@ -163,6 +195,7 @@ public final class KeyboardGridView: UIView {
     public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let touch = touches.first else { return }
         let point = touch.location(in: self)
+        touchOrigin = point
         highlight(at: point)
         onPress?(normalizedPoint(point))
     }
@@ -177,6 +210,12 @@ public final class KeyboardGridView: UIView {
 
     public override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
         clearHighlight()
+    }
+
+    @objc private func handleSwipe(_ recognizer: UISwipeGestureRecognizer) {
+        guard let origin = touchOrigin else { return }
+        clearHighlight()
+        onSwipe?(normalizedPoint(origin), recognizer.direction == .left)
     }
 
     @objc private func handleLongPress(_ recognizer: UILongPressGestureRecognizer) {
@@ -200,10 +239,92 @@ public final class KeyboardGridView: UIView {
         pressedView?.isPressed = false
         pressedView = keyViews.first { $0.view.frame.contains(point) }?.view
         pressedView?.isPressed = true
+        showPreview(for: pressedView)
     }
 
     private func clearHighlight() {
         pressedView?.isPressed = false
         pressedView = nil
+        hidePreview()
+    }
+
+    /// 순정처럼 누른 글자만 키 위로 띄운다 — 제어 키에는 띄우지 않는다.
+    private func showPreview(for key: KeyCapView?) {
+        guard showsKeyPreview, !isSkeleton, let key, let text = key.previewLabel else {
+            hidePreview()
+            return
+        }
+        previewView.show(text: text, over: key.frame, in: bounds)
+        bringSubviewToFront(previewView)
+    }
+
+    private func hidePreview() {
+        previewView.isHidden = true
+    }
+}
+
+/// 누른 글자를 키 위에 크게 띄우는 말풍선. 순정은 손가락에 가린 글자를 이렇게 보여 준다.
+private final class KeyPreviewView: UIView {
+    private let labelView = UILabel()
+
+    init() {
+        super.init(frame: .zero)
+        isUserInteractionEnabled = false
+        layer.cornerRadius = TazaTheme.KeyPreview.cornerRadius
+        layer.cornerCurve = .continuous
+        layer.shadowColor = TazaTheme.Key.shadowColor.cgColor
+        layer.shadowOffset = CGSize(width: 0, height: 1)
+        layer.shadowRadius = 2
+        layer.shadowOpacity = 0.5
+
+        labelView.textAlignment = .center
+        labelView.adjustsFontSizeToFitWidth = true
+        labelView.minimumScaleFactor = 0.5
+        labelView.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(labelView)
+        NSLayoutConstraint.activate([
+            labelView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4),
+            labelView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
+            labelView.centerYAnchor.constraint(equalTo: centerYAnchor),
+        ])
+        updateColors()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("사용하지 않음")
+    }
+
+    override func traitCollectionDidChange(_ previous: UITraitCollection?) {
+        super.traitCollectionDidChange(previous)
+        updateColors()
+    }
+
+    private func updateColors() {
+        backgroundColor = TazaTheme.Color.keySurface
+        labelView.textColor = TazaTheme.Color.label
+    }
+
+    /// 키 위에 올리되 판 밖으로 나가지 않게 좌우를 물린다 — 가장자리 키에서도 글자가
+    /// 잘리지 않아야 한다.
+    func show(text: String, over keyFrame: CGRect, in container: CGRect) {
+        labelView.text = text
+        labelView.font = TazaTheme.Typography.keyLabel(
+            size: keyFrame.height * TazaTheme.KeyPreview.fontScale / 2
+        )
+        let width = keyFrame.width + TazaTheme.KeyPreview.horizontalOverhang * 2
+        let height = TazaTheme.KeyPreview.height
+        let x = min(
+            max(keyFrame.midX - width / 2, 0),
+            max(container.width - width, 0)
+        )
+        frame = CGRect(
+            x: x,
+            y: keyFrame.minY - height - TazaTheme.KeyPreview.lift,
+            width: width,
+            height: height
+        )
+        // 첫 행에서는 위로 나갈 자리가 없다 — 그때는 띄우지 않는다(순정도 같다)
+        isHidden = frame.minY < 0
     }
 }

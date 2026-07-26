@@ -53,7 +53,8 @@ public final class KeyCapView: UIView {
         accessibilityLabel: String,
         accessibilityHint: String?,
         accessibilityValue: String?,
-        alternates: [String]
+        alternates: [String],
+        showsBorder: Bool = false
     ) {
         self.appearance = appearance
         super.init(frame: .zero)
@@ -61,6 +62,10 @@ public final class KeyCapView: UIView {
         isUserInteractionEnabled = false
         layer.cornerRadius = cornerRadius
         layer.cornerCurve = .continuous
+        if showsBorder && appearance != .blank {
+            layer.borderWidth = TazaTheme.Key.borderWidth
+            layer.borderColor = TazaTheme.Color.keyBorder.cgColor
+        }
         if appearance != .blank {
             // 순정 키캡은 아래로 1pt 그림자를 깔아 판에서 살짝 떠 보인다
             layer.shadowColor = TazaTheme.Key.shadowColor.cgColor
@@ -138,8 +143,20 @@ public final class KeyCapView: UIView {
         fatalError("사용하지 않음")
     }
 
+    /// 이 키가 눌렸을 때 확대해 보일 글자 — 없으면 미리보기를 띄우지 않는다(순정도
+    /// 제어 키에는 띄우지 않는다).
+    public var previewLabel: String? {
+        guard appearance == .letter, let text = labelView.text, !text.isEmpty else {
+            return nil
+        }
+        return text
+    }
+
     public override func traitCollectionDidChange(_ previous: UITraitCollection?) {
         super.traitCollectionDidChange(previous)
+        if layer.borderWidth > 0 {
+            layer.borderColor = TazaTheme.Color.keyBorder.cgColor
+        }
         updateColors()
     }
 

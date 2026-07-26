@@ -1,22 +1,62 @@
 {
   "sourceLanguage": "ko",
   "strings": {
-    "키보드 설정": {
+    "App Group을 쓸 수 없어 언어팩을 설치할 자리가 없습니다.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Keyboard Settings"
+            "value": "Without an app group there is nowhere to install dictionaries."
           }
         }
       }
     },
-    "키보드 설정 앱을 엽니다": {
+    "shift": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Opens the keyboard settings app"
+            "value": "shift"
+          }
+        }
+      }
+    },
+    "검색": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "search"
+          }
+        }
+      }
+    },
+    "기호": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Symbols"
+          }
+        }
+      }
+    },
+    "기호 선택": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Insert symbol"
+          }
+        }
+      }
+    },
+    "길게 눌러 변형 문자 선택": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Touch and hold to pick a variant"
           }
         }
       }
@@ -41,22 +81,152 @@
         }
       }
     },
-    "길게 눌러 변형 문자 선택": {
+    "깃발": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Touch and hold to pick a variant"
+            "value": "Flags"
           }
         }
       }
     },
-    "후보 선택": {
+    "낱말": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Insert suggestion"
+            "value": "Words"
+          }
+        }
+      }
+    },
+    "동물 및 자연": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Animals & Nature"
+          }
+        }
+      }
+    },
+    "사물": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Objects"
+          }
+        }
+      }
+    },
+    "삭제": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "delete"
+          }
+        }
+      }
+    },
+    "스마일리 및 사람": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Smileys & People"
+          }
+        }
+      }
+    },
+    "스페이스": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "space"
+          }
+        }
+      }
+    },
+    "언어": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "language"
+          }
+        }
+      }
+    },
+    "언어팩 배포처가 설정되지 않았습니다.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No dictionary distribution point is configured."
+          }
+        }
+      }
+    },
+    "얼굴 문자": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Emoticons"
+          }
+        }
+      }
+    },
+    "얼굴 문자 선택": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Insert emoticon"
+          }
+        }
+      }
+    },
+    "여행 및 장소": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Travel & Places"
+          }
+        }
+      }
+    },
+    "음식 및 음료": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Food & Drink"
+          }
+        }
+      }
+    },
+    "이 앱보다 새로운 팩 포맷(%lld)입니다. 앱을 업데이트하세요.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This dictionary uses a newer format (%lld). Update the app."
+          }
+        }
+      }
+    },
+    "이모지": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Emoji"
           }
         }
       }
@@ -71,22 +241,72 @@
         }
       }
     },
-    "기호 선택": {
+    "자주 쓰는": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Insert symbol"
+            "value": "Frequently Used"
           }
         }
       }
     },
-    "얼굴 문자 선택": {
+    "자판 전환": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Insert emoticon"
+            "value": "switch keyboard"
+          }
+        }
+      }
+    },
+    "카탈로그에 %@ 팩이 없습니다.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The catalog has no %@ dictionary."
+          }
+        }
+      }
+    },
+    "키보드 설정": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keyboard Settings"
+          }
+        }
+      }
+    },
+    "키보드 설정 앱을 엽니다": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opens the keyboard settings app"
+          }
+        }
+      }
+    },
+    "활동": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activities"
+          }
+        }
+      }
+    },
+    "후보 선택": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Insert suggestion"
           }
         }
       }

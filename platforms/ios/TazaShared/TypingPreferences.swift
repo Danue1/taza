@@ -1,12 +1,20 @@
 import Foundation
 
-/// 입력 보조 항목 — 순정 키보드의 설정 → 일반 → 키보드에 있는 토글들에 대응한다.
-/// 저장 키를 항목 자신이 알고 있어, 저장소와 화면이 항목 표를 따로 두지 않는다.
+/// 입력 보조 항목 — 언어마다 따로 정할 수 있는 켬·끔들이다. 저장 키를 항목 자신이 알고
+/// 있어, 저장소와 화면이 항목 표를 따로 두지 않는다.
+///
+/// 여기 있는 것과 `KeyboardPreferences`에 있는 것의 차이는 값의 종류가 아니라 **언어마다
+/// 다를 수 있는가**다. 자동 수정은 영어에서는 켜고 한국어에서는 끌 이유가 있지만, 키보드
+/// 높이는 언어를 바꾼다고 달라질 것이 아니다.
 public enum TypingOption: String, CaseIterable, Sendable {
     case autoCorrection
     case predictions
     case doubleSpacePeriod
     case personalizedLearning
+    case autoCapitalization
+    case smartPunctuation
+    case autoPairing
+    case annotationCandidates
 
     /// 저장된 적 없는 항목이 따르는 값 — 셸이 자기 기본값 표를 두지 않고 코어에 묻는다.
     var coreDefault: Bool {
@@ -16,6 +24,10 @@ public enum TypingOption: String, CaseIterable, Sendable {
         case .predictions: return defaults.predictions
         case .doubleSpacePeriod: return defaults.doubleSpacePeriod
         case .personalizedLearning: return defaults.personalizedLearning
+        case .autoCapitalization: return defaults.autoCapitalization
+        case .smartPunctuation: return defaults.smartPunctuation
+        case .autoPairing: return defaults.autoPairing
+        case .annotationCandidates: return defaults.annotationCandidates
         }
     }
 }
@@ -80,12 +92,23 @@ public struct TypingPreferences {
     }
 
     /// 코어에 넘기는 형태 — 언어마다 유효값이 다를 수 있으므로 세션마다 따로 만든다.
+    /// 언어를 타지 않는 설정은 `KeyboardPreferences`에서 그대로 얹는다.
     public func core(for language: TazaLanguage) -> FfiUserPreferences {
-        FfiUserPreferences(
+        let keyboard = KeyboardPreferences(defaults: defaults)
+        return FfiUserPreferences(
             autoCorrection: value(.autoCorrection, for: language),
             predictions: value(.predictions, for: language),
             doubleSpacePeriod: value(.doubleSpacePeriod, for: language),
-            personalizedLearning: value(.personalizedLearning, for: language)
+            personalizedLearning: value(.personalizedLearning, for: language),
+            autoCapitalization: value(.autoCapitalization, for: language),
+            smartPunctuation: value(.smartPunctuation, for: language),
+            autoPairing: value(.autoPairing, for: language),
+            annotationCandidates: value(.annotationCandidates, for: language),
+            keyAlternates: keyboard.keyAlternates,
+            numberRow: keyboard.numberRow,
+            candidateBarAlways: keyboard.candidateBarAlways,
+            keyboardHeight: keyboard.keyboardHeight.core,
+            cursorSensitivity: keyboard.cursorSensitivity.core
         )
     }
 

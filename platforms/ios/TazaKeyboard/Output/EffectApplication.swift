@@ -5,10 +5,12 @@ import UIKit
 extension KeyboardViewController {
     func selectCandidate(_ index: Int) {
         guard let session = activeSession else { return }
+        playKeyFeedback()
         apply(effects: session.handleEvent(
             event: .candidateSelected(index: UInt32(index)),
             context: currentContext()
         ))
+        refreshAutoShift()
     }
 
     private func deleteCharacters(_ count: Int) {

@@ -31,6 +31,7 @@ public struct LanguagePreferences {
     private enum Key {
         static let enabledLanguages = "enabledLanguages"
         static let lastUsedLanguage = "lastUsedLanguage"
+        static func layout(_ language: TazaLanguage) -> String { "\(language.tag).layout" }
     }
 
     private let defaults: UserDefaults
@@ -91,6 +92,20 @@ public struct LanguagePreferences {
         }
     }
 
+    /// 그 언어로 치기로 한 배열의 이름. nil이면 팩이 밝힌 기본 배열을 쓴다 — 목록도
+    /// 이름도 팩이 대므로 셸은 고른 이름만 기억한다.
+    public func layoutName(for language: TazaLanguage) -> String? {
+        defaults.string(forKey: Key.layout(language))
+    }
+
+    public func setLayoutName(_ name: String?, for language: TazaLanguage) {
+        guard let name else {
+            defaults.removeObject(forKey: Key.layout(language))
+            return
+        }
+        defaults.set(name, forKey: Key.layout(language))
+    }
+
     /// 언어 키를 탭했을 때 갈 다음 언어
     public func language(after current: TazaLanguage) -> TazaLanguage {
         let languages = enabledLanguages
@@ -107,17 +122,39 @@ public enum TazaDeepLink {
     public static let settings = URL(string: "taza://settings")!
 }
 
+/// 한 언어에 대해 코어가 밝히는 것 — 이름·키캡 표기와 칠 수 있는 배열 목록.
+public struct TazaLanguageInfo {
+    public let descriptor: FfiLanguageDescriptor
+    /// 이 언어로 칠 수 있는 배열 이름들 — 첫 항목이 기본이다
+    public let layouts: [String]
+}
+
 /// 언어 선언을 코어에서 읽는다 — 설치된 팩이 있으면 팩이 밝힌 값, 없으면 내장 값이다.
-/// 표시 이름·키캡 표기·배열 이름을 셸이 따로 표로 갖지 않게 하는 통로다.
-public func tazaLanguageDescriptor(
+/// 표시 이름·키캡 표기·배열 목록을 셸이 따로 표로 갖지 않게 하는 통로다.
+public func tazaLanguageInfo(
     for language: TazaLanguage,
     packURL: URL? = nil
-) -> FfiLanguageDescriptor? {
+) -> TazaLanguageInfo? {
     guard let session = try? KeyboardSession(languageTag: language.tag) else {
         return nil
     }
     if let packURL {
         try? session.loadPack(path: packURL.path)
     }
-    return session.language()
+    return TazaLanguageInfo(
+        descriptor: session.language(),
+        layouts: session.availableLayouts()
+    )
+}
+
+/// 스냅샷 요약을 부르는 자리 — 코어의 자유 함수 이름이 화면 모델의 메서드 이름과
+/// 겹치므로 한 겹 감싼다.
+public enum TazaKeyboardSummary {
+    public static func of(_ lines: [String]) -> FfiPersonalizationSummary {
+        personalizationSummary(lines: lines)
+    }
+}
+
+public extension FfiPersonalizationSummary {
+    var isEmpty: Bool { learnedWords == 0 && recentAnnotations == 0 }
 }

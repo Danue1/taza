@@ -18,7 +18,15 @@ extension KeyboardViewController {
         if let packURL = store.packURL(for: language) {
             try? session.loadPack(path: packURL.path)
         }
+        applyLayoutChoice(to: session, for: language)
         return session
+    }
+
+    /// 설정에서 고른 배열을 세션에 넣는다. 고른 적이 없거나 팩 갱신으로 그 배열이
+    /// 사라졌으면 코어가 기본 배열에 머문다 — 셸이 되돌릴 것이 없다.
+    func applyLayoutChoice(to session: KeyboardSession, for language: TazaLanguage) {
+        guard let name = preferences.layoutName(for: language) else { return }
+        _ = session.selectLayout(name: name)
     }
 
     /// 설정 앱에서 언어를 더하거나 지운 결과를 세션 목록에 옮긴다. 지운 언어의 학습
@@ -47,5 +55,7 @@ extension KeyboardViewController {
         preferences.lastUsedLanguage = language
         candidateBar.setCandidates([])
         refreshFrame()
+        // 새 언어의 세션은 자기 shift 상태를 갖는다 — 지금 문맥에 맞춰 준다
+        refreshAutoShift()
     }
 }

@@ -41,12 +41,42 @@
         }
       }
     },
+    "App Group을 쓸 수 없어 언어팩을 설치할 자리가 없습니다.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Without an app group there is nowhere to install dictionaries."
+          }
+        }
+      }
+    },
     "Taza 키보드 추가": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Add Taza Keyboard"
+          }
+        }
+      }
+    },
+    "shift 두 번 눌러 고정": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Double-Tap Shift to Lock"
+          }
+        }
+      }
+    },
+    "개인 정보": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Privacy"
           }
         }
       }
@@ -83,12 +113,92 @@
       },
       "comment": "언어가 공통값을 따를 때 병기하는 실제 값"
     },
+    "괄호·따옴표 자동 짝": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto-Close Brackets"
+          }
+        }
+      }
+    },
+    "교정과 예측": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Correction & Prediction"
+          }
+        }
+      }
+    },
+    "기본": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Default"
+          }
+        }
+      }
+    },
+    "길게 누를 때": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On Hold"
+          }
+        }
+      }
+    },
+    "길게 눌러 변형 문자": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Long-Press Accents"
+          }
+        }
+      }
+    },
+    "길게 눌러 커서를 옮기는 동작과 뜻이 겹칠 수 있습니다.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "May conflict with holding space to move the cursor."
+          }
+        }
+      }
+    },
     "끔": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Off"
+          }
+        }
+      }
+    },
+    "남은 것 지우기": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear What's Stored"
+          }
+        }
+      }
+    },
+    "낮게": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Low"
           }
         }
       }
@@ -103,6 +213,96 @@
         }
       }
     },
+    "높게": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "High"
+          }
+        }
+      }
+    },
+    "누를 때": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On Tap"
+          }
+        }
+      }
+    },
+    "느리게": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Slow"
+          }
+        }
+      }
+    },
+    "따옴표가 짝을 맞추고 \"--\"가 줄표가 됩니다.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quotes curl to match and “--” becomes an em dash."
+          }
+        }
+      }
+    },
+    "라이브러리 %lld개": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld libraries"
+          }
+        }
+      }
+    },
+    "라이선스": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "License"
+          }
+        }
+      }
+    },
+    "모양": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Look"
+          }
+        }
+      }
+    },
+    "문장이 시작되는 자리에서 shift가 미리 올라갑니다.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shift turns on at the start of a sentence."
+          }
+        }
+      }
+    },
+    "밝게": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Light"
+          }
+        }
+      }
+    },
     "배열": {
       "localizations": {
         "en": {
@@ -113,12 +313,62 @@
         }
       }
     },
+    "배운 단어 %lld개": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld learned words"
+          }
+        }
+      }
+    },
+    "배운 단어는 그대로 남습니다.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Learned words are kept."
+          }
+        }
+      }
+    },
     "배운 단어를 모두 지울까요?": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Delete all learned words?"
+          }
+        }
+      }
+    },
+    "배운 말과 최근에 고른 이모지는 이 기기에만 남고 어디에도 보내지 않습니다. 비밀번호 칸에서는 아무것도 기록하지 않습니다.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What the keyboard learns and the emoji you pick stay on this device and are never sent anywhere. Nothing is recorded in password fields."
+          }
+        }
+      }
+    },
+    "배운 말과 최근에 고른 이모지는 이 기기에만 남습니다. 비밀번호 칸에서는 아무것도 기록하지 않습니다.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What the keyboard learns and the emoji you pick stay on this device. Nothing is recorded in password fields."
+          }
+        }
+      }
+    },
+    "빠르게": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fast"
           }
         }
       }
@@ -153,12 +403,112 @@
         }
       }
     },
+    "삭제 반복 속도": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete Repeat Speed"
+          }
+        }
+      }
+    },
+    "설정": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Settings"
+          }
+        }
+      }
+    },
     "설정에서 키보드 → 새로운 키보드 추가에 있는 Taza를 켜세요.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "In Settings, open Keyboards → Add New Keyboard and turn on Taza."
+          }
+        }
+      }
+    },
+    "설치된 사전이 없습니다.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No dictionaries installed."
+          }
+        }
+      }
+    },
+    "소프트웨어 라이선스": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Software Licenses"
+          }
+        }
+      }
+    },
+    "숫자 행": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Number Row"
+          }
+        }
+      }
+    },
+    "스마트 문장부호": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Smart Punctuation"
+          }
+        }
+      }
+    },
+    "스페이스 밀어 언어 전환": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swipe Space to Switch Language"
+          }
+        }
+      }
+    },
+    "시스템": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System"
+          }
+        }
+      }
+    },
+    "아직 이 기기에 남은 것이 없습니다.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing is stored yet."
+          }
+        }
+      }
+    },
+    "어둡게": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dark"
           }
         }
       }
@@ -173,6 +523,16 @@
         }
       }
     },
+    "언어팩 배포처가 설정되지 않았습니다.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No dictionary distribution point is configured."
+          }
+        }
+      }
+    },
     "여기에 입력해 보세요": {
       "localizations": {
         "en": {
@@ -183,7 +543,87 @@
         }
       }
     },
+    "여는 괄호를 치면 닫는 괄호가 함께 들어갑니다.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Typing an opening bracket inserts the closing one."
+          }
+        }
+      }
+    },
+    "옆으로 밀면 공통 설정으로 되돌립니다.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swipe a row to follow the common setting again."
+          }
+        }
+      }
+    },
+    "완료": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done"
+          }
+        }
+      }
+    },
+    "이 기기에 남은 것": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stored on This Device"
+          }
+        }
+      }
+    },
+    "이 라이브러리는 라이선스 본문을 함께 배포하지 않습니다. 저장소에서 확인하세요.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This library does not ship its license text. Check its repository."
+          }
+        }
+      }
+    },
+    "이 앱보다 새로운 팩 포맷(%lld)입니다. 앱을 업데이트하세요.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This dictionary uses a newer format (%lld). Update the app."
+          }
+        }
+      }
+    },
+    "이모지·기호 후보": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Emoji & Symbol Candidates"
+          }
+        }
+      }
+    },
     "입력": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Typing"
+          }
+        }
+      }
+    },
+    "입력 보조": {
       "localizations": {
         "en": {
           "stringUnit": {
@@ -209,6 +649,46 @@
           "stringUnit": {
             "state": "translated",
             "value": "Reset Personalized Learning"
+          }
+        }
+      }
+    },
+    "입력 학습을 끄면 앞으로 배우지 않고, 재설정은 이미 배운 것을 지웁니다.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turning off personalized learning stops new learning; resetting erases what was already learned."
+          }
+        }
+      }
+    },
+    "입력감·제스처": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Feel & Gestures"
+          }
+        }
+      }
+    },
+    "자동 대문자 변환": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto-Capitalization"
+          }
+        }
+      }
+    },
+    "자동 서식": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatic Formatting"
           }
         }
       }
@@ -243,6 +723,86 @@
         }
       }
     },
+    "저장소": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Repository"
+          }
+        }
+      }
+    },
+    "전체 접근 권한을 켠 뒤에 동작합니다.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Works after you allow full access."
+          }
+        }
+      }
+    },
+    "지우기": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear"
+          }
+        }
+      }
+    },
+    "최근 사용 이모지 지우기": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear Recent Emoji"
+          }
+        }
+      }
+    },
+    "최근 사용 이모지를 지울까요?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear recently used emoji?"
+          }
+        }
+      }
+    },
+    "최근 이모지 %lld개": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld recent emoji"
+          }
+        }
+      }
+    },
+    "최근에 고른 이모지도 함께 사라집니다.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recently used emoji are cleared too."
+          }
+        }
+      }
+    },
+    "최근에 고른 이모지도 함께 사라집니다. 되돌릴 수 없습니다.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recently used emoji are cleared too. This cannot be undone."
+          }
+        }
+      }
+    },
     "추가할 수 있는 언어": {
       "localizations": {
         "en": {
@@ -263,12 +823,52 @@
         }
       }
     },
+    "치고 있는 낱말에 딸린 이모지를 후보 바에 곁들입니다.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shows emoji alongside word candidates."
+          }
+        }
+      }
+    },
+    "카탈로그에 %@ 팩이 없습니다.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The catalog has no %@ dictionary."
+          }
+        }
+      }
+    },
+    "커서 이동 감도": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cursor Drag Sensitivity"
+          }
+        }
+      }
+    },
     "켬": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "On"
+          }
+        }
+      }
+    },
+    "크기": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Size"
           }
         }
       }
@@ -283,12 +883,132 @@
         }
       }
     },
+    "키 사운드": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Key Sound"
+          }
+        }
+      }
+    },
+    "키 테두리": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Key Borders"
+          }
+        }
+      }
+    },
+    "키 확대 미리보기": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Key Preview"
+          }
+        }
+      }
+    },
+    "키보드 높이": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keyboard Height"
+          }
+        }
+      }
+    },
     "키보드 테스트": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Try It Out"
+          }
+        }
+      }
+    },
+    "키보드에 링크되는 라이브러리입니다. 빌드 도구와 사전 제작 도구는 기기에 나가지 않으므로 여기 없습니다.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Libraries linked into the keyboard. Build tools and dictionary tooling never ship to the device, so they are not listed."
+          }
+        }
+      }
+    },
+    "테마": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Theme"
+          }
+        }
+      }
+    },
+    "판": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version"
+          }
+        }
+      }
+    },
+    "표시": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Appearance"
+          }
+        }
+      }
+    },
+    "학습": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Learning"
+          }
+        }
+      }
+    },
+    "햅틱": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Haptics"
+          }
+        }
+      }
+    },
+    "후보 바 항상 표시": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Always Show Candidate Bar"
+          }
+        }
+      }
+    },
+    "후보를 내지 않는 칸에서도 자리를 남겨 높이가 변하지 않게 합니다.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keeps the bar's space in fields that show no candidates, so the height never changes."
           }
         }
       }

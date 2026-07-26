@@ -40,8 +40,30 @@ public struct PackStore {
         return url
     }
 
+    /// 내장 팩은 익스텐션 번들에 실린다(키보드가 읽는 것이므로). 설정 앱도 같은 팩을
+    /// 읽어야 배열 목록·사전 상태가 키보드와 어긋나지 않으므로, 자기 번들에 없으면
+    /// 앱 안에 들어 있는 익스텐션 번들까지 본다.
     public func bundledURL(for language: TazaLanguage) -> URL? {
-        bundle.url(forResource: language.packName, withExtension: "tazapack")
+        if let url = bundle.url(forResource: language.packName, withExtension: "tazapack") {
+            return url
+        }
+        return Self.extensionBundles(in: bundle)
+            .compactMap { $0.url(forResource: language.packName, withExtension: "tazapack") }
+            .first
+    }
+
+    private static func extensionBundles(in bundle: Bundle) -> [Bundle] {
+        guard let plugins = bundle.builtInPlugInsURL,
+              let contents = try? FileManager.default.contentsOfDirectory(
+                  at: plugins,
+                  includingPropertiesForKeys: nil
+              )
+        else {
+            return []
+        }
+        return contents
+            .filter { $0.pathExtension == "appex" }
+            .compactMap(Bundle.init(url:))
     }
 
     /// 키보드가 실제로 열 팩 — 내려받은 판이 있으면 그쪽이 이긴다(갱신 배포 경로).

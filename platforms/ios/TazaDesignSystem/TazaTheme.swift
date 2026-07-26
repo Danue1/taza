@@ -29,6 +29,8 @@ public enum TazaTheme {
         public static let secondaryLabel = dynamic(light: 0x6D6D72, dark: 0xA0A0A5)
         public static let separator = dynamic(light: 0xE5E5EA, dark: 0x48484A)
         /// 팝업·시트 바탕
+        /// 키 테두리 — 설정으로 켰을 때만 그린다
+        public static let keyBorder = dynamic(light: 0xC7C7CC, dark: 0x8E8E93)
         public static let popupSurface = dynamic(light: 0xFFFFFF, dark: 0x3A3A3C)
         public static let selection = UIColor.systemBlue.withAlphaComponent(0.16)
         public static let accent = UIColor.systemBlue
@@ -97,6 +99,19 @@ public enum TazaTheme {
         /// 순정 키캡의 아래쪽 1pt 그림자
         public static let shadowColor = UIColor(red: 0.53, green: 0.53, blue: 0.55, alpha: 1)
         public static let shadowOpacity: Float = 0.9
+        /// 키 테두리를 켰을 때의 굵기 — 순정에는 없고 설정으로 켜는 것이다
+        public static let borderWidth: CGFloat = 1
+    }
+
+    /// 누른 글자를 키 위에 크게 띄우는 미리보기(순정 관례)의 치수.
+    public enum KeyPreview {
+        public static let cornerRadius: CGFloat = 8
+        /// 키보다 좌우로 넓어지는 양 — 손가락에 가리지 않을 만큼만
+        public static let horizontalOverhang: CGFloat = 8
+        public static let height: CGFloat = 46
+        /// 키 위로 띄우는 거리
+        public static let lift: CGFloat = 6
+        public static let fontScale: CGFloat = 1.6
     }
 
     // MARK: - 타이포그래피

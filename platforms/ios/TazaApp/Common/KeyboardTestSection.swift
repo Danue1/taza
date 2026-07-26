@@ -16,6 +16,14 @@ struct KeyboardTestSection: View {
                 .onChange(of: isFocused) { focused in
                     if focused { onFocus?() }
                 }
+                // 여러 줄을 받는 칸이라 리턴키가 줄바꿈이고, 목록도 짧아 끌어 내려
+                // 닫을 여백이 없다 — 나가는 길을 키보드 위에 둔다.
+                .toolbar {
+                    ToolbarItemGroup(placement: .keyboard) {
+                        Spacer()
+                        Button("완료") { isFocused = false }
+                    }
+                }
         }
     }
 }

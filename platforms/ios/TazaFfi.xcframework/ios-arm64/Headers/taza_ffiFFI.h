@@ -271,6 +271,11 @@ void*_Nonnull uniffi_taza_ffi_fn_constructor_keyboardsession_new(RustBuffer lang
 RustBuffer uniffi_taza_ffi_fn_method_keyboardsession_annotation_panel(void*_Nonnull ptr, RustBuffer query, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_AVAILABLE_LAYOUTS
+#define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_AVAILABLE_LAYOUTS
+RustBuffer uniffi_taza_ffi_fn_method_keyboardsession_available_layouts(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_BEGIN_CURSOR_DRAG
 #define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_BEGIN_CURSOR_DRAG
 void uniffi_taza_ffi_fn_method_keyboardsession_begin_cursor_drag(void*_Nonnull ptr, float x, RustCallStatus *_Nonnull out_status
@@ -326,6 +331,11 @@ RustBuffer uniffi_taza_ffi_fn_method_keyboardsession_press_at(void*_Nonnull ptr,
 void uniffi_taza_ffi_fn_method_keyboardsession_reset_personalization(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_RESET_RECENT_ANNOTATIONS
+#define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_RESET_RECENT_ANNOTATIONS
+void uniffi_taza_ffi_fn_method_keyboardsession_reset_recent_annotations(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_RESTORE_PERSONALIZATION
 #define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_RESTORE_PERSONALIZATION
 void uniffi_taza_ffi_fn_method_keyboardsession_restore_personalization(void*_Nonnull ptr, RustBuffer lines, RustCallStatus *_Nonnull out_status
@@ -341,6 +351,16 @@ RustBuffer uniffi_taza_ffi_fn_method_keyboardsession_select_alternate(void*_Nonn
 RustBuffer uniffi_taza_ffi_fn_method_keyboardsession_select_annotation(void*_Nonnull ptr, RustBuffer group, RustBuffer text, RustBuffer context, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_SELECT_LAYOUT
+#define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_SELECT_LAYOUT
+int8_t uniffi_taza_ffi_fn_method_keyboardsession_select_layout(void*_Nonnull ptr, RustBuffer name, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_SELECTED_LAYOUT
+#define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_SELECTED_LAYOUT
+RustBuffer uniffi_taza_ffi_fn_method_keyboardsession_selected_layout(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_SET_FIELD
 #define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_SET_FIELD
 void uniffi_taza_ffi_fn_method_keyboardsession_set_field(void*_Nonnull ptr, RustBuffer field, RustCallStatus *_Nonnull out_status
@@ -354,6 +374,11 @@ void uniffi_taza_ffi_fn_method_keyboardsession_set_metrics(void*_Nonnull ptr, Ru
 #ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_SET_PREFERENCES
 #define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_SET_PREFERENCES
 void uniffi_taza_ffi_fn_method_keyboardsession_set_preferences(void*_Nonnull ptr, RustBuffer preferences, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_SYNC_AUTO_SHIFT
+#define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_SYNC_AUTO_SHIFT
+int8_t uniffi_taza_ffi_fn_method_keyboardsession_sync_auto_shift(void*_Nonnull ptr, RustBuffer context, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_TOGGLE_SHIFT_LOCK
@@ -375,6 +400,11 @@ RustBuffer uniffi_taza_ffi_fn_func_default_user_preferences(RustCallStatus *_Non
 #ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_FUNC_INSTALL_PACK_ARCHIVE
 #define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_FUNC_INSTALL_PACK_ARCHIVE
 RustBuffer uniffi_taza_ffi_fn_func_install_pack_archive(RustBuffer archive_path, RustBuffer destination_path, RustBuffer expected_archive_sha256, RustBuffer expected_pack_sha256, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_FUNC_PERSONALIZATION_SUMMARY
+#define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_FUNC_PERSONALIZATION_SUMMARY
+RustBuffer uniffi_taza_ffi_fn_func_personalization_summary(RustBuffer lines, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_FUNC_READ_INSTALLED_PACK
@@ -680,6 +710,12 @@ uint16_t uniffi_taza_ffi_checksum_func_install_pack_archive(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_FUNC_PERSONALIZATION_SUMMARY
+#define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_FUNC_PERSONALIZATION_SUMMARY
+uint16_t uniffi_taza_ffi_checksum_func_personalization_summary(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_FUNC_READ_INSTALLED_PACK
 #define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_FUNC_READ_INSTALLED_PACK
 uint16_t uniffi_taza_ffi_checksum_func_read_installed_pack(void
@@ -695,6 +731,12 @@ uint16_t uniffi_taza_ffi_checksum_func_supported_pack_format_version(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_ANNOTATION_PANEL
 #define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_ANNOTATION_PANEL
 uint16_t uniffi_taza_ffi_checksum_method_keyboardsession_annotation_panel(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_AVAILABLE_LAYOUTS
+#define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_AVAILABLE_LAYOUTS
+uint16_t uniffi_taza_ffi_checksum_method_keyboardsession_available_layouts(void
     
 );
 #endif
@@ -764,6 +806,12 @@ uint16_t uniffi_taza_ffi_checksum_method_keyboardsession_reset_personalization(v
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_RESET_RECENT_ANNOTATIONS
+#define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_RESET_RECENT_ANNOTATIONS
+uint16_t uniffi_taza_ffi_checksum_method_keyboardsession_reset_recent_annotations(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_RESTORE_PERSONALIZATION
 #define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_RESTORE_PERSONALIZATION
 uint16_t uniffi_taza_ffi_checksum_method_keyboardsession_restore_personalization(void
@@ -782,6 +830,18 @@ uint16_t uniffi_taza_ffi_checksum_method_keyboardsession_select_annotation(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_SELECT_LAYOUT
+#define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_SELECT_LAYOUT
+uint16_t uniffi_taza_ffi_checksum_method_keyboardsession_select_layout(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_SELECTED_LAYOUT
+#define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_SELECTED_LAYOUT
+uint16_t uniffi_taza_ffi_checksum_method_keyboardsession_selected_layout(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_SET_FIELD
 #define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_SET_FIELD
 uint16_t uniffi_taza_ffi_checksum_method_keyboardsession_set_field(void
@@ -797,6 +857,12 @@ uint16_t uniffi_taza_ffi_checksum_method_keyboardsession_set_metrics(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_SET_PREFERENCES
 #define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_SET_PREFERENCES
 uint16_t uniffi_taza_ffi_checksum_method_keyboardsession_set_preferences(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_SYNC_AUTO_SHIFT
+#define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_SYNC_AUTO_SHIFT
+uint16_t uniffi_taza_ffi_checksum_method_keyboardsession_sync_auto_shift(void
     
 );
 #endif

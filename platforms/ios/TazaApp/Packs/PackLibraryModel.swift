@@ -14,7 +14,8 @@ final class PackLibraryModel: ObservableObject {
     }
 
     @Published private(set) var states: [TazaLanguage: State] = [:]
-    @Published private(set) var attributions: [String] = []
+    /// 언어마다 그 사전이 밝힌 원천들 — 설치·삭제로 목록이 달라진다
+    @Published private(set) var sources: [TazaLanguage: [FfiPackSource]] = [:]
 
     private let store: PackStore
     private let installer: PackInstaller?
@@ -30,7 +31,7 @@ final class PackLibraryModel: ObservableObject {
         for language in TazaLanguage.all {
             states[language] = resolveLocalState(language)
         }
-        collectAttributions()
+        collectSources()
 
         guard let installer else {
             markMissingAsUnavailable(PackInstallError.catalogUnavailable)
@@ -59,7 +60,9 @@ final class PackLibraryModel: ObservableObject {
         do {
             _ = try await installer.install(entry, for: language)
             states[language] = resolveState(language, catalog: catalog)
-            collectAttributions()
+            collectSources()
+            // 사전이 바뀌면 키보드가 팩을 다시 열어야 한다
+            SettingsBroadcast.post(.settings)
         } catch {
             states[language] = .unavailable(error.localizedDescription)
         }
@@ -68,7 +71,8 @@ final class PackLibraryModel: ObservableObject {
     func remove(_ language: TazaLanguage) {
         try? store.removeInstalledPack(for: language)
         states[language] = resolveLocalState(language)
-        collectAttributions()
+        collectSources()
+        SettingsBroadcast.post(.settings)
     }
 
     // MARK: - 상태 판정
@@ -119,12 +123,19 @@ final class PackLibraryModel: ObservableObject {
         }
     }
 
-    /// 고지 문구는 팩 자체에서 읽는다 — 원천이 바뀌면 표시도 함께 바뀐다.
-    private func collectAttributions() {
-        attributions = TazaLanguage.all
-            .compactMap { store.packURL(for: $0) }
-            .compactMap { try? readInstalledPack(path: $0.path) }
-            .map(\.attribution)
-            .filter { !$0.isEmpty }
+    /// 고지는 팩 자체에서 읽는다 — 원천이 바뀌면 표시도 함께 바뀐다. 어느 사전이
+    /// 무엇을 쓰는지가 고지의 핵심이므로 언어별로 나눠 둔다.
+    private func collectSources() {
+        sources = Dictionary(
+            uniqueKeysWithValues: TazaLanguage.all.compactMap { language in
+                guard let url = store.packURL(for: language),
+                      let pack = try? readInstalledPack(path: url.path),
+                      !pack.sources.isEmpty
+                else {
+                    return nil
+                }
+                return (language, pack.sources)
+            }
+        )
     }
 }

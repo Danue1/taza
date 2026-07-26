@@ -1,12 +1,11 @@
 import SwiftUI
 
-/// 순정 키보드에서는 설정 → 일반 → 키보드에 있는 항목들. 서드파티 키보드는 그 값을
-/// 읽을 수 없으므로 우리가 직접 갖고 키보드 세션에 넘긴다.
+/// 설정의 첫 화면. 항목을 평평하게 늘어놓지 않고 갈래로 나눈다 — 갈래의 기준은 값이
+/// 코어로 가는지 셸에 남는지(그것은 우리 사정이다)가 아니라, 사용자가 무엇을 고치러
+/// 왔는가다.
 struct CommonSettingsList: View {
     @ObservedObject var model: SettingsModel
     @ObservedObject var packs: PackLibraryModel
-
-    @State private var confirmingReset = false
 
     var body: some View {
         List {
@@ -25,29 +24,23 @@ struct CommonSettingsList: View {
                 }
             }
 
-            Section("입력") {
-                ForEach(TypingOption.allCases, id: \.self) { option in
-                    Toggle(option.title, isOn: model.commonValue(option))
+            Section {
+                NavigationLink("입력 보조") { TypingSettingsList(model: model) }
+                NavigationLink("표시") { DisplaySettingsList(model: model) }
+                NavigationLink("입력감·제스처") { FeedbackSettingsList(model: model) }
+                NavigationLink("개인 정보") { PrivacySettingsList(model: model) }
+            }
+
+            // 사전 출처는 사전마다 다르므로 그 언어 화면에 있다. 여기 남는 것은
+            // 빌드 하나에 하나뿐인 고지다.
+            Section {
+                NavigationLink("소프트웨어 라이선스") {
+                    SoftwareLicenseList()
                 }
-                Button("입력 학습 재설정", role: .destructive) { confirmingReset = true }
             }
 
             KeyboardTestSection()
-
-            // 사전 원천의 라이선스가 요구하는 저작자 표시 — 팩 메타데이터에서 읽는다
-            if !packs.attributions.isEmpty {
-                Section("사전 출처") {
-                    ForEach(packs.attributions, id: \.self) { attribution in
-                        Text(attribution)
-                            .font(.footnote)
-                            .foregroundStyle(.tazaSecondaryLabel)
-                    }
-                }
-            }
         }
-        .alert("배운 단어를 모두 지울까요?", isPresented: $confirmingReset) {
-            Button("취소", role: .cancel) {}
-            Button("재설정", role: .destructive) { model.resetLearning() }
-        }
+        .navigationTitle("설정")
     }
 }

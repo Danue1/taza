@@ -11,6 +11,7 @@ import UIKit
 final class KeyboardViewController: UIInputViewController {
     let preferences = LanguagePreferences()
     let typing = TypingPreferences()
+    let keyboardPreferences = KeyboardPreferences()
     let learning = LearningStore()
     var sessions: [TazaLanguage: KeyboardSession] = [:]
     var currentLanguage: TazaLanguage = TazaLanguage.all[0]
@@ -39,6 +40,10 @@ final class KeyboardViewController: UIInputViewController {
     var backspaceRepeatInterval: TimeInterval = 0
     /// shift를 두 번 눌러 고정하는 관례(순정) — 마지막으로 shift를 누른 시각
     var lastShiftPressedAt: Date?
+    /// 햅틱은 누를 때마다 만들면 첫 진동이 늦는다 — 준비된 것을 계속 쓴다
+    lazy var hapticGenerator = UIImpactFeedbackGenerator(style: .light)
+    /// 설정 앱이 값을 고쳤다는 신호를 듣는 자리 — 키보드가 떠 있는 동안에도 바뀐다
+    var settingsObserver: SettingsBroadcast.Observer?
 
     /// 순정 한국어 키보드 관행(iOS 안전 모드): marked text를 쓰지 않고 composing을
     /// 일반 텍스트로 내보낸 뒤 diff로 갱신한다 — 밑줄이 없고, marked text를 제대로
@@ -59,13 +64,69 @@ final class KeyboardViewController: UIInputViewController {
         }
 
         buildViews()
-        refreshFrame()
+        applySettings(includingLearning: true)
         updateField()
+
+        // 설정 화면의 테스트 칸은 키보드를 띄운 채로 값을 바꾸는 자리다 — 다음 표시를
+        // 기다리지 않고 그 자리에서 반영한다.
+        settingsObserver = SettingsBroadcast.Observer { [weak self] kind in
+            self?.applySettings(includingLearning: kind == .learning)
+        }
     }
 
-    /// 설정 앱에서 바뀐 값은 다음 표시 때 반영된다 — 익스텐션이 살아 있는 채로
-    /// 설정을 다녀오는 경우까지 덮는다. 학습도 같은 이유로 매번 저장소를 따른다:
-    /// 앱에서 재설정을 눌렀으면 스냅샷이 비어 있고, 그때는 코어의 학습도 비운다.
+    /// 저장소에 있는 값을 세션과 뷰에 옮긴다. 키보드가 뜰 때와 설정이 바뀌었다는 신호를
+    /// 받을 때 같은 길을 지난다.
+    ///
+    /// `includingLearning`은 앱이 학습 스냅샷을 실제로 고쳤을 때만 참이다. 설정 하나를
+    /// 바꿀 때마다 스냅샷을 되씌우면, 저장되지 않은 이번 세션의 학습이 되감긴다 —
+    /// 스냅샷은 익스텐션도 쓰는 유일한 값이라 그렇다.
+    func applySettings(includingLearning: Bool) {
+        syncSessions()
+        for (language, session) in sessions {
+            // 입력 보조는 언어마다 다를 수 있다 — 세션마다 그 언어의 유효값을 넣는다
+            session.setPreferences(preferences: typing.core(for: language))
+            applyLayoutChoice(to: session, for: language)
+            guard includingLearning else { continue }
+            let snapshot = learning.snapshot(for: language)
+            if snapshot.isEmpty {
+                session.resetPersonalization()
+            } else {
+                session.restorePersonalization(lines: snapshot)
+            }
+        }
+        applyShellPreferences()
+        refreshFrame()
+    }
+
+    /// 코어를 거치지 않는 설정 — 코어에는 판단할 것이 없으므로 계약을 늘리지 않고
+    /// 여기서 뷰에 그대로 옮긴다. 값이 바뀌는 시점은 코어 설정과 같다(다음 표시).
+    private func applyShellPreferences() {
+        gridView.showsKeyPreview = keyboardPreferences.keyPreview
+        gridView.showsKeyBorders = keyboardPreferences.keyBorders
+        switch keyboardPreferences.theme {
+        case .system: view.overrideUserInterfaceStyle = .unspecified
+        case .light: view.overrideUserInterfaceStyle = .light
+        case .dark: view.overrideUserInterfaceStyle = .dark
+        }
+        if keyboardPreferences.haptics {
+            hapticGenerator.prepare()
+        }
+    }
+
+    /// 키를 눌렀다는 것을 소리와 진동으로 알린다. 클릭음은 시스템이 내주므로 전체 접근
+    /// 권한이 없어도 나지만, 햅틱은 권한이 있어야 실제로 울린다.
+    func playKeyFeedback() {
+        if keyboardPreferences.keySound {
+            UIDevice.current.playInputClick()
+        }
+        if keyboardPreferences.haptics, hasFullAccess {
+            hapticGenerator.impactOccurred()
+        }
+    }
+
+    /// 키보드가 뜰 때마다 저장소를 다시 따른다. 떠 있는 동안의 변경은 알림이 나르지만
+    /// (`settingsObserver`), 알림을 놓친 경우와 익스텐션이 죽었다 살아난 경우가 남는다 —
+    /// 이 자리가 그 바닥이다.
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         let languageBeforeSync = currentLanguage
@@ -76,19 +137,9 @@ final class KeyboardViewController: UIInputViewController {
         if storedLanguage != currentLanguage, sessions[storedLanguage] != nil {
             currentLanguage = storedLanguage
         }
-        for (language, session) in sessions {
-            // 입력 보조는 언어마다 다를 수 있다 — 세션마다 그 언어의 유효값을 넣는다
-            session.setPreferences(preferences: typing.core(for: language))
-            let snapshot = learning.snapshot(for: language)
-            if snapshot.isEmpty {
-                session.resetPersonalization()
-            } else {
-                session.restorePersonalization(lines: snapshot)
-            }
-        }
+        applySettings(includingLearning: true)
         if currentLanguage != languageBeforeSync {
             candidateBar.setCandidates([])
-            refreshFrame()
         }
         updateField()
     }
@@ -110,6 +161,11 @@ final class KeyboardViewController: UIInputViewController {
             ? .zero
             : panelView.convert(gridView.blankKeyFrame, from: gridView)
     }
+}
+
+/// 키 클릭음은 시스템이 내준다 — 이 선언이 없으면 `playInputClick()`이 조용히 무시된다.
+extension KeyboardViewController: UIInputViewAudioFeedback {
+    var enableInputClicksWhenVisible: Bool { true }
 
     // MARK: - 화면 구성
 
@@ -130,6 +186,7 @@ final class KeyboardViewController: UIInputViewController {
         grid.onLongPressChanged = { [weak self] point in self?.longPressChanged(at: point) }
         grid.onLongPressEnded = { [weak self] _ in self?.longPressEnded() }
         grid.onAccessibilityActivate = { [weak self] point in self?.activateKey(at: point) }
+        grid.onSwipe = { [weak self] point, toLeft in self?.swiped(at: point, toLeft: toLeft) }
         grid.onSelectAlternate = { [weak self] _, alternate in
             self?.commitAlternate(alternate)
         }

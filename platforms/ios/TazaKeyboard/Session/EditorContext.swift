@@ -24,6 +24,9 @@ extension KeyboardViewController {
     /// 바꾸므로(순정 관습) 이벤트가 오기 전에 화면이 먼저 맞아야 한다.
     func updateField() {
         let field = currentFieldKind()
+        // 필드가 그대로여도 문맥은 달라졌을 수 있다 — 문장이 시작되는 자리인지는
+        // 늘 다시 본다(자동 대문자화). 배열을 새로 만드는 일만 필드가 바뀔 때 한다.
+        defer { refreshAutoShift() }
         guard field != appliedField else { return }
         appliedField = field
         // 전환 대상 언어들도 같은 필드를 그리므로 세션 전체에 알린다

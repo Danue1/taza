@@ -1,0 +1,52 @@
+# 저장소의 규칙을 사람이 아니라 여기가 지킨다.
+#
+# 특히 평가 게이트(`taza-evaluation`)는 "랭킹 가중치 변경은 이 게이트를 통과해야
+# 병합"이라는 약속의 유일한 집행자다 — 손으로 돌리는 한 그 약속은 문서에만 있다.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust:
+    name: 코어·툴체인·평가 게이트
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- --deny warnings
+      # 오타 합성 회귀 게이트가 여기 들어 있다
+      - run: cargo test --workspace
+
+  ios:
+    name: iOS 셸
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios, aarch64-apple-ios-sim
+      - uses: Swatinem/rust-cache@v2
+      - run: brew install xcodegen
+      # 바인딩·라이선스 목록은 생성물이다 — 저장소에 있는 것이 최신인지 여기서 확인한다
+      - run: ./platforms/ios/build-xcframework.sh
+      - run: git diff --exit-code platforms/ios/Generated data/licenses.json
+      - run: xcodegen generate
+        working-directory: platforms/ios
+      - run: |
+          xcodebuild test \
+            -project Taza.xcodeproj \
+            -scheme TazaApp \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+            CODE_SIGNING_ALLOWED=NO
+        working-directory: platforms/ios

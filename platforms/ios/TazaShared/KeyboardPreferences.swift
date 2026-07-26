@@ -4,7 +4,7 @@ import Foundation
 ///
 /// - **코어가 판단하는 것**(높이·숫자 행·변형 문자·커서 감도): `FfiUserPreferences`에
 ///   실려 세션으로 들어간다. 셸은 값을 나르기만 한다.
-/// - **셸이 그리고 느끼게 하는 것**(사운드·햅틱·테마·미리보기): 코어에 판단할 것이
+/// - **셸이 그리고 느끼게 하는 것**(사운드·테마·미리보기): 코어에 판단할 것이
 ///   없으므로 계약을 늘리지 않고 익스텐션이 직접 읽는다.
 ///
 /// 갈래가 달라도 사용자에게는 같은 설정 화면의 항목들이므로 저장소는 하나로 둔다.
@@ -59,12 +59,6 @@ public final class KeyboardPreferences {
         set { defaults.set(newValue, forKey: Key.keySound) }
     }
 
-    /// 키를 누를 때의 진동. 순정에는 없고 서드파티 키보드에는 흔하다.
-    public var haptics: Bool {
-        get { flag(Key.haptics, default: false) }
-        set { defaults.set(newValue, forKey: Key.haptics) }
-    }
-
     /// 글자 키를 누를 때 그 글자를 키 위에 크게 띄운다(순정 관례).
     public var keyPreview: Bool {
         get { flag(Key.keyPreview, default: true) }
@@ -115,7 +109,6 @@ public final class KeyboardPreferences {
         static let keyboardHeight = "keyboardHeight"
         static let cursorSensitivity = "cursorSensitivity"
         static let keySound = "keySound"
-        static let haptics = "haptics"
         static let keyPreview = "keyPreview"
         static let shiftDoubleTapLock = "shiftDoubleTapLock"
         static let spaceSwipeLanguage = "spaceSwipeLanguage"

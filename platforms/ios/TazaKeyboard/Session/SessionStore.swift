@@ -45,6 +45,29 @@ extension KeyboardViewController {
         }
     }
 
+    /// 라틴 글자를 넣는 칸(이메일·URL·비밀번호)에서 라틴 배열로 연다. 어느 언어가
+    /// 라틴인지는 코어가 팩 선언으로 알려 주므로(조합 골격) 셸은 목록에서 고르기만 한다.
+    func switchToLatinLanguage() {
+        guard let current = sessions[currentLanguage], !isLatin(current) else { return }
+        guard let latin = preferences.enabledLanguages.first(where: { language in
+            sessions[language].map(isLatin) == true
+        }) else {
+            return
+        }
+        switchLanguage(to: latin)
+    }
+
+    /// 한글처럼 조합이 필요한 배열인지 — 코어가 밝힌 배열의 글자로 가른다.
+    private func isLatin(_ session: KeyboardSession) -> Bool {
+        session.keyboardFrame().rows
+            .flatMap { $0 }
+            .contains { key in
+                key.role == .character && key.label.unicodeScalars.allSatisfy { scalar in
+                    ("a"..."z").contains(String(scalar)) || ("A"..."Z").contains(String(scalar))
+                }
+            }
+    }
+
     func switchLanguage(to language: TazaLanguage) {
         guard language != currentLanguage, sessions[language] != nil else { return }
         // 전환 전에 진행 중 composing을 현재 언어 규칙으로 확정한다

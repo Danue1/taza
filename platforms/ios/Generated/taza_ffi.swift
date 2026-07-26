@@ -570,6 +570,12 @@ public protocol KeyboardSessionProtocol: AnyObject, Sendable {
     func endCursorDrag() 
     
     /**
+     * 이메일·URL·비밀번호처럼 라틴 글자를 넣게 되어 있는 칸인가. 어느 언어로 열지는
+     * 언어 목록을 가진 셸이 정하므로 코어는 "라틴이 맞다"만 말한다.
+     */
+    func fieldPrefersLatin()  -> Bool
+    
+    /**
      * 프레임 전체를 받지 않고 치수만 필요할 때(입력 뷰 높이 제약).
      */
     func frameMetrics()  -> FfiFrameMetrics
@@ -646,19 +652,24 @@ public protocol KeyboardSessionProtocol: AnyObject, Sendable {
      * 편집 대상이 바뀔 때(초점 이동, 앱 전환) 셸이 알려 주는 필드 성격. 배열·리턴키·
      * 후보 바 자리가 여기서 갈리므로 프레임을 받기 전에 넣는다.
      */
-    func setField(field: FfiFieldKind) 
+    func setField(traits: FfiFieldTraits) 
     
     /**
      * 표시 환경 주입 — 셸이 자기 크기를 알게 될 때(첫 배치, 회전, 분할) 부른다.
      * 이후 프레임의 치수는 이 값을 따른다.
      */
-    func setMetrics(formFactor: FfiFormFactor, widthPoints: Float) 
+    func setMetrics(formFactor: FfiFormFactor, widthPoints: Float, textScale: Float) 
     
     /**
      * 사용자 설정 주입 — 셸은 키보드를 띄울 때마다 자기 저장소에서 읽어 넣는다.
      * 설정 화면에서 바뀐 값은 다음 표시 때 이 호출로 반영된다.
      */
     func setPreferences(preferences: FfiUserPreferences) 
+    
+    /**
+     * 사용자 대치 표 주입(순정의 "텍스트 대치"). 값의 주인은 설정 앱이다.
+     */
+    func setShortcuts(shortcuts: [FfiShortcut]) 
     
     /**
      * 문맥이 문장 첫 자리를 가리키면 shift를 미리 올린다. 초점·필드가 바뀌었을 때와
@@ -780,6 +791,17 @@ open func endCursorDrag()  {try! rustCall() {
     uniffi_taza_ffi_fn_method_keyboardsession_end_cursor_drag(self.uniffiClonePointer(),$0
     )
 }
+}
+    
+    /**
+     * 이메일·URL·비밀번호처럼 라틴 글자를 넣게 되어 있는 칸인가. 어느 언어로 열지는
+     * 언어 목록을 가진 셸이 정하므로 코어는 "라틴이 맞다"만 말한다.
+     */
+open func fieldPrefersLatin() -> Bool  {
+    return try!  FfiConverterBool.lift(try! rustCall() {
+    uniffi_taza_ffi_fn_method_keyboardsession_field_prefers_latin(self.uniffiClonePointer(),$0
+    )
+})
 }
     
     /**
@@ -945,9 +967,9 @@ open func selectedLayout() -> String  {
      * 편집 대상이 바뀔 때(초점 이동, 앱 전환) 셸이 알려 주는 필드 성격. 배열·리턴키·
      * 후보 바 자리가 여기서 갈리므로 프레임을 받기 전에 넣는다.
      */
-open func setField(field: FfiFieldKind)  {try! rustCall() {
+open func setField(traits: FfiFieldTraits)  {try! rustCall() {
     uniffi_taza_ffi_fn_method_keyboardsession_set_field(self.uniffiClonePointer(),
-        FfiConverterTypeFfiFieldKind_lower(field),$0
+        FfiConverterTypeFfiFieldTraits_lower(traits),$0
     )
 }
 }
@@ -956,10 +978,11 @@ open func setField(field: FfiFieldKind)  {try! rustCall() {
      * 표시 환경 주입 — 셸이 자기 크기를 알게 될 때(첫 배치, 회전, 분할) 부른다.
      * 이후 프레임의 치수는 이 값을 따른다.
      */
-open func setMetrics(formFactor: FfiFormFactor, widthPoints: Float)  {try! rustCall() {
+open func setMetrics(formFactor: FfiFormFactor, widthPoints: Float, textScale: Float)  {try! rustCall() {
     uniffi_taza_ffi_fn_method_keyboardsession_set_metrics(self.uniffiClonePointer(),
         FfiConverterTypeFfiFormFactor_lower(formFactor),
-        FfiConverterFloat.lower(widthPoints),$0
+        FfiConverterFloat.lower(widthPoints),
+        FfiConverterFloat.lower(textScale),$0
     )
 }
 }
@@ -971,6 +994,16 @@ open func setMetrics(formFactor: FfiFormFactor, widthPoints: Float)  {try! rustC
 open func setPreferences(preferences: FfiUserPreferences)  {try! rustCall() {
     uniffi_taza_ffi_fn_method_keyboardsession_set_preferences(self.uniffiClonePointer(),
         FfiConverterTypeFfiUserPreferences_lower(preferences),$0
+    )
+}
+}
+    
+    /**
+     * 사용자 대치 표 주입(순정의 "텍스트 대치"). 값의 주인은 설정 앱이다.
+     */
+open func setShortcuts(shortcuts: [FfiShortcut])  {try! rustCall() {
+    uniffi_taza_ffi_fn_method_keyboardsession_set_shortcuts(self.uniffiClonePointer(),
+        FfiConverterSequenceTypeFfiShortcut.lower(shortcuts),$0
     )
 }
 }
@@ -1440,6 +1473,103 @@ public func FfiConverterTypeFfiEditorContext_lift(_ buf: RustBuffer) throws -> F
 #endif
 public func FfiConverterTypeFfiEditorContext_lower(_ value: FfiEditorContext) -> RustBuffer {
     return FfiConverterTypeFfiEditorContext.lower(value)
+}
+
+
+/**
+ * 편집 대상이 스스로 밝힌 성격. 값의 주인이 앱이라 사용자 설정과 AND로 묶인다.
+ */
+public struct FfiFieldTraits {
+    public var kind: FfiFieldKind
+    public var returnKey: FfiReturnKey
+    public var capitalization: FfiCapitalization
+    public var autocorrect: Bool
+    public var smartPunctuation: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(kind: FfiFieldKind, returnKey: FfiReturnKey, capitalization: FfiCapitalization, autocorrect: Bool, smartPunctuation: Bool) {
+        self.kind = kind
+        self.returnKey = returnKey
+        self.capitalization = capitalization
+        self.autocorrect = autocorrect
+        self.smartPunctuation = smartPunctuation
+    }
+}
+
+#if compiler(>=6)
+extension FfiFieldTraits: Sendable {}
+#endif
+
+
+extension FfiFieldTraits: Equatable, Hashable {
+    public static func ==(lhs: FfiFieldTraits, rhs: FfiFieldTraits) -> Bool {
+        if lhs.kind != rhs.kind {
+            return false
+        }
+        if lhs.returnKey != rhs.returnKey {
+            return false
+        }
+        if lhs.capitalization != rhs.capitalization {
+            return false
+        }
+        if lhs.autocorrect != rhs.autocorrect {
+            return false
+        }
+        if lhs.smartPunctuation != rhs.smartPunctuation {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(kind)
+        hasher.combine(returnKey)
+        hasher.combine(capitalization)
+        hasher.combine(autocorrect)
+        hasher.combine(smartPunctuation)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiFieldTraits: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiFieldTraits {
+        return
+            try FfiFieldTraits(
+                kind: FfiConverterTypeFfiFieldKind.read(from: &buf), 
+                returnKey: FfiConverterTypeFfiReturnKey.read(from: &buf), 
+                capitalization: FfiConverterTypeFfiCapitalization.read(from: &buf), 
+                autocorrect: FfiConverterBool.read(from: &buf), 
+                smartPunctuation: FfiConverterBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FfiFieldTraits, into buf: inout [UInt8]) {
+        FfiConverterTypeFfiFieldKind.write(value.kind, into: &buf)
+        FfiConverterTypeFfiReturnKey.write(value.returnKey, into: &buf)
+        FfiConverterTypeFfiCapitalization.write(value.capitalization, into: &buf)
+        FfiConverterBool.write(value.autocorrect, into: &buf)
+        FfiConverterBool.write(value.smartPunctuation, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiFieldTraits_lift(_ buf: RustBuffer) throws -> FfiFieldTraits {
+    return try FfiConverterTypeFfiFieldTraits.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiFieldTraits_lower(_ value: FfiFieldTraits) -> RustBuffer {
+    return FfiConverterTypeFfiFieldTraits.lower(value)
 }
 
 
@@ -2332,6 +2462,79 @@ public func FfiConverterTypeFfiPressResult_lower(_ value: FfiPressResult) -> Rus
 
 
 /**
+ * 친 말과 그 자리에 들어갈 말. 순정의 "텍스트 대치"와 같다.
+ */
+public struct FfiShortcut {
+    public var trigger: String
+    public var replacement: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(trigger: String, replacement: String) {
+        self.trigger = trigger
+        self.replacement = replacement
+    }
+}
+
+#if compiler(>=6)
+extension FfiShortcut: Sendable {}
+#endif
+
+
+extension FfiShortcut: Equatable, Hashable {
+    public static func ==(lhs: FfiShortcut, rhs: FfiShortcut) -> Bool {
+        if lhs.trigger != rhs.trigger {
+            return false
+        }
+        if lhs.replacement != rhs.replacement {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(trigger)
+        hasher.combine(replacement)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiShortcut: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiShortcut {
+        return
+            try FfiShortcut(
+                trigger: FfiConverterString.read(from: &buf), 
+                replacement: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FfiShortcut, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.trigger, into: &buf)
+        FfiConverterString.write(value.replacement, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiShortcut_lift(_ buf: RustBuffer) throws -> FfiShortcut {
+    return try FfiConverterTypeFfiShortcut.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiShortcut_lower(_ value: FfiShortcut) -> RustBuffer {
+    return FfiConverterTypeFfiShortcut.lower(value)
+}
+
+
+/**
  * 설정 화면이 소유하는 값 — 순정 키보드의 설정은 서드파티가 읽을 수 없으므로
  * 셸이 자기 저장소에서 읽어 세션에 넣는다.
  */
@@ -2657,6 +2860,93 @@ public func FfiConverterTypeFfiCandidateKind_lower(_ value: FfiCandidateKind) ->
 
 
 extension FfiCandidateKind: Equatable, Hashable {}
+
+
+
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * 앱이 요구하는 자동 대문자화의 범위 — iOS `autocapitalizationType`.
+ */
+
+public enum FfiCapitalization {
+    
+    case none
+    case words
+    case sentences
+    case allCharacters
+}
+
+
+#if compiler(>=6)
+extension FfiCapitalization: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiCapitalization: FfiConverterRustBuffer {
+    typealias SwiftType = FfiCapitalization
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiCapitalization {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .none
+        
+        case 2: return .words
+        
+        case 3: return .sentences
+        
+        case 4: return .allCharacters
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: FfiCapitalization, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .none:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .words:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .sentences:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .allCharacters:
+            writeInt(&buf, Int32(4))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiCapitalization_lift(_ buf: RustBuffer) throws -> FfiCapitalization {
+    return try FfiConverterTypeFfiCapitalization.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiCapitalization_lower(_ value: FfiCapitalization) -> RustBuffer {
+    return FfiConverterTypeFfiCapitalization.lower(value)
+}
+
+
+extension FfiCapitalization: Equatable, Hashable {}
 
 
 
@@ -3401,7 +3691,14 @@ extension FfiInstallError: Foundation.LocalizedError {
 public enum FfiKeyLegend {
     
     case `return`
+    case go
     case search
+    case send
+    case next
+    case done
+    case join
+    case route
+    case `continue`
 }
 
 
@@ -3421,7 +3718,21 @@ public struct FfiConverterTypeFfiKeyLegend: FfiConverterRustBuffer {
         
         case 1: return .`return`
         
-        case 2: return .search
+        case 2: return .go
+        
+        case 3: return .search
+        
+        case 4: return .send
+        
+        case 5: return .next
+        
+        case 6: return .done
+        
+        case 7: return .join
+        
+        case 8: return .route
+        
+        case 9: return .`continue`
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -3435,8 +3746,36 @@ public struct FfiConverterTypeFfiKeyLegend: FfiConverterRustBuffer {
             writeInt(&buf, Int32(1))
         
         
-        case .search:
+        case .go:
             writeInt(&buf, Int32(2))
+        
+        
+        case .search:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .send:
+            writeInt(&buf, Int32(4))
+        
+        
+        case .next:
+            writeInt(&buf, Int32(5))
+        
+        
+        case .done:
+            writeInt(&buf, Int32(6))
+        
+        
+        case .join:
+            writeInt(&buf, Int32(7))
+        
+        
+        case .route:
+            writeInt(&buf, Int32(8))
+        
+        
+        case .`continue`:
+            writeInt(&buf, Int32(9))
         
         }
     }
@@ -3821,6 +4160,128 @@ extension FfiPackError: Foundation.LocalizedError {
 
 
 
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * 리턴키가 시키는 동작 — iOS `returnKeyType`, Android `imeOptions`를 셸이 옮긴다.
+ */
+
+public enum FfiReturnKey {
+    
+    case `return`
+    case go
+    case search
+    case send
+    case next
+    case done
+    case join
+    case route
+    case `continue`
+}
+
+
+#if compiler(>=6)
+extension FfiReturnKey: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiReturnKey: FfiConverterRustBuffer {
+    typealias SwiftType = FfiReturnKey
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiReturnKey {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .`return`
+        
+        case 2: return .go
+        
+        case 3: return .search
+        
+        case 4: return .send
+        
+        case 5: return .next
+        
+        case 6: return .done
+        
+        case 7: return .join
+        
+        case 8: return .route
+        
+        case 9: return .`continue`
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: FfiReturnKey, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .`return`:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .go:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .search:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .send:
+            writeInt(&buf, Int32(4))
+        
+        
+        case .next:
+            writeInt(&buf, Int32(5))
+        
+        
+        case .done:
+            writeInt(&buf, Int32(6))
+        
+        
+        case .join:
+            writeInt(&buf, Int32(7))
+        
+        
+        case .route:
+            writeInt(&buf, Int32(8))
+        
+        
+        case .`continue`:
+            writeInt(&buf, Int32(9))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiReturnKey_lift(_ buf: RustBuffer) throws -> FfiReturnKey {
+    return try FfiConverterTypeFfiReturnKey.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiReturnKey_lower(_ value: FfiReturnKey) -> RustBuffer {
+    return FfiConverterTypeFfiReturnKey.lower(value)
+}
+
+
+extension FfiReturnKey: Equatable, Hashable {}
+
+
+
+
+
+
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
@@ -4070,6 +4531,31 @@ fileprivate struct FfiConverterSequenceTypeFfiPackSource: FfiConverterRustBuffer
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceTypeFfiShortcut: FfiConverterRustBuffer {
+    typealias SwiftType = [FfiShortcut]
+
+    public static func write(_ value: [FfiShortcut], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeFfiShortcut.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [FfiShortcut] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [FfiShortcut]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeFfiShortcut.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceTypeFfiEffect: FfiConverterRustBuffer {
     typealias SwiftType = [FfiEffect]
 
@@ -4211,6 +4697,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_taza_ffi_checksum_method_keyboardsession_end_cursor_drag() != 47090) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_taza_ffi_checksum_method_keyboardsession_field_prefers_latin() != 56411) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_taza_ffi_checksum_method_keyboardsession_frame_metrics() != 10521) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -4256,13 +4745,16 @@ private let initializationResult: InitializationResult = {
     if (uniffi_taza_ffi_checksum_method_keyboardsession_selected_layout() != 32017) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_taza_ffi_checksum_method_keyboardsession_set_field() != 9400) {
+    if (uniffi_taza_ffi_checksum_method_keyboardsession_set_field() != 56750) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_taza_ffi_checksum_method_keyboardsession_set_metrics() != 53134) {
+    if (uniffi_taza_ffi_checksum_method_keyboardsession_set_metrics() != 34872) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_taza_ffi_checksum_method_keyboardsession_set_preferences() != 16590) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_taza_ffi_checksum_method_keyboardsession_set_shortcuts() != 26022) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_taza_ffi_checksum_method_keyboardsession_sync_auto_shift() != 7249) {

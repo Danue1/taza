@@ -35,9 +35,15 @@ extension KeyboardViewController {
     /// 언어로 옮기고, 나머지는 코어가 준 글자를 그대로 쓴다.
     private func legend(for key: FfiFrameKey) -> String {
         switch key.legend {
-        case .search: NSLocalizedString("검색", comment: "검색 필드의 리턴키")
-        case .return: key.label
-        case nil: key.label
+        case .go: NSLocalizedString("이동", comment: "리턴키 — go")
+        case .search: NSLocalizedString("검색", comment: "리턴키 — search")
+        case .send: NSLocalizedString("전송", comment: "리턴키 — send")
+        case .next: NSLocalizedString("다음", comment: "리턴키 — next")
+        case .done: NSLocalizedString("완료", comment: "리턴키 — done")
+        case .join: NSLocalizedString("연결", comment: "리턴키 — join")
+        case .route: NSLocalizedString("경로", comment: "리턴키 — route")
+        case .continue: NSLocalizedString("계속", comment: "리턴키 — continue")
+        case .return, nil: key.label
         }
     }
 

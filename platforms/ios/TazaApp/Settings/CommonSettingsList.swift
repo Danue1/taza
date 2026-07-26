@@ -28,6 +28,7 @@ struct CommonSettingsList: View {
                 NavigationLink("입력 보조") { TypingSettingsList(model: model) }
                 NavigationLink("표시") { DisplaySettingsList(model: model) }
                 NavigationLink("입력감·제스처") { FeedbackSettingsList(model: model) }
+                NavigationLink("텍스트 대치") { ShortcutSettingsList(model: model) }
                 NavigationLink("개인 정보") { PrivacySettingsList(model: model) }
             }
 

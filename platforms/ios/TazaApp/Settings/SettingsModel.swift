@@ -12,6 +12,7 @@ final class SettingsModel: ObservableObject {
     private let typingPreferences = TypingPreferences()
     private let keyboard = KeyboardPreferences()
     private let learning = LearningStore()
+    private let shortcutStore = ShortcutStore()
 
     /// 표시 이름·키캡 표기·배열 목록은 코어가 팩 선언에서 읽어 준다
     private var info: [String: TazaLanguageInfo] = [:]
@@ -190,6 +191,20 @@ final class SettingsModel: ObservableObject {
             get: { self.keyboard[keyPath: keyPath] },
             set: { self.keyboard[keyPath: keyPath] = $0; self.settingsChanged(.settings) }
         )
+    }
+
+    // MARK: - 텍스트 대치
+
+    var shortcuts: [FfiShortcut] { shortcutStore.entries }
+
+    func addShortcut(trigger: String, replacement: String) {
+        shortcutStore.add(trigger: trigger, replacement: replacement)
+        settingsChanged(.settings)
+    }
+
+    func removeShortcuts(at offsets: IndexSet) {
+        shortcutStore.remove(at: offsets)
+        settingsChanged(.settings)
     }
 
     // MARK: - 개인 정보

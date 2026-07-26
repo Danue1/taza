@@ -293,6 +293,16 @@
         }
       }
     },
+    "바뀔 말": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Replacement"
+          }
+        }
+      }
+    },
     "밝게": {
       "localizations": {
         "en": {
@@ -733,16 +743,6 @@
         }
       }
     },
-    "전체 접근 권한을 켠 뒤에 동작합니다.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Works after you allow full access."
-          }
-        }
-      }
-    },
     "지우기": {
       "localizations": {
         "en": {
@@ -803,6 +803,16 @@
         }
       }
     },
+    "추가": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add"
+          }
+        }
+      }
+    },
     "추가할 수 있는 언어": {
       "localizations": {
         "en": {
@@ -829,6 +839,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Shows emoji alongside word candidates."
+          }
+        }
+      }
+    },
+    "친 말": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Phrase"
+          }
+        }
+      }
+    },
+    "친 말을 확정하는 순간 바뀔 말이 대신 들어갑니다. 바로 이어 삭제를 누르면 친 대로 되돌아옵니다.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The replacement is inserted as soon as the phrase is committed. Press delete right after to get what you typed back."
           }
         }
       }
@@ -953,6 +983,16 @@
         }
       }
     },
+    "텍스트 대치": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Text Replacement"
+          }
+        }
+      }
+    },
     "판": {
       "localizations": {
         "en": {
@@ -979,16 +1019,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Learning"
-          }
-        }
-      }
-    },
-    "햅틱": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Haptics"
           }
         }
       }

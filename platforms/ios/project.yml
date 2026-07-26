@@ -89,3 +89,18 @@ targets:
     dependencies:
       - framework: TazaFfi.xcframework
         embed: false
+  TazaTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - TazaTests
+    dependencies:
+      - target: TazaApp
+schemes:
+  TazaApp:
+    build:
+      targets:
+        TazaApp: all
+        TazaTests: [test]
+    test:
+      targets: [TazaTests]

@@ -31,6 +31,26 @@
         }
       }
     },
+    "경로": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "route"
+          }
+        }
+      }
+    },
+    "계속": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "continue"
+          }
+        }
+      }
+    },
     "기호": {
       "localizations": {
         "en": {
@@ -97,6 +117,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Words"
+          }
+        }
+      }
+    },
+    "다음": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "next"
           }
         }
       }
@@ -201,6 +231,26 @@
         }
       }
     },
+    "연결": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "join"
+          }
+        }
+      }
+    },
+    "완료": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "done"
+          }
+        }
+      }
+    },
     "음식 및 음료": {
       "localizations": {
         "en": {
@@ -217,6 +267,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "This dictionary uses a newer format (%lld). Update the app."
+          }
+        }
+      }
+    },
+    "이동": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "go"
           }
         }
       }
@@ -257,6 +317,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "switch keyboard"
+          }
+        }
+      }
+    },
+    "전송": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "send"
           }
         }
       }

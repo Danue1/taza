@@ -13,6 +13,7 @@ final class KeyboardViewController: UIInputViewController {
     let typing = TypingPreferences()
     let keyboardPreferences = KeyboardPreferences()
     let learning = LearningStore()
+    let shortcuts = ShortcutStore()
     var sessions: [TazaLanguage: KeyboardSession] = [:]
     var currentLanguage: TazaLanguage = TazaLanguage.all[0]
 
@@ -20,6 +21,8 @@ final class KeyboardViewController: UIInputViewController {
     /// 코어에 이미 알린 표시 환경 — 같은 값을 다시 밀어 넣어 배치가 도는 것을 막는다
     var appliedFormFactor: FfiFormFactor?
     var appliedWidth: CGFloat = 0
+    /// 코어에 이미 알린 글자 배율 — 시스템 글자 크기를 바꾸면 달라진다
+    var appliedTextScale: Float = 0
     /// 코어에 이미 알린 필드 성격 — 같은 값을 다시 밀어 넣어 배치가 도는 것을 막는다
     var appliedField: FfiFieldKind?
     var gridView: KeyboardGridView!
@@ -40,8 +43,6 @@ final class KeyboardViewController: UIInputViewController {
     var backspaceRepeatInterval: TimeInterval = 0
     /// shift를 두 번 눌러 고정하는 관례(순정) — 마지막으로 shift를 누른 시각
     var lastShiftPressedAt: Date?
-    /// 햅틱은 누를 때마다 만들면 첫 진동이 늦는다 — 준비된 것을 계속 쓴다
-    lazy var hapticGenerator = UIImpactFeedbackGenerator(style: .light)
     /// 설정 앱이 값을 고쳤다는 신호를 듣는 자리 — 키보드가 떠 있는 동안에도 바뀐다
     var settingsObserver: SettingsBroadcast.Observer?
 
@@ -85,6 +86,7 @@ final class KeyboardViewController: UIInputViewController {
         for (language, session) in sessions {
             // 입력 보조는 언어마다 다를 수 있다 — 세션마다 그 언어의 유효값을 넣는다
             session.setPreferences(preferences: typing.core(for: language))
+            session.setShortcuts(shortcuts: shortcuts.entries)
             applyLayoutChoice(to: session, for: language)
             guard includingLearning else { continue }
             let snapshot = learning.snapshot(for: language)
@@ -108,20 +110,16 @@ final class KeyboardViewController: UIInputViewController {
         case .light: view.overrideUserInterfaceStyle = .light
         case .dark: view.overrideUserInterfaceStyle = .dark
         }
-        if keyboardPreferences.haptics {
-            hapticGenerator.prepare()
-        }
     }
 
-    /// 키를 눌렀다는 것을 소리와 진동으로 알린다. 클릭음은 시스템이 내주므로 전체 접근
-    /// 권한이 없어도 나지만, 햅틱은 권한이 있어야 실제로 울린다.
+    /// 키를 눌렀다는 것을 소리로 알린다.
+    ///
+    /// 햅틱은 두지 않는다: 익스텐션의 진동은 전체 접근 권한을 받아야 울리는데, 이 키보드는
+    /// 기기 밖으로 아무것도 보내지 않는 대가로 그 권한을 요구하지 않기로 했다. 켤 수 없는
+    /// 스위치를 설정 화면에 남기느니 항목 자체를 두지 않는다.
     func playKeyFeedback() {
-        if keyboardPreferences.keySound {
-            UIDevice.current.playInputClick()
-        }
-        if keyboardPreferences.haptics, hasFullAccess {
-            hapticGenerator.impactOccurred()
-        }
+        guard keyboardPreferences.keySound else { return }
+        UIDevice.current.playInputClick()
     }
 
     /// 키보드가 뜰 때마다 저장소를 다시 따른다. 떠 있는 동안의 변경은 알림이 나르지만
@@ -244,12 +242,25 @@ extension KeyboardViewController: UIInputViewAudioFeedback {
     private func updateMetrics() {
         let width = view.bounds.width
         let factor = formFactor()
-        guard width > 0, width != appliedWidth || factor != appliedFormFactor else { return }
+        // 시스템 글자 크기 — 본문 글꼴이 얼마나 커졌는지로 잰다. 어디까지 반영할지는
+        // 코어가 정한다(라벨이 키를 넘지 않도록 위를 막는다).
+        let scale = Float(
+            UIFontMetrics.default.scaledValue(
+                for: 100,
+                compatibleWith: traitCollection
+            ) / 100
+        )
+        guard width > 0,
+              width != appliedWidth || factor != appliedFormFactor || scale != appliedTextScale
+        else {
+            return
+        }
         appliedWidth = width
         appliedFormFactor = factor
+        appliedTextScale = scale
         // 전환 대상 언어들도 같은 화면에 그려지므로 세션 전체에 알린다
         for session in sessions.values {
-            session.setMetrics(formFactor: factor, widthPoints: Float(width))
+            session.setMetrics(formFactor: factor, widthPoints: Float(width), textScale: scale)
         }
         refreshFrame()
     }

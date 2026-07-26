@@ -9,14 +9,6 @@ struct FeedbackSettingsList: View {
         List {
             Section("누를 때") {
                 Toggle("키 사운드", isOn: model.keyboardBinding(\.keySound))
-                Toggle(isOn: model.keyboardBinding(\.haptics)) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("햅틱")
-                        Text("전체 접근 권한을 켠 뒤에 동작합니다.")
-                            .font(.footnote)
-                            .foregroundStyle(.tazaSecondaryLabel)
-                    }
-                }
                 Toggle("키 확대 미리보기", isOn: model.keyboardBinding(\.keyPreview))
             }
 

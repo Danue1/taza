@@ -12,8 +12,8 @@ pub use install::{
 use std::sync::{Arc, Mutex};
 
 use taza_engine::contract::{
-    Candidate, CandidateGroup, CandidateKind, EditorContext, Effect, FieldKind, InputEvent,
-    KeySignal, UserPreferences,
+    Candidate, CandidateGroup, CandidateKind, EditorContext, Effect, EmojiCategory, FieldKind,
+    InputEvent, KeySignal, UserPreferences,
 };
 use taza_engine::engine::{Engine, PackBytes};
 use taza_engine::keyboard::{FormFactor, KeyRole, KeyboardMetrics, ShellRequest};
@@ -140,8 +140,36 @@ pub struct FfiAnnotationPanelItem {
 #[derive(uniffi::Record)]
 pub struct FfiAnnotationPanelGroup {
     pub group: Option<FfiCandidateGroup>,
+    /// 이모지 묶음이면 그 자리 — 셸이 묶음마다 다른 표식을 세운다
+    pub category: Option<FfiEmojiCategory>,
     pub label: String,
     pub items: Vec<FfiAnnotationPanelItem>,
+}
+
+/// 이모지가 검색면에서 서는 묶음 — 빌트인 키보드와 같은 갈래다
+#[derive(uniffi::Enum)]
+pub enum FfiEmojiCategory {
+    SmileysAndPeople,
+    AnimalsAndNature,
+    FoodAndDrink,
+    Activities,
+    TravelAndPlaces,
+    Objects,
+    Symbols,
+    Flags,
+}
+
+fn convert_emoji_category(category: EmojiCategory) -> FfiEmojiCategory {
+    match category {
+        EmojiCategory::SmileysAndPeople => FfiEmojiCategory::SmileysAndPeople,
+        EmojiCategory::AnimalsAndNature => FfiEmojiCategory::AnimalsAndNature,
+        EmojiCategory::FoodAndDrink => FfiEmojiCategory::FoodAndDrink,
+        EmojiCategory::Activities => FfiEmojiCategory::Activities,
+        EmojiCategory::TravelAndPlaces => FfiEmojiCategory::TravelAndPlaces,
+        EmojiCategory::Objects => FfiEmojiCategory::Objects,
+        EmojiCategory::Symbols => FfiEmojiCategory::Symbols,
+        EmojiCategory::Flags => FfiEmojiCategory::Flags,
+    }
 }
 
 #[derive(uniffi::Record)]
@@ -182,6 +210,8 @@ pub struct FfiFrameKey {
     /// 이 필드에서 강조색으로 그릴 키 (검색 필드의 리턴키 등)
     pub emphasized: bool,
     pub role: FfiKeyRole,
+    /// 이 키 라벨의 글꼴 크기(pt) — 글자 키·기호 제어 키·낱말 제어 키가 서로 다르다
+    pub font_size: f32,
     pub alternates: Vec<String>,
 }
 
@@ -202,8 +232,8 @@ pub struct FfiFrameMetrics {
     pub candidate_bar_height: f32,
     /// 후보 바까지 포함한 입력 뷰 전체 높이
     pub total_height: f32,
+    /// 글자 키 글꼴 — 키 밖에서 같은 크기를 써야 하는 자리(변형 문자 팝업)가 쓴다
     pub letter_font_size: f32,
-    pub control_font_size: f32,
 }
 
 #[derive(uniffi::Record)]
@@ -317,6 +347,7 @@ fn convert_frame_key(key: taza_engine::keyboard::FrameKey) -> FfiFrameKey {
             KeyRole::LanguageSwitch => FfiKeyRole::LanguageSwitch,
             KeyRole::Blank => FfiKeyRole::Blank,
         },
+        font_size: key.font_size,
         alternates: key.alternates,
     }
 }
@@ -327,7 +358,6 @@ fn convert_frame_metrics(metrics: taza_engine::keyboard::FrameMetrics) -> FfiFra
         candidate_bar_height: metrics.candidate_bar_height,
         total_height: metrics.total_height(),
         letter_font_size: metrics.letter_font_size,
-        control_font_size: metrics.control_font_size,
     }
 }
 
@@ -474,6 +504,12 @@ impl KeyboardSession {
         convert_frame_key(self.engine.lock().unwrap().key_at(x, y))
     }
 
+    /// shift 키를 두 번 누른 것 — 두 번 누름을 알아보는 것은 플랫폼 제스처라 셸이 하고,
+    /// 고정할 수 있는 배열인지와 그 뒤 상태는 코어가 정한다. 고정되면 true.
+    pub fn toggle_shift_lock(&self) -> bool {
+        self.engine.lock().unwrap().toggle_shift_lock()
+    }
+
     /// 길게 눌러 연 팝업에서 고른 변형 문자 — 일반 키 입력과 같은 경로로 흐른다.
     pub fn select_alternate(&self, alternate: String, context: FfiEditorContext) -> Vec<FfiEffect> {
         let effects = self
@@ -525,6 +561,7 @@ impl KeyboardSession {
                 .into_iter()
                 .map(|group| FfiAnnotationPanelGroup {
                     group: group.group.map(convert_candidate_group),
+                    category: group.category.map(convert_emoji_category),
                     label: group.label,
                     items: group
                         .items

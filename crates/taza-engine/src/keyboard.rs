@@ -7,10 +7,11 @@ pub use hit::{KeyProbability, KeySignal};
 use crate::contract::{FieldKind, InputEvent};
 use crate::lang::LanguageDescriptor;
 
-/// 커서를 한 칸 옮기는 데 필요한 가로 이동 거리(pt). 순정 스페이스바 길게 눌러
-/// 커서 이동과 비슷한 감도다. 정규화 좌표가 아니라 물리 거리로 잡아야 화면이
+/// 커서를 한 칸 옮기는 데 필요한 가로 이동 거리(pt). 순정처럼 손가락을 따라 커서가
+/// 흐르려면 이 값이 글자 하나의 폭에 가까워야 한다 — 크게 잡으면 커서가 손가락을
+/// 뒤늦게 따라오며 툭툭 건너뛴다. 정규화 좌표가 아니라 물리 거리로 잡아야 화면이
 /// 넓어져도 손가락이 같은 만큼 움직인다.
-const CURSOR_DRAG_STEP_POINTS: f32 = 10.0;
+const CURSOR_DRAG_STEP_POINTS: f32 = 5.0;
 
 // 레이아웃 데이터 타입은 언어팩 와이어 타입이 원본이다 — 배열 추가는 팩 배포로 끝난다.
 pub use crate::pack::layout::{KeyAction, KeyboardLayout, KeyboardLayoutSet, LayoutKey, LayoutRow};
@@ -35,11 +36,13 @@ impl FormFactor {
         }
     }
 
+    /// 후보 바 높이 — 낱말 한 줄이 서는 자리다. 순정 예측 바는 키 한 행보다 눈에 띄게
+    /// 낮아, 여기가 두꺼우면 위쪽이 비어 보인다.
     fn candidate_bar_height_points(self) -> f32 {
         match self {
-            FormFactor::PhonePortrait => 44.0,
-            FormFactor::PhoneLandscape => 38.0,
-            FormFactor::Tablet => 52.0,
+            FormFactor::PhonePortrait => 30.0,
+            FormFactor::PhoneLandscape => 27.0,
+            FormFactor::Tablet => 38.0,
         }
     }
 
@@ -52,11 +55,22 @@ impl FormFactor {
         }
     }
 
+    /// 기호 하나로 된 제어 키(⇧·⌫·⏎·☺) 글자 — 글자 키만큼은 아니어도 큼직해야 눈에 든다.
     fn control_font_size_points(self) -> f32 {
         match self {
-            FormFactor::PhonePortrait => 16.0,
-            FormFactor::PhoneLandscape => 15.0,
-            FormFactor::Tablet => 18.0,
+            FormFactor::PhonePortrait => 22.0,
+            FormFactor::PhoneLandscape => 20.0,
+            FormFactor::Tablet => 24.0,
+        }
+    }
+
+    /// 낱말로 된 제어 키(ABC·한글·123·#+=·검색) 글자 — 기호 한 자보다 자리를 많이 쓰므로
+    /// 순정도 여기만 한 단계 작게 잡는다.
+    fn word_font_size_points(self) -> f32 {
+        match self {
+            FormFactor::PhonePortrait => 15.0,
+            FormFactor::PhoneLandscape => 14.0,
+            FormFactor::Tablet => 17.0,
         }
     }
 }
@@ -88,8 +102,9 @@ pub struct FrameMetrics {
     /// 키 그리드 높이 — 각 키의 정규화 높이에 이 값을 곱하면 실제 높이다.
     pub grid_height: f32,
     pub candidate_bar_height: f32,
+    /// 글자 키 글꼴 — 변형 문자 팝업처럼 키 밖에서 같은 크기를 써야 하는 자리가 쓴다.
+    /// 키 하나하나의 글꼴은 `FrameKey::font_size`에 실려 간다.
     pub letter_font_size: f32,
-    pub control_font_size: f32,
 }
 
 impl FrameMetrics {
@@ -167,6 +182,8 @@ pub enum ShiftState {
     Released,
     /// 한 글자 입력 후 자동 해제되는 일회성 shift (모바일 관습)
     Pressed,
+    /// 다시 누를 때까지 유지되는 고정 shift — 대소문자가 있는 배열에서만 걸린다
+    Locked,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -227,6 +244,8 @@ pub struct FrameKey {
     /// 자리다. 어떤 색인지는 셸의 디자인 시스템이 정한다.
     pub emphasized: bool,
     pub role: KeyRole,
+    /// 이 키 라벨의 글꼴 크기(pt) — 글자 키·기호 제어 키·낱말 제어 키가 서로 다르다.
+    pub font_size: f32,
     /// 길게 눌러 고르는 변형 문자 — 표시 순서 그대로. 접근성 경로에서는 커스텀
     /// 액션 목록이 된다.
     pub alternates: Vec<String>,
@@ -328,7 +347,17 @@ impl Keyboard {
                 0.0
             },
             letter_font_size: form_factor.letter_font_size_points(),
-            control_font_size: form_factor.control_font_size_points(),
+        }
+    }
+
+    /// 키 하나에 쓸 글꼴 크기 — 라벨이 글자 하나인지 낱말인지에 따라 갈린다. 셸이 라벨을
+    /// 들여다보고 판단하지 않도록 코어가 실측값으로 내려 준다.
+    fn key_font_size(&self, action: &KeyAction, label: &str) -> f32 {
+        let form_factor = self.metrics.form_factor;
+        match action {
+            KeyAction::Character { .. } | KeyAction::Text(_) => form_factor.letter_font_size_points(),
+            _ if label.chars().count() > 1 => form_factor.word_font_size_points(),
+            _ => form_factor.control_font_size_points(),
         }
     }
 
@@ -337,7 +366,35 @@ impl Keyboard {
     }
 
     fn shifted(&self) -> bool {
-        self.shift == ShiftState::Pressed
+        self.shift != ShiftState::Released
+    }
+
+    /// 문자면이 한글로 짜였는지 — 문자면 복귀 라벨과 shift 고정 지원이 여기서 갈린다.
+    fn uses_hangul_letters(&self) -> bool {
+        self.layout_set.layers[0]
+            .rows
+            .iter()
+            .flat_map(|row| &row.keys)
+            .any(|key| matches!(key.action, KeyAction::Character { base, .. } if is_hangul_script(base)))
+    }
+
+    /// shift 고정(캡스 락)을 걸 수 있는 배열인지. 한글처럼 shift가 대문자가 아니라
+    /// 다른 자모를 내는 배열에서는 고정할 것이 없다.
+    pub fn supports_shift_lock(&self) -> bool {
+        !self.uses_hangul_letters()
+    }
+
+    /// shift 키를 두 번 눌렀을 때(순정 관례) 고정을 걸거나 푼다. 두 번 누름을 알아보는
+    /// 것은 플랫폼 제스처라 셸이 하고, 걸 수 있는지와 그 뒤 상태는 코어가 정한다.
+    pub fn toggle_shift_lock(&mut self) -> bool {
+        if !self.supports_shift_lock() {
+            return false;
+        }
+        self.shift = match self.shift {
+            ShiftState::Locked => ShiftState::Released,
+            _ => ShiftState::Locked,
+        };
+        true
     }
 
     /// 레이어 전환 키 라벨 — 순정 관례: 문자면 복귀는 스크립트에 맞게(ABC/한글),
@@ -345,17 +402,7 @@ impl Keyboard {
     fn layer_switch_label(&self, target: u8) -> String {
         match target {
             1 if self.field == FieldKind::Password => ".?123".to_string(),
-            0 => {
-                let uses_hangul = self.layout_set.layers[0]
-                    .rows
-                    .iter()
-                    .flat_map(|row| &row.keys)
-                    .any(|key| {
-                        matches!(key.action, KeyAction::Character { base, .. }
-                        if is_hangul_script(base))
-                    });
-                if uses_hangul { "한글" } else { "ABC" }.to_string()
-            }
+            0 => if self.uses_hangul_letters() { "한글" } else { "ABC" }.to_string(),
             1 => "123".to_string(),
             2 => "#+=".to_string(),
             // 통합 검색면 — 순정 이모지 키와 같은 웃는 얼굴
@@ -384,7 +431,9 @@ impl Keyboard {
         match action {
             KeyAction::Character { .. } => self.key_character(action).unwrap().to_string(),
             KeyAction::Text(text) => text.clone(),
-            KeyAction::Shift => "⇧".to_string(),
+            // 고정된 shift는 순정처럼 다른 기호로 알린다 — 한 번 누르면 풀린다는 뜻이
+            // 라벨에서 드러나야 한다
+            KeyAction::Shift => if self.shift == ShiftState::Locked { "⇪" } else { "⇧" }.to_string(),
             KeyAction::Backspace => "⌫".to_string(),
             KeyAction::Space => self.language.display_name.clone(),
             KeyAction::Enter => self.enter_label(),
@@ -435,6 +484,21 @@ impl Keyboard {
         row_bounds(self.layout(), row_index)
     }
 
+    /// 길게 눌러 고를 수 있는 것들 — 배열이 밝힌 변형 앞에 지금 누르고 있는 글자를 세운다.
+    /// 그래야 팝업이 열린 뒤에도 손을 그대로 떼면 치던 글자가 들어간다(순정 관례).
+    fn key_alternates(&self, action: &KeyAction, declared: &[char]) -> Vec<String> {
+        let Some(character) = self.key_character(action) else {
+            return declared.iter().map(char::to_string).collect();
+        };
+        if declared.is_empty() {
+            return Vec::new();
+        }
+        std::iter::once(character)
+            .chain(declared.iter().copied())
+            .map(|character| character.to_string())
+            .collect()
+    }
+
     pub fn frame(&self) -> KeyboardFrame {
         let rows = (0..self.layout().rows.len())
             .map(|row_index| {
@@ -443,23 +507,23 @@ impl Keyboard {
                     .keys
                     .iter()
                     .enumerate()
-                    .map(|(key_index, key)| FrameKey {
+                    .map(|(key_index, key)| {
+                        let label = self.key_label(&key.action);
+                        FrameKey {
                         position: KeyPosition {
                             row: row_index,
                             index: key_index,
                         },
-                        label: self.key_label(&key.action),
+                        font_size: self.key_font_size(&key.action, &label),
+                        label,
                         bounds: bounds[key_index],
                         accessibility_label: self.accessibility_label(&key.action),
                         shift_active: key.action == KeyAction::Shift && self.shifted(),
                         emphasized: key.action == KeyAction::Enter
                             && self.field == FieldKind::Search,
                         role: self.key_role(&key.action),
-                        alternates: key
-                            .alternates
-                            .iter()
-                            .map(|alternate| alternate.to_string())
-                            .collect(),
+                        alternates: self.key_alternates(&key.action, &key.alternates),
+                    }
                     })
                     .collect()
             })
@@ -509,8 +573,11 @@ impl Keyboard {
                 } else {
                     hit::key_signal_at(self.layout(), x, y, character)
                 };
-                let layout_changed = self.shifted();
-                self.shift = ShiftState::Released;
+                // 고정된 shift는 글자를 넣어도 풀리지 않는다 — 그 외에는 한 글자만 받는다
+                let layout_changed = self.shift == ShiftState::Pressed;
+                if self.shift == ShiftState::Pressed {
+                    self.shift = ShiftState::Released;
+                }
                 PressOutcome {
                     event: Some(InputEvent::Key(signal)),
                     layout_changed,
@@ -519,7 +586,10 @@ impl Keyboard {
             }
             KeyAction::LayerSwitch { target } => {
                 self.active_layer = (target as usize).min(self.layout_set.layers.len() - 1);
-                self.shift = ShiftState::Released;
+                // 고정된 shift는 심볼면을 다녀와도 남는다(순정 관례)
+                if self.shift == ShiftState::Pressed {
+                    self.shift = ShiftState::Released;
+                }
                 self.rebuild();
                 PressOutcome {
                     event: None,
@@ -563,7 +633,9 @@ impl Keyboard {
     /// 길게 눌러 고를 수 있는 변형 문자를 실제 입력 이벤트로 바꾼다. 팝업에서 고른
     /// 결과도 일반 키 입력과 같은 경로로 흐른다.
     pub fn select_alternate(&mut self, alternate: &str) -> Option<InputEvent> {
-        self.shift = ShiftState::Released;
+        if self.shift == ShiftState::Pressed {
+            self.shift = ShiftState::Released;
+        }
         alternate
             .chars()
             .next()

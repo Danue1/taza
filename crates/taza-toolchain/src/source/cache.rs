@@ -12,10 +12,10 @@ use crate::recipe::Extraction;
 use crate::source::acquire::hex_digest;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use taza_engine::contract::CandidateGroup;
+use taza_engine::contract::{CandidateGroup, EmojiCategory};
 
 /// 캐시 파일 형식의 판. 형식을 바꾸면 올린다 — 낡은 파일은 읽히지 않고 버려진다.
-const FORMAT: u8 = 3;
+const FORMAT: u8 = 4;
 const MAGIC: &[u8; 6] = b"TZSIG\0";
 
 /// 캐시 압축 수준. 캐시는 오래 두는 것이 아니라 다음 실행까지만 사는 것이므로,
@@ -101,6 +101,11 @@ fn encode(signal: &Signal) -> Vec<u8> {
             write_text(&mut bytes, text);
         }
     }
+    write_length(&mut bytes, signal.emoji_order.len());
+    for (category, emoji) in &signal.emoji_order {
+        bytes.push(category.tag());
+        write_text(&mut bytes, emoji);
+    }
     bytes
 }
 
@@ -143,6 +148,10 @@ fn decode(bytes: &[u8]) -> Option<Signal> {
     }
     for _ in 0..cursor.length()? {
         signal.affixes.push(cursor.text()?);
+    }
+    for _ in 0..cursor.length()? {
+        let category = EmojiCategory::from_tag(cursor.take(1)?[0])?;
+        signal.emoji_order.push((category, cursor.text()?));
     }
     Some(signal)
 }
@@ -203,6 +212,7 @@ mod tests {
             }],
             stems: vec!["하".to_string()],
             affixes: vec!["는".to_string()],
+            emoji_order: vec![(EmojiCategory::SmileysAndPeople, "😀".to_string())],
         };
         let decoded = decode(&encode(&signal)).unwrap();
         assert_eq!(decoded.attested, signal.attested);
@@ -211,6 +221,7 @@ mod tests {
         assert_eq!(decoded.annotations, signal.annotations);
         assert_eq!(decoded.stems, signal.stems);
         assert_eq!(decoded.affixes, signal.affixes);
+        assert_eq!(decoded.emoji_order, signal.emoji_order);
     }
 
     /// 캐시가 낡는 세 경우가 모두 키에 들어가는가 — 원천이 바뀌거나, 파서 설정이

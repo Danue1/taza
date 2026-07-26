@@ -7,6 +7,7 @@ use crate::ngram::NgramModelBuilder;
 use crate::parse::Annotation;
 use crate::recipe::{LexiconEncoding, Recipe, Source};
 use crate::{PackWriter, layout};
+use taza_engine::contract::{CandidateGroup, EmojiCategory};
 use taza_engine::pack::SectionKind;
 use taza_engine::pack::metadata::keys;
 use taza_engine::suggest::KeyEncoding;
@@ -34,6 +35,7 @@ pub fn assemble(
     words: &[(String, u32)],
     bigrams: &[(String, String, u32)],
     annotations: &[Annotation],
+    emoji_order: &[(EmojiCategory, String)],
     affixes: &[String],
     layout_text: Option<&str>,
 ) -> Result<AssembledPack, String> {
@@ -82,9 +84,20 @@ pub fn assemble(
     // 검색하지 않았을 때 보이는 목록은 표(조회 키 순서)에서 만들 수 없다 — 원천에 나온
     // 순서를 갈래별로 따로 싣는다. 표제어 여부는 묻지 않는다: 검색면은 낱말을 치는 자리가
     // 아니라 갈래를 훑는 자리이므로, 사전에 없는 낱말로만 불리는 것도 목록에는 서야 한다.
+    // 이모지는 차례를 밝힌 원천(emoji-test)이 있으면 그 묶음·차례로 세운다 — 빌트인
+    // 키보드와 같은 자리에 같은 순서로 서야 사람이 찾던 곳에서 찾는다. 그 원천이 없는
+    // 팩은 주석 원천에 나온 순서를 쓴다.
     let mut catalog = AnnotationCatalogBuilder::new();
+    for category in EmojiCategory::DISPLAY_ORDER {
+        for (_, emoji) in emoji_order.iter().filter(|(kept, _)| *kept == category) {
+            catalog.insert(CandidateGroup::Emoji, Some(category), emoji);
+        }
+    }
     for annotation in annotations {
-        catalog.insert(annotation.group, &annotation.text);
+        if annotation.group == CandidateGroup::Emoji && !emoji_order.is_empty() {
+            continue;
+        }
+        catalog.insert(annotation.group, None, &annotation.text);
     }
     let catalog_item_count = catalog.item_count();
     let catalog_section = (catalog_item_count > 0).then(|| catalog.build());

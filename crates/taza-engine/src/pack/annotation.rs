@@ -15,7 +15,7 @@
 //! 항목은 키 오름차순이고 offset은 섹션 시작 기준이다. 항목 길이가 가변이라 metadata처럼
 //! 앞에서부터 세면 조회가 O(n)이 되는데, 이 표는 키를 칠 때마다 조회되므로 색인을 둔다.
 
-use crate::contract::CandidateGroup;
+use crate::contract::{CandidateGroup, EmojiCategory};
 
 /// 한 낱말에 한 갈래로 달 수 있는 항목 수의 상한. "얼굴" 같은 일반적인 낱말에는 이모지가
 /// 수백 개 걸리는데, 후보 바에 그만큼 내놓을 자리도 없고 담을 값어치도 없다.
@@ -146,17 +146,27 @@ impl<'bytes> AnnotationTable<'bytes> {
     }
 }
 
-/// catalog 섹션 — 갈래별 표시 순서 목록.
+/// catalog 섹션 — 검색하지 않았을 때 보이는 묶음들.
 ///
-/// 낱말→항목 표만으로는 "검색하지 않았을 때 무엇을 먼저 보일지"를 알 수 없다(그 표는 조회
-/// 키 순서라 사람이 기대하는 순서가 아니다). 그래서 원천에 나온 순서를 갈래별로 따로 싣는다.
+/// 낱말→항목 표만으로는 "무엇을 먼저 보일지"를 알 수 없다(그 표는 조회 키 순서라 사람이
+/// 기대하는 순서가 아니다). 그래서 묶음을 순서대로 따로 싣는다. 이모지는 빌트인 키보드와
+/// 같은 묶음(스마일리·동물·음식…)으로 나뉘고, 기호·얼굴 문자는 묶음 없이 한 덩이다.
 ///
 /// 섹션 레이아웃 (little-endian):
 /// ```text
-/// group_count u8 | 그룹마다: group u8, item_count u16, (text_length u8, text utf-8) × n
+/// section_count u8 | 묶음마다: group u8, category u8(0=없음), item_count u16,
+///                              (text_length u8, text utf-8) × n
 /// ```
 pub struct AnnotationCatalog<'bytes> {
     bytes: &'bytes [u8],
+}
+
+/// 카탈로그에 실린 묶음 하나.
+pub struct CatalogSection<'bytes> {
+    pub group: CandidateGroup,
+    /// 이모지 묶음이면 그 자리, 아니면 없음
+    pub category: Option<EmojiCategory>,
+    pub items: Vec<&'bytes str>,
 }
 
 impl<'bytes> AnnotationCatalog<'bytes> {
@@ -164,17 +174,20 @@ impl<'bytes> AnnotationCatalog<'bytes> {
         AnnotationCatalog { bytes }
     }
 
-    /// 한 갈래의 표시 순서 목록. 갈래가 실려 있지 않으면 빈 목록이다.
-    pub fn items(&self, group: CandidateGroup, limit: usize) -> Vec<&'bytes str> {
-        self.read(group, limit).unwrap_or_default()
+    /// 실려 있는 순서 그대로의 묶음들. 묶음마다 최대 `limit`개까지 읽는다.
+    pub fn sections(&self, limit: usize) -> Vec<CatalogSection<'bytes>> {
+        self.read(limit).unwrap_or_default()
     }
 
-    fn read(&self, wanted: CandidateGroup, limit: usize) -> Option<Vec<&'bytes str>> {
+    fn read(&self, limit: usize) -> Option<Vec<CatalogSection<'bytes>>> {
         let mut at = 0usize;
-        let group_count = *self.bytes.get(at)? as usize;
+        let section_count = *self.bytes.get(at)? as usize;
         at += 1;
-        for _ in 0..group_count {
+        let mut sections = Vec::with_capacity(section_count);
+        for _ in 0..section_count {
             let group = CandidateGroup::from_tag(*self.bytes.get(at)?)?;
+            at += 1;
+            let category = EmojiCategory::from_tag(*self.bytes.get(at)?);
             at += 1;
             let count =
                 u16::from_le_bytes(self.bytes.get(at..at + 2)?.try_into().unwrap()) as usize;
@@ -185,14 +198,16 @@ impl<'bytes> AnnotationCatalog<'bytes> {
                 at += 1;
                 let text = std::str::from_utf8(self.bytes.get(at..at + length)?).ok()?;
                 at += length;
-                if group == wanted && items.len() < limit {
+                if items.len() < limit {
                     items.push(text);
                 }
             }
-            if group == wanted {
-                return Some(items);
-            }
+            sections.push(CatalogSection {
+                group,
+                category,
+                items,
+            });
         }
-        Some(Vec::new())
+        Some(sections)
     }
 }

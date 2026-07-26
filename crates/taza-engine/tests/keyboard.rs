@@ -282,14 +282,10 @@ fn the_annotation_panel_layer_keeps_the_keyboard_height() {
     assert!((panel.panel_height_ratio - 0.75).abs() < 0.001);
     assert_eq!(panel.rows.len(), 1);
     let roles: Vec<KeyRole> = panel.rows[0].iter().map(|key| key.role).collect();
+    // 고르는 일만 하는 면이라 낱말을 치는 키(스페이스·엔터)는 두지 않는다
     assert_eq!(
         roles,
-        vec![
-            KeyRole::LayerSwitch,
-            KeyRole::Space,
-            KeyRole::Backspace,
-            KeyRole::Enter
-        ]
+        vec![KeyRole::LayerSwitch, KeyRole::Blank, KeyRole::Backspace]
     );
     // 문자면 복귀 키는 순정 관례대로 스크립트에 맞는 라벨을 쓴다
     assert_eq!(panel.rows[0][0].label, "ABC");
@@ -321,25 +317,62 @@ fn alternates_reach_the_shell_and_come_back_as_input() {
     let (x, y) = key_center(&frame, "e");
     let key = keyboard.key_at(x, y);
     assert_eq!(key.role, KeyRole::Character);
-    assert_eq!(key.alternates.first().map(String::as_str), Some("è"));
+    // 누르고 있는 글자가 맨 앞, 배열이 밝힌 변형이 뒤따른다
+    assert_eq!(key.alternates.first().map(String::as_str), Some("e"));
+    assert_eq!(key.alternates.get(1).map(String::as_str), Some("è"));
 
     assert_eq!(
         keyboard.select_alternate("é"),
         Some(InputEvent::Key(KeySignal::certain('é')))
     );
     // 변형이 없는 키는 빈 목록 — 셸은 롱프레스 팝업을 띄우지 않는다
-    let (x, y) = key_center(&frame, "q");
+    let (x, y) = key_center(&frame, "g");
     assert!(keyboard.key_at(x, y).alternates.is_empty());
 }
 
 #[test]
-fn hangul_letters_have_no_alternates() {
+fn hangul_letters_offer_their_shifted_pair_as_alternate() {
     let keyboard = Keyboard::new(
         layouts::dubeolsik(),
         LanguageDescriptor::builtin("ko").unwrap(),
     );
     let letters = &keyboard.frame().rows[0];
-    assert!(letters.iter().all(|key| key.alternates.is_empty()));
+    // ㄱ은 길게 눌러 ㄲ에 닿고, 짝이 없는 ㅛ에는 변형이 없다
+    let alternates = |label: &str| {
+        letters
+            .iter()
+            .find(|key| key.label == label)
+            .map(|key| key.alternates.clone())
+            .unwrap()
+    };
+    assert_eq!(alternates("ㄱ"), vec!["ㄱ".to_string(), "ㄲ".to_string()]);
+    assert_eq!(alternates("ㅐ"), vec!["ㅐ".to_string(), "ㅒ".to_string()]);
+    assert!(alternates("ㅛ").is_empty());
+}
+
+#[test]
+fn shift_lock_survives_typing_and_only_applies_to_cased_layouts() {
+    let mut keyboard = Keyboard::new(
+        layouts::qwerty(),
+        LanguageDescriptor::builtin("en").unwrap(),
+    );
+    assert!(keyboard.toggle_shift_lock());
+    let frame = keyboard.frame();
+    assert_eq!(frame.rows[0][0].label, "Q");
+    let (x, y) = key_center(&frame, "Q");
+    keyboard.press_at(x, y);
+    // 고정된 shift는 글자를 넣어도 풀리지 않는다
+    assert_eq!(keyboard.frame().rows[0][0].label, "Q");
+    assert!(keyboard.toggle_shift_lock());
+    assert_eq!(keyboard.frame().rows[0][0].label, "q");
+
+    // 한글은 shift가 대문자가 아니라 다른 자모라 고정할 것이 없다
+    let mut hangul = Keyboard::new(
+        layouts::dubeolsik(),
+        LanguageDescriptor::builtin("ko").unwrap(),
+    );
+    assert!(!hangul.toggle_shift_lock());
+    assert_eq!(hangul.frame().rows[0][0].label, "ㅂ");
 }
 
 #[test]
@@ -351,11 +384,11 @@ fn cursor_drag_emits_steps_once_per_threshold() {
     keyboard.begin_cursor_drag(0.5);
     // 임계 이하 이동은 0칸
     assert_eq!(keyboard.update_cursor_drag(0.51), 0);
-    // 오른쪽으로 두 칸 넘게 이동하면 이미 낸 칸수를 뺀 나머지만 나온다
-    assert_eq!(keyboard.update_cursor_drag(0.56), 2);
+    // 여러 칸을 한 번에 지나면 이미 낸 칸수를 뺀 나머지만 나온다
+    assert_eq!(keyboard.update_cursor_drag(0.56), 4);
     assert_eq!(keyboard.update_cursor_drag(0.56), 0);
     // 되돌아오면 반대 방향
-    assert_eq!(keyboard.update_cursor_drag(0.5), -2);
+    assert_eq!(keyboard.update_cursor_drag(0.5), -4);
 
     keyboard.end_cursor_drag();
     assert_eq!(keyboard.update_cursor_drag(0.9), 0);
@@ -457,8 +490,8 @@ fn cursor_drag_sensitivity_is_physical() {
     narrow.begin_cursor_drag(0.0);
     wide.begin_cursor_drag(0.0);
     // 손가락이 같은 거리(80pt)를 지나면 화면 폭과 무관하게 같은 칸수가 나온다
-    assert_eq!(narrow.update_cursor_drag(80.0 / 400.0), 8);
-    assert_eq!(wide.update_cursor_drag(80.0 / 800.0), 8);
+    assert_eq!(narrow.update_cursor_drag(80.0 / 400.0), 16);
+    assert_eq!(wide.update_cursor_drag(80.0 / 800.0), 16);
 }
 
 #[test]

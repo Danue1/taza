@@ -14,11 +14,11 @@ const PANEL_KEY_WIDTH: f32 = 0.115;
 const LANGUAGE_KEY_WIDTH: f32 = 0.115;
 const SPACE_WIDTH: f32 = 0.375;
 const ENTER_WIDTH: f32 = 0.28;
-/// 통합 검색면 하단 행: 문자 복귀 · 스페이스 · 삭제 · 엔터
+/// 통합 검색면 하단 행: 문자 복귀 · (빈자리) · 삭제. 순정 이모지 화면처럼 낱말을 치는
+/// 키(스페이스·엔터)는 두지 않는다 — 이 면에서 하는 일은 고르는 것뿐이다.
 const PANEL_RETURN_WIDTH: f32 = 0.2;
-const PANEL_SPACE_WIDTH: f32 = 0.45;
-const PANEL_BACKSPACE_WIDTH: f32 = 0.15;
-const PANEL_ENTER_WIDTH: f32 = 0.2;
+const PANEL_GAP_WIDTH: f32 = 0.6;
+const PANEL_BACKSPACE_WIDTH: f32 = 0.2;
 /// 통합 검색면 패널이 차지하는 높이 — 표준 행 셋. 하단 행까지 더하면 문자면과 같은 높이가
 /// 되어 레이어를 넘나들 때 키보드가 커지거나 작아지지 않는다.
 const PANEL_ROWS: f32 = 3.0;
@@ -103,10 +103,19 @@ fn latin_row(letters: &str) -> LayoutRow {
         .collect())
 }
 
+/// 한글 자모는 shift로 나오는 짝(ㄱ→ㄲ, ㅐ→ㅒ)이 곧 길게 눌러 고를 변형이다 — shift를
+/// 켜지 않고도 된소리·이중모음에 닿는 길을 준다.
 fn hangul_row(pairs: &[(char, char)]) -> LayoutRow {
     row(pairs
         .iter()
-        .map(|&(base, shifted)| character_key(base, shifted, Vec::new()))
+        .map(|&(base, shifted)| {
+            let alternates = if shifted == base {
+                Vec::new()
+            } else {
+                vec![shifted]
+            };
+            character_key(base, shifted, alternates)
+        })
         .collect())
 }
 
@@ -198,9 +207,8 @@ fn annotation_panel_layer() -> KeyboardLayout {
     KeyboardLayout {
         rows: vec![row(vec![
             control_key(KeyAction::LayerSwitch { target: 0 }, PANEL_RETURN_WIDTH),
-            control_key(KeyAction::Space, PANEL_SPACE_WIDTH),
+            control_key(KeyAction::Blank, PANEL_GAP_WIDTH),
             control_key(KeyAction::Backspace, PANEL_BACKSPACE_WIDTH),
-            control_key(KeyAction::Enter, PANEL_ENTER_WIDTH),
         ])],
         panel_rows: PANEL_ROWS,
     }

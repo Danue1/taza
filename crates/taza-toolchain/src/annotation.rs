@@ -1,7 +1,7 @@
 //! annotation 섹션 빌더. 섹션 바이트 레이아웃은 `taza_engine::pack::annotation` 참조.
 
 use std::collections::BTreeMap;
-use taza_engine::contract::CandidateGroup;
+use taza_engine::contract::{CandidateGroup, EmojiCategory};
 use taza_engine::pack::annotation::MAX_PER_GROUP;
 
 #[derive(Default)]
@@ -57,12 +57,12 @@ impl AnnotationBuilder {
     }
 }
 
-/// 갈래별 표시 순서 목록 빌더 — 원천에 나온 순서를 그대로 지킨다. 섹션 바이트 레이아웃은
+/// 검색면 묶음 목록 빌더 — 넣은 순서를 그대로 지킨다. 섹션 바이트 레이아웃은
 /// `taza_engine::pack::annotation::AnnotationCatalog` 참조.
 #[derive(Default)]
 pub struct AnnotationCatalogBuilder {
-    /// 갈래마다 (갈래, 항목들). 갈래 순서와 항목 순서 모두 들어온 순서를 지킨다.
-    groups: Vec<(CandidateGroup, Vec<String>)>,
+    /// 묶음마다 (갈래, 이모지 묶음, 항목들). 묶음 순서와 항목 순서 모두 들어온 순서다.
+    sections: Vec<(CandidateGroup, Option<EmojiCategory>, Vec<String>)>,
 }
 
 impl AnnotationCatalogBuilder {
@@ -70,17 +70,21 @@ impl AnnotationCatalogBuilder {
         AnnotationCatalogBuilder::default()
     }
 
-    /// 목록 끝에 하나 붙인다. 이미 있는 것은 앞선 자리를 지킨다 — 원천에서 처음 나온
-    /// 자리가 그 항목의 순서다.
-    pub fn insert(&mut self, group: CandidateGroup, text: &str) {
+    /// 묶음 끝에 하나 붙인다. 같은 묶음에 이미 있는 것은 앞선 자리를 지킨다 — 원천에서
+    /// 처음 나온 자리가 그 항목의 차례다.
+    pub fn insert(&mut self, group: CandidateGroup, category: Option<EmojiCategory>, text: &str) {
         if group.tag().is_none() {
             return;
         }
-        let slot = match self.groups.iter_mut().find(|(kept, _)| *kept == group) {
-            Some((_, items)) => items,
+        let slot = match self
+            .sections
+            .iter_mut()
+            .find(|(kept, kept_category, _)| *kept == group && *kept_category == category)
+        {
+            Some((_, _, items)) => items,
             None => {
-                self.groups.push((group, Vec::new()));
-                &mut self.groups.last_mut().unwrap().1
+                self.sections.push((group, category, Vec::new()));
+                &mut self.sections.last_mut().unwrap().2
             }
         };
         if slot.iter().any(|kept| kept == text) {
@@ -90,13 +94,14 @@ impl AnnotationCatalogBuilder {
     }
 
     pub fn item_count(&self) -> usize {
-        self.groups.iter().map(|(_, items)| items.len()).sum()
+        self.sections.iter().map(|(_, _, items)| items.len()).sum()
     }
 
     pub fn build(self) -> Vec<u8> {
-        let mut bytes = vec![self.groups.len() as u8];
-        for (group, items) in &self.groups {
+        let mut bytes = vec![self.sections.len() as u8];
+        for (group, category, items) in &self.sections {
             bytes.push(group.tag().unwrap_or_default());
+            bytes.push(category.map_or(0, EmojiCategory::tag));
             bytes.extend_from_slice(&(items.len() as u16).to_le_bytes());
             for text in items {
                 bytes.push(text.len() as u8);
@@ -204,24 +209,33 @@ mod tests {
         assert!(table.search("wjs", 8).is_empty());
     }
 
-    /// 카탈로그는 원천에 나온 순서를 지키고, 갈래별로 따로 꺼낸다.
+    /// 카탈로그는 넣은 순서와 묶음을 그대로 지킨다.
     #[test]
     fn the_catalog_keeps_the_source_order() {
         let mut catalog = AnnotationCatalogBuilder::new();
         for emoji in ["😀", "😄", "😀"] {
-            catalog.insert(CandidateGroup::Emoji, emoji);
+            catalog.insert(
+                CandidateGroup::Emoji,
+                Some(EmojiCategory::SmileysAndPeople),
+                emoji,
+            );
         }
-        catalog.insert(CandidateGroup::Symbol, "★");
+        catalog.insert(CandidateGroup::Emoji, Some(EmojiCategory::Flags), "🇰🇷");
+        catalog.insert(CandidateGroup::Symbol, None, "★");
         let mut writer = PackWriter::new("ko");
         writer.add_section(SectionKind::AnnotationCatalog, catalog.build());
         let bytes = writer.finish();
         let pack = Pack::open(&bytes).unwrap();
         let catalog = pack.annotation_catalog().unwrap();
-        assert_eq!(catalog.items(CandidateGroup::Emoji, 8), vec!["😀", "😄"]);
-        assert_eq!(catalog.items(CandidateGroup::Symbol, 8), vec!["★"]);
-        assert!(catalog.items(CandidateGroup::Emoticon, 8).is_empty());
-        // 상한은 목록을 앞에서부터 자른다
-        assert_eq!(catalog.items(CandidateGroup::Emoji, 1), vec!["😀"]);
+        let sections = catalog.sections(8);
+        assert_eq!(sections.len(), 3);
+        assert_eq!(sections[0].category, Some(EmojiCategory::SmileysAndPeople));
+        assert_eq!(sections[0].items, vec!["😀", "😄"]);
+        assert_eq!(sections[1].category, Some(EmojiCategory::Flags));
+        assert_eq!(sections[2].group, CandidateGroup::Symbol);
+        assert_eq!(sections[2].items, vec!["★"]);
+        // 상한은 묶음을 앞에서부터 자른다
+        assert_eq!(catalog.sections(1)[0].items, vec!["😀"]);
     }
 
     /// 곁들일 것을 싣지 않은 팩에서도 조회가 실패로 끝나지 않아야 한다.

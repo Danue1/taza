@@ -1,0 +1,14 @@
+# 유니코드 이모지 정본 표 — 이모지가 어느 묶음(스마일리·동물·음식…)에 속하고 어떤 차례로
+# 서는지를 밝힌다. 표제어도 낱말도 늘리지 않는다: 검색면이 검색어 없이 보여 줄 차례만 준다.
+# 빌트인 키보드가 쓰는 묶음과 같은 자료이므로, 사람이 찾던 자리에서 찾게 된다.
+
+[[sources]]
+name = "Unicode emoji test data"
+version = "16.0"
+license = "Unicode-3.0"
+attribution = "Emoji ordering from Unicode emoji-test.txt 16.0 (https://unicode.org), Copyright © 1991-2024 Unicode, Inc., licensed under the Unicode License v3."
+url = "https://unicode.org/Public/emoji/16.0/emoji-test.txt"
+sha256 = "24f0c534e86cf142e2496953e8f0e46a3e702392911eddcd29c6cced85139697"
+role = "inventory"
+weight = 1.0
+format = "emoji-test"

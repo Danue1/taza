@@ -156,6 +156,11 @@ fn build(recipe_path: &Path, options: &Options) -> Result<CatalogEntry, String> 
         ))
     });
     annotations.dedup();
+    // 이모지 차례는 원천에 실린 순서가 곧 의미라 정렬하지 않는다
+    let emoji_order: Vec<(taza_engine::contract::EmojiCategory, String)> = extracted
+        .iter()
+        .flat_map(|(_, signal)| signal.emoji_order.iter().cloned())
+        .collect();
     // 원천이 밝힌 접사는 팩에 실려 코어가 학습 어휘의 결합형을 제안하는 데 쓰인다
     let mut affixes: Vec<String> = extracted
         .iter()
@@ -249,6 +254,7 @@ fn build(recipe_path: &Path, options: &Options) -> Result<CatalogEntry, String> 
         &words,
         &bigrams,
         &annotations,
+        &emoji_order,
         &affixes,
         layout_text.as_deref(),
     )?;

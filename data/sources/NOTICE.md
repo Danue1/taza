@@ -11,12 +11,14 @@
 - SCOWL 2020.12.07 (SCOWL permissive (Kevin Atkinson))
 - Tatoeba sentences (eng) 2026-07-25 (CC-BY 2.0 FR)
 - CLDR emoji annotations (en) 48.2 (Unicode-3.0)
+- Unicode emoji test data 16.0 (Unicode-3.0)
 
 ### 저작자 표시
 
 > Word lists from SCOWL 2020.12.07, Copyright 2000-2018 Kevin Atkinson. Used and redistributed under the SCOWL license.
 > Word frequencies derived from the Tatoeba Project English sentence export (https://tatoeba.org), licensed CC-BY 2.0 FR.
 > Emoji annotations from Unicode CLDR 48.2 (https://cldr.unicode.org), Copyright © 1991-2025 Unicode, Inc., licensed under the Unicode License v3.
+> Emoji ordering from Unicode emoji-test.txt 16.0 (https://unicode.org), Copyright © 1991-2024 Unicode, Inc., licensed under the Unicode License v3.
 
 ## korean (ko) — 판 2
 
@@ -30,6 +32,7 @@
 - 우리말샘 20260702 (CC BY-SA 2.0 KR)
 - CLDR 이모지 주석 (ko) 48.2 (Unicode-3.0)
 - 타자 얼굴 문자 목록 (ko) 1 (MIT)
+- Unicode emoji test data 16.0 (Unicode-3.0)
 
 ### 저작자 표시
 
@@ -39,6 +42,7 @@
 > Headwords from 우리말샘 (https://opendict.korean.go.kr), 국립국어원, licensed CC BY-SA 2.0 KR.
 > Emoji annotations from Unicode CLDR 48.2 (https://cldr.unicode.org), Copyright © 1991-2025 Unicode, Inc., licensed under the Unicode License v3.
 > Emoticon annotations curated for taza.
+> Emoji ordering from Unicode emoji-test.txt 16.0 (https://unicode.org), Copyright © 1991-2024 Unicode, Inc., licensed under the Unicode License v3.
 
 ## 재현
 

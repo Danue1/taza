@@ -195,6 +195,54 @@ impl CandidateGroup {
     ];
 }
 
+/// 이모지가 검색면에서 서는 묶음. 갈래(CandidateGroup)가 "무엇으로서 보이는가"라면 이쪽은
+/// 이모지 안에서의 자리다. 묶음과 순서는 빌트인 키보드 관례를 그대로 따른다(계승 원칙) —
+/// 유니코드 정본 순서와 달리 활동이 여행보다 앞이고, 사람은 스마일리와 한 묶음이다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EmojiCategory {
+    SmileysAndPeople,
+    AnimalsAndNature,
+    FoodAndDrink,
+    Activities,
+    TravelAndPlaces,
+    Objects,
+    Symbols,
+    Flags,
+}
+
+impl EmojiCategory {
+    /// annotation catalog 섹션의 와이어 태그. 0은 "묶음 없음"이라 1부터 쓴다.
+    pub fn tag(self) -> u8 {
+        match self {
+            EmojiCategory::SmileysAndPeople => 1,
+            EmojiCategory::AnimalsAndNature => 2,
+            EmojiCategory::FoodAndDrink => 3,
+            EmojiCategory::Activities => 4,
+            EmojiCategory::TravelAndPlaces => 5,
+            EmojiCategory::Objects => 6,
+            EmojiCategory::Symbols => 7,
+            EmojiCategory::Flags => 8,
+        }
+    }
+
+    pub fn from_tag(tag: u8) -> Option<Self> {
+        Self::DISPLAY_ORDER
+            .into_iter()
+            .find(|category| category.tag() == tag)
+    }
+
+    pub const DISPLAY_ORDER: [EmojiCategory; 8] = [
+        EmojiCategory::SmileysAndPeople,
+        EmojiCategory::AnimalsAndNature,
+        EmojiCategory::FoodAndDrink,
+        EmojiCategory::Activities,
+        EmojiCategory::TravelAndPlaces,
+        EmojiCategory::Objects,
+        EmojiCategory::Symbols,
+        EmojiCategory::Flags,
+    ];
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Candidate {
     pub text: String,
@@ -214,6 +262,8 @@ pub struct AnnotationPanelItem {
 pub struct AnnotationPanelGroup {
     /// 이 그룹의 갈래. 최근 사용처럼 갈래가 섞이는 그룹은 None이다.
     pub group: Option<CandidateGroup>,
+    /// 이모지 묶음이면 그 자리 — 셸이 묶음마다 다른 표식을 세우는 통로다.
+    pub category: Option<EmojiCategory>,
     pub label: String,
     pub items: Vec<AnnotationPanelItem>,
 }

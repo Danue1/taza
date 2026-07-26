@@ -7,7 +7,8 @@ use std::sync::Arc;
 
 use crate::contract::{
     AnnotationPanel, AnnotationPanelGroup, AnnotationPanelItem, Candidate, CandidateGroup,
-    Composer, ComposerEvent, ComposerOutput, EditorContext, Effect, FieldKind, InputEvent, Pack,
+    Composer, ComposerEvent, ComposerOutput, EditorContext, Effect, EmojiCategory, FieldKind,
+    InputEvent, Pack,
     SuggestionRequest, UserPreferences,
 };
 use crate::keyboard::{
@@ -31,9 +32,10 @@ impl<Source: AsRef<[u8]> + Send + Sync> PackBytes for Source {
     }
 }
 
-/// 검색면 한 그룹에 담는 항목 수의 상한. 셸이 세로로 스크롤하므로 화면에 보이는 것보다
-/// 넉넉하되, 한 갈래가 다른 갈래를 밀어내지 않을 만큼으로 끊는다.
-const PANEL_GROUP_LIMIT: usize = 48;
+/// 검색 결과 한 묶음에 담는 항목 수의 상한. 검색은 "이 낱말로 부르는 것"을 찾는 일이라
+/// 앞쪽 몇 줄이면 충분하다. 검색어 없이 훑는 목록에는 이 상한을 걸지 않는다 — 묶음을
+/// 끝까지 넘길 수 있어야 사람·제스처처럼 뒤쪽에 있는 이모지에 닿는다.
+const PANEL_GROUP_LIMIT: usize = 128;
 /// 검색어로 표를 훑을 때 모으는 항목 수 — 갈래로 나눈 뒤 그룹별 상한이 다시 걸린다.
 const PANEL_SEARCH_POOL: usize = PANEL_GROUP_LIMIT * 3;
 
@@ -44,6 +46,20 @@ fn panel_group_label(group: CandidateGroup) -> &'static str {
         CandidateGroup::Emoji => "이모지",
         CandidateGroup::Symbol => "기호",
         CandidateGroup::Emoticon => "얼굴 문자",
+    }
+}
+
+/// 이모지 묶음 이름 — 빌트인 키보드가 쓰는 이름을 그대로 따른다(계승 원칙).
+fn emoji_category_label(category: EmojiCategory) -> &'static str {
+    match category {
+        EmojiCategory::SmileysAndPeople => "스마일리 및 사람",
+        EmojiCategory::AnimalsAndNature => "동물 및 자연",
+        EmojiCategory::FoodAndDrink => "음식 및 음료",
+        EmojiCategory::Activities => "활동",
+        EmojiCategory::TravelAndPlaces => "여행 및 장소",
+        EmojiCategory::Objects => "사물",
+        EmojiCategory::Symbols => "기호",
+        EmojiCategory::Flags => "깃발",
     }
 }
 
@@ -196,6 +212,12 @@ impl Engine {
         }
     }
 
+    /// shift 키를 두 번 눌렀을 때(순정 관례) shift를 고정하거나 푼다. 고정할 수 없는
+    /// 배열이면 false — 그때 셸은 두 번째 누름을 평범한 shift 토글로 남겨 둔다.
+    pub fn toggle_shift_lock(&mut self) -> bool {
+        self.keyboard.toggle_shift_lock()
+    }
+
     /// 길게 눌러 연 팝업에서 고른 변형 문자 — 일반 키 입력과 같은 경로로 흐른다.
     pub fn select_alternate(&mut self, alternate: &str, context: &EditorContext) -> Vec<Effect> {
         match self.keyboard.select_alternate(alternate) {
@@ -309,27 +331,35 @@ impl Engine {
             if !recent.is_empty() {
                 groups.push(AnnotationPanelGroup {
                     group: None,
+                    category: None,
                     label: PANEL_RECENT_LABEL.to_string(),
                     items: recent,
                 });
             }
             if let Some(catalog) = pack.as_ref().and_then(|pack| pack.annotation_catalog()) {
-                for group in Self::accompanying_groups() {
-                    let items: Vec<AnnotationPanelItem> = catalog
-                        .items(group, PANEL_GROUP_LIMIT)
+                // 묶음과 순서는 팩이 정한다 — 이모지는 빌트인 키보드와 같은 묶음으로 실려 온다
+                for section in catalog.sections(usize::MAX) {
+                    let items: Vec<AnnotationPanelItem> = section
+                        .items
                         .into_iter()
                         .map(|text| AnnotationPanelItem {
-                            group,
+                            group: section.group,
                             text: text.to_string(),
                         })
                         .collect();
-                    if !items.is_empty() {
-                        groups.push(AnnotationPanelGroup {
-                            group: Some(group),
-                            label: panel_group_label(group).to_string(),
-                            items,
-                        });
+                    if items.is_empty() {
+                        continue;
                     }
+                    groups.push(AnnotationPanelGroup {
+                        group: Some(section.group),
+                        category: section.category,
+                        label: match section.category {
+                            Some(category) => emoji_category_label(category),
+                            None => panel_group_label(section.group),
+                        }
+                        .to_string(),
+                        items,
+                    });
                 }
             }
             return AnnotationPanel { groups };
@@ -356,6 +386,7 @@ impl Engine {
             if !items.is_empty() {
                 groups.push(AnnotationPanelGroup {
                     group: Some(group),
+                    category: None,
                     label: panel_group_label(group).to_string(),
                     items,
                 });

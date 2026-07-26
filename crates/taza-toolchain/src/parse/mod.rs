@@ -7,6 +7,7 @@
 mod annotation_list;
 mod cldr;
 mod corpus;
+mod emoji_test;
 mod mecab;
 mod nikl;
 mod scowl;
@@ -17,7 +18,7 @@ mod word_list;
 
 use crate::recipe::Extraction;
 use std::path::Path;
-use taza_engine::contract::CandidateGroup;
+use taza_engine::contract::{CandidateGroup, EmojiCategory};
 
 /// 낱말에 곁들일 것 하나 — 이모지·기호·얼굴 문자. 낱말은 아직 표시 형태이며, 팩에 담길
 /// 때 lexicon과 같은 조회 키로 인코딩된다.
@@ -48,6 +49,8 @@ pub struct Signal {
     pub stems: Vec<String>,
     /// 낱말에 곁들일 것 — 주석 원천만 낸다.
     pub annotations: Vec<Annotation>,
+    /// 검색면에 이모지를 세우는 차례 — (묶음, 이모지). 차례를 밝힌 원천만 낸다.
+    pub emoji_order: Vec<(EmojiCategory, String)>,
     /// 어절 뒤에 붙어 활용형을 만드는 접사. 팩에 실려 코어가 학습한 어휘의 결합형을
     /// 제안하는 데 쓴다 — 사전을 넓히는 것과 같은 목록이어야 둘이 어긋나지 않는다.
     pub affixes: Vec<String>,
@@ -78,6 +81,7 @@ pub fn parser_version(extraction: &Extraction) -> u32 {
         Extraction::NiklCorpus { .. } => 3,
         Extraction::Urimalsam { .. } => 3,
         Extraction::CldrAnnotations => 3,
+        Extraction::EmojiTest => 1,
         Extraction::AnnotationList { .. } => 3,
         Extraction::WordList { .. } => 3,
     }
@@ -118,6 +122,7 @@ pub fn parse(extraction: &Extraction, path: &Path, language: &str) -> Result<Sig
             excluded_parts_of_speech,
         ),
         Extraction::CldrAnnotations => cldr::parse(path),
+        Extraction::EmojiTest => emoji_test::parse(path),
         Extraction::AnnotationList { group } => annotation_list::parse(path, (*group).into()),
         Extraction::WordList {
             rank,

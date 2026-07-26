@@ -174,4 +174,11 @@ public extension ShapeStyle where Self == SwiftUI.Color {
     static var tazaSurface: SwiftUI.Color { SwiftUI.Color(uiColor: TazaTheme.Color.popupSurface) }
     static var tazaSelection: SwiftUI.Color { SwiftUI.Color(uiColor: TazaTheme.Color.selection) }
     static var tazaAccent: SwiftUI.Color { SwiftUI.Color(uiColor: TazaTheme.Color.accent) }
+    static var tazaKeySurface: SwiftUI.Color { SwiftUI.Color(uiColor: TazaTheme.Color.keySurface) }
+    static var tazaControlKeySurface: SwiftUI.Color {
+        SwiftUI.Color(uiColor: TazaTheme.Color.controlKeySurface)
+    }
+    static var tazaEmphasizedLabel: SwiftUI.Color {
+        SwiftUI.Color(uiColor: TazaTheme.Color.emphasizedLabel)
+    }
 }

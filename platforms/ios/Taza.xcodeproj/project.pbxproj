@@ -21,20 +21,24 @@
 		1FB4831F382CEB2D369D49F6 /* LanguageRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01BCD798ABE7AF90F1CE165D /* LanguageRow.swift */; };
 		2150E5C226EA3B063E07E5F8 /* EditorContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1B3C673EC53FBF00C3ECA18 /* EditorContext.swift */; };
 		2473B9123492205B1BAD2A97 /* CandidateMapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BAC5A7278B04AC671D281E6 /* CandidateMapping.swift */; };
+		2632BCD540ED2FE8C7FB6487 /* LayoutPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11B1847A1A2B13D5E718F728 /* LayoutPreviewView.swift */; };
 		26A0513E4B66D6CE6DB73F41 /* TazaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED73162F9E8CB714176E666F /* TazaApp.swift */; };
 		27098E769B9D84F7726959FA /* licenses.json in Resources */ = {isa = PBXBuildFile; fileRef = 8CE8C2DCB81EC0C7F538948B /* licenses.json */; };
 		3019F5A031B7115115BC292F /* TazaTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41F6BF764826351F53195B38 /* TazaTheme.swift */; };
 		309289BC94398EE6C106B076 /* SoftwareLicenseList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11124EF9940DBDE9F28B3C42 /* SoftwareLicenseList.swift */; };
 		30BDB01EA0873C1877520D3A /* TazaTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41F6BF764826351F53195B38 /* TazaTheme.swift */; };
 		344E5A6FE0D3EC8B51350CF7 /* AnnotationPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD7F2DCB31A1034059A9104A /* AnnotationPanelView.swift */; };
+		34F7A6ECDAB1B3EA4D5CB30D /* KeyboardFrameMapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7ACF76A88B696CCF90E13C8 /* KeyboardFrameMapping.swift */; };
 		369E46DF161F9B435DF3F758 /* PackDistribution.swift in Sources */ = {isa = PBXBuildFile; fileRef = 884F7F9DE893001ADF7495D9 /* PackDistribution.swift */; };
 		3E0BC546CC1D731D0B6A3450 /* KeyboardViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E277A6F3562678279800454E /* KeyboardViewController.swift */; };
+		47C35A51E4A308E3B3946BAC /* LayoutPreviews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A38267BFA749855DFE13554E /* LayoutPreviews.swift */; };
 		4CDA141E9710769CBAC775BA /* SettingsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED40848F6BE6D88523CB3C25 /* SettingsModel.swift */; };
 		4F214DC30D753E60B9747574 /* LanguagePreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB583ACD6DB1BB697B271FC5 /* LanguagePreferences.swift */; };
 		539E3C5526B18312465996BB /* FeedbackSettingsList.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC1A64D4197556C33F14ADD0 /* FeedbackSettingsList.swift */; };
 		59D49C2340D7FE5D2D10FABA /* TazaFfi.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 574B66EBEC60DDBFD132D9FB /* TazaFfi.xcframework */; };
 		5CA876BE457CF8ABCDC34163 /* TypingOptionLabel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDB656FE0B6EAD8B48073FC3 /* TypingOptionLabel.swift */; };
 		5E4263D489496E09E4383A59 /* PackStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEBE767DBD452E15506A5A63 /* PackStore.swift */; };
+		60286B95E6BA1ADA04D1C8ED /* LayoutSelectionList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42120CE65D4808C7B3393EBE /* LayoutSelectionList.swift */; };
 		661E6F0225A604E02D3F2A02 /* KeyboardSetupBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE5619E2DE3974851B30CDDE /* KeyboardSetupBanner.swift */; };
 		664181C8FD0A6B81B52167E3 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 1F91AB423FD83C61E9B9DD62 /* Localizable.xcstrings */; };
 		673A06623585F5156715F929 /* CommonSettingsList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21D8B8D2DBE633B18E95BE82 /* CommonSettingsList.swift */; };
@@ -52,7 +56,6 @@
 		9539BFEC959DA105142ABD41 /* ShortcutStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F98CF245BF37A93C962D777F /* ShortcutStore.swift */; };
 		985D52154ACD24EF1991EB7F /* KeyCapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D73EC3E65D47C2BDD32ACE91 /* KeyCapView.swift */; };
 		9A68A8DF12A9534D11183FEE /* taza_ffi.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09D758E33FF50C0D459ED005 /* taza_ffi.swift */; };
-		A0AEF0ECC6AD89A83BF73746 /* FrameMapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = 319A95BE3CB9B020B67582BD /* FrameMapping.swift */; };
 		A4C42B0C343DF0FB1AC2133F /* TazaKeyboard.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D2F92E8CE1713F64464B2F31 /* TazaKeyboard.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		A531EF39E67EC05F516D3FBE /* KeyboardTestSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73844943B471DF8C41B96440 /* KeyboardTestSection.swift */; };
 		A660A3613607C4DB4AA53CDC /* ShortcutSettingsList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50C0A331AAAEA999B48CE657 /* ShortcutSettingsList.swift */; };
@@ -67,6 +70,8 @@
 		C066FD2CD8ACBB461667903D /* PackStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97EA25FFF6838055C42F3B03 /* PackStatusView.swift */; };
 		C7C9B683DB71387D4D5E804D /* PrivacySettingsList.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA51666AEF37FB71B4B34D32 /* PrivacySettingsList.swift */; };
 		CBA4DEC3ACEEE242F08D7FEB /* KeyboardPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 480B324EF897B1A8E20D1B49 /* KeyboardPreferences.swift */; };
+		CCADD90DB3082407C92D6097 /* LayoutPreviews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A38267BFA749855DFE13554E /* LayoutPreviews.swift */; };
+		D0A86A286AB073345D1831D1 /* LayoutTileGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8B8CA385825E4BAC4F0F04D /* LayoutTileGrid.swift */; };
 		D0F50B25E8B9912590AF991C /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 05D205DDAE097E35FD4E8199 /* Localizable.xcstrings */; };
 		D9BC3D52CB9C0EEABAD2DD39 /* KeyCapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D73EC3E65D47C2BDD32ACE91 /* KeyCapView.swift */; };
 		DAF85976985AC34C7DB9FBE7 /* SoftwareLicenseCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB8EC06674009A020B53E258 /* SoftwareLicenseCatalog.swift */; };
@@ -75,6 +80,7 @@
 		E7DB950DBB2073CB6F636C27 /* TypingSettingsList.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6019901E8C1B63347D74AA0 /* TypingSettingsList.swift */; };
 		E8EFF20B9BD72F4F70F27FD8 /* CandidateBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A063705662AC7D869C6B9CA8 /* CandidateBarView.swift */; };
 		E973811921C023B99C178023 /* KeyboardGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 231812FDBF992843227998D5 /* KeyboardGridView.swift */; };
+		EB90C520995BD7F1DE680B98 /* LayoutPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11B1847A1A2B13D5E718F728 /* LayoutPreviewView.swift */; };
 		EE063B6901756837FB1E0522 /* PackDistribution.swift in Sources */ = {isa = PBXBuildFile; fileRef = 884F7F9DE893001ADF7495D9 /* PackDistribution.swift */; };
 		EF91DFC274CB7EE0DE2FC447 /* LanguagePreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB583ACD6DB1BB697B271FC5 /* LanguagePreferences.swift */; };
 		F8983FBD55F08668E36BEF0B /* SettingsBroadcast.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1962F2077395F0F49315502C /* SettingsBroadcast.swift */; };
@@ -82,6 +88,7 @@
 		FA7EBAF4DF3462006A206826 /* LearningStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A599D679961790DCA7854EE /* LearningStore.swift */; };
 		FA80F36305EBB2C36AD14416 /* english.tazapack in Resources */ = {isa = PBXBuildFile; fileRef = 967EC11F78904F1D768ACEFF /* english.tazapack */; };
 		FAE569B9B977DFEAF23FD1F9 /* PackSourceList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DA837A1A6867D6AE4419664 /* PackSourceList.swift */; };
+		FE4BAC95B229A8A4B80AE091 /* KeyboardFrameMapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7ACF76A88B696CCF90E13C8 /* KeyboardFrameMapping.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -122,6 +129,7 @@
 		09D758E33FF50C0D459ED005 /* taza_ffi.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = taza_ffi.swift; sourceTree = "<group>"; };
 		0A9F2E0D96CBED61EDEBDEE0 /* PackLibraryModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackLibraryModel.swift; sourceTree = "<group>"; };
 		11124EF9940DBDE9F28B3C42 /* SoftwareLicenseList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoftwareLicenseList.swift; sourceTree = "<group>"; };
+		11B1847A1A2B13D5E718F728 /* LayoutPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutPreviewView.swift; sourceTree = "<group>"; };
 		1781A6356112D40DF9099D56 /* AnnotationPanelMapping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationPanelMapping.swift; sourceTree = "<group>"; };
 		1962F2077395F0F49315502C /* SettingsBroadcast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsBroadcast.swift; sourceTree = "<group>"; };
 		197BEC06EBEA05C5B798CF98 /* BackspaceRepeat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackspaceRepeat.swift; sourceTree = "<group>"; };
@@ -131,11 +139,11 @@
 		231812FDBF992843227998D5 /* KeyboardGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardGridView.swift; sourceTree = "<group>"; };
 		2D60B214385629A2B76C1A3D /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		2DA837A1A6867D6AE4419664 /* PackSourceList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackSourceList.swift; sourceTree = "<group>"; };
-		319A95BE3CB9B020B67582BD /* FrameMapping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrameMapping.swift; sourceTree = "<group>"; };
 		32902B00D00EF10D00F679B8 /* TazaApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TazaApp.entitlements; sourceTree = "<group>"; };
 		36AE13BEE6D794E9DE23D745 /* TypingChoice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingChoice.swift; sourceTree = "<group>"; };
 		3DB42A0C1540DB61573C3F87 /* TazaTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TazaTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		41F6BF764826351F53195B38 /* TazaTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TazaTheme.swift; sourceTree = "<group>"; };
+		42120CE65D4808C7B3393EBE /* LayoutSelectionList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutSelectionList.swift; sourceTree = "<group>"; };
 		47FA08A2A992BF36356F87B2 /* LanguageListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageListView.swift; sourceTree = "<group>"; };
 		480B324EF897B1A8E20D1B49 /* KeyboardPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardPreferences.swift; sourceTree = "<group>"; };
 		4BAC5A7278B04AC671D281E6 /* CandidateMapping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateMapping.swift; sourceTree = "<group>"; };
@@ -155,6 +163,8 @@
 		989BA2A46EED62AA7993C202 /* ShiftDoubleTap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShiftDoubleTap.swift; sourceTree = "<group>"; };
 		98B22DB332A13235C5228104 /* EffectApplication.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EffectApplication.swift; sourceTree = "<group>"; };
 		A063705662AC7D869C6B9CA8 /* CandidateBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateBarView.swift; sourceTree = "<group>"; };
+		A38267BFA749855DFE13554E /* LayoutPreviews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutPreviews.swift; sourceTree = "<group>"; };
+		A8B8CA385825E4BAC4F0F04D /* LayoutTileGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutTileGrid.swift; sourceTree = "<group>"; };
 		AB94EB35B02EF2C93E01F12C /* DisplaySettingsList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplaySettingsList.swift; sourceTree = "<group>"; };
 		AEBE767DBD452E15506A5A63 /* PackStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackStore.swift; sourceTree = "<group>"; };
 		B2D44F944B1A5EDD1842A418 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -162,6 +172,7 @@
 		BC1A64D4197556C33F14ADD0 /* FeedbackSettingsList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackSettingsList.swift; sourceTree = "<group>"; };
 		BD7F2DCB31A1034059A9104A /* AnnotationPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationPanelView.swift; sourceTree = "<group>"; };
 		C1B3C673EC53FBF00C3ECA18 /* EditorContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorContext.swift; sourceTree = "<group>"; };
+		C7ACF76A88B696CCF90E13C8 /* KeyboardFrameMapping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardFrameMapping.swift; sourceTree = "<group>"; };
 		C8365422EF081E7D29B1F1FD /* LicenseCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LicenseCatalogTests.swift; sourceTree = "<group>"; };
 		CB3E63C25B2774A71B2BAFC2 /* SegmentedSetting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SegmentedSetting.swift; sourceTree = "<group>"; };
 		CDB656FE0B6EAD8B48073FC3 /* TypingOptionLabel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingOptionLabel.swift; sourceTree = "<group>"; };
@@ -241,6 +252,8 @@
 				AB94EB35B02EF2C93E01F12C /* DisplaySettingsList.swift */,
 				BC1A64D4197556C33F14ADD0 /* FeedbackSettingsList.swift */,
 				E9FD9DA9F003377C1F360079 /* LanguageSettingsList.swift */,
+				42120CE65D4808C7B3393EBE /* LayoutSelectionList.swift */,
+				A8B8CA385825E4BAC4F0F04D /* LayoutTileGrid.swift */,
 				DA51666AEF37FB71B4B34D32 /* PrivacySettingsList.swift */,
 				CB3E63C25B2774A71B2BAFC2 /* SegmentedSetting.swift */,
 				ED40848F6BE6D88523CB3C25 /* SettingsModel.swift */,
@@ -328,6 +341,7 @@
 				A063705662AC7D869C6B9CA8 /* CandidateBarView.swift */,
 				231812FDBF992843227998D5 /* KeyboardGridView.swift */,
 				D73EC3E65D47C2BDD32ACE91 /* KeyCapView.swift */,
+				11B1847A1A2B13D5E718F728 /* LayoutPreviewView.swift */,
 				1CF4D18278033FE3DE2C617D /* PopupMenuView.swift */,
 				41F6BF764826351F53195B38 /* TazaTheme.swift */,
 			);
@@ -337,8 +351,10 @@
 		A3A264251F71F89B3EB2FC5E /* TazaShared */ = {
 			isa = PBXGroup;
 			children = (
+				C7ACF76A88B696CCF90E13C8 /* KeyboardFrameMapping.swift */,
 				480B324EF897B1A8E20D1B49 /* KeyboardPreferences.swift */,
 				EB583ACD6DB1BB697B271FC5 /* LanguagePreferences.swift */,
+				A38267BFA749855DFE13554E /* LayoutPreviews.swift */,
 				8A599D679961790DCA7854EE /* LearningStore.swift */,
 				884F7F9DE893001ADF7495D9 /* PackDistribution.swift */,
 				AEBE767DBD452E15506A5A63 /* PackStore.swift */,
@@ -397,7 +413,6 @@
 			children = (
 				1781A6356112D40DF9099D56 /* AnnotationPanelMapping.swift */,
 				4BAC5A7278B04AC671D281E6 /* CandidateMapping.swift */,
-				319A95BE3CB9B020B67582BD /* FrameMapping.swift */,
 			);
 			path = Rendering;
 			sourceTree = "<group>";
@@ -573,13 +588,15 @@
 				2473B9123492205B1BAD2A97 /* CandidateMapping.swift in Sources */,
 				2150E5C226EA3B063E07E5F8 /* EditorContext.swift in Sources */,
 				0EBD0A6871FBDC412133E853 /* EffectApplication.swift in Sources */,
-				A0AEF0ECC6AD89A83BF73746 /* FrameMapping.swift in Sources */,
 				D9BC3D52CB9C0EEABAD2DD39 /* KeyCapView.swift in Sources */,
+				FE4BAC95B229A8A4B80AE091 /* KeyboardFrameMapping.swift in Sources */,
 				E973811921C023B99C178023 /* KeyboardGridView.swift in Sources */,
 				9032338949864FFA3D3163E8 /* KeyboardPreferences.swift in Sources */,
 				3E0BC546CC1D731D0B6A3450 /* KeyboardViewController.swift in Sources */,
 				67DF2875020268F00A60B403 /* LanguageMenu.swift in Sources */,
 				EF91DFC274CB7EE0DE2FC447 /* LanguagePreferences.swift in Sources */,
+				2632BCD540ED2FE8C7FB6487 /* LayoutPreviewView.swift in Sources */,
+				CCADD90DB3082407C92D6097 /* LayoutPreviews.swift in Sources */,
 				857A56BEC78B89D7F063E6BB /* LearningStore.swift in Sources */,
 				369E46DF161F9B435DF3F758 /* PackDistribution.swift in Sources */,
 				5E4263D489496E09E4383A59 /* PackStore.swift in Sources */,
@@ -615,6 +632,7 @@
 				16299F7D67AAFAE08620B7FF /* DisplaySettingsList.swift in Sources */,
 				539E3C5526B18312465996BB /* FeedbackSettingsList.swift in Sources */,
 				985D52154ACD24EF1991EB7F /* KeyCapView.swift in Sources */,
+				34F7A6ECDAB1B3EA4D5CB30D /* KeyboardFrameMapping.swift in Sources */,
 				B8BAAABBD9299848CAA18DCB /* KeyboardGridView.swift in Sources */,
 				CBA4DEC3ACEEE242F08D7FEB /* KeyboardPreferences.swift in Sources */,
 				661E6F0225A604E02D3F2A02 /* KeyboardSetupBanner.swift in Sources */,
@@ -623,6 +641,10 @@
 				4F214DC30D753E60B9747574 /* LanguagePreferences.swift in Sources */,
 				1FB4831F382CEB2D369D49F6 /* LanguageRow.swift in Sources */,
 				AC92F432D188D428E90E2BD7 /* LanguageSettingsList.swift in Sources */,
+				EB90C520995BD7F1DE680B98 /* LayoutPreviewView.swift in Sources */,
+				47C35A51E4A308E3B3946BAC /* LayoutPreviews.swift in Sources */,
+				60286B95E6BA1ADA04D1C8ED /* LayoutSelectionList.swift in Sources */,
+				D0A86A286AB073345D1831D1 /* LayoutTileGrid.swift in Sources */,
 				FA7EBAF4DF3462006A206826 /* LearningStore.swift in Sources */,
 				EE063B6901756837FB1E0522 /* PackDistribution.swift in Sources */,
 				A913D77B7DA74FB9119D22F5 /* PackLibraryModel.swift in Sources */,

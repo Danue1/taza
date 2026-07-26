@@ -69,6 +69,16 @@ public final class KeyboardGridView: UIView {
 
     /// 글자 키를 누르는 동안 그 글자를 키 위에 크게 띄운다(순정 관례).
     public var showsKeyPreview = true
+    /// 판을 통째로 줄여 그릴 때의 배율. 간격·모서리·글꼴처럼 pt로 정해진 값에 곱한다 —
+    /// 설정 앱의 배열 미리보기가 실제 키보드와 같은 그림을 작게 그리기 위한 것이고,
+    /// 키보드 자신은 1.0으로 둔다.
+    public var contentScale: CGFloat = 1 {
+        didSet {
+            guard contentScale != oldValue, let model = currentModel else { return }
+            setFrame(model)
+        }
+    }
+
     /// 키에 테두리를 그린다. 값이 바뀌면 다음 `setFrame`부터 반영된다.
     public var showsKeyBorders = false {
         didSet {
@@ -127,8 +137,8 @@ public final class KeyboardGridView: UIView {
                 let view = KeyCapView(
                     label: key.label,
                     appearance: key.appearance,
-                    fontSize: key.fontSize,
-                    cornerRadius: TazaTheme.Key.cornerRadius,
+                    fontSize: key.fontSize * contentScale,
+                    cornerRadius: TazaTheme.Key.cornerRadius * contentScale,
                     accessibilityLabel: key.accessibilityLabel,
                     accessibilityHint: key.accessibilityHint,
                     accessibilityValue: key.accessibilityValue,
@@ -162,8 +172,10 @@ public final class KeyboardGridView: UIView {
 
     public override func layoutSubviews() {
         super.layoutSubviews()
-        let horizontalGap = TazaTheme.Key.horizontalGap
-        for (view, normalized, leadingExtraGap, trailingExtraGap) in keyViews {
+        let horizontalGap = TazaTheme.Key.horizontalGap * contentScale
+        for (view, normalized, declaredLeadingGap, declaredTrailingGap) in keyViews {
+            let leadingExtraGap = declaredLeadingGap * contentScale
+            let trailingExtraGap = declaredTrailingGap * contentScale
             // 세로 간격은 키 높이를 따라간다 — 행 높이가 폼팩터·배열마다 달라도
             // 키가 차지하는 비율은 순정과 같게 유지된다
             let rowHeight = normalized.height * bounds.height

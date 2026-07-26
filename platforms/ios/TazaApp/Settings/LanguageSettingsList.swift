@@ -8,22 +8,50 @@ struct LanguageSettingsList: View {
 
     private var layouts: [String] { model.availableLayouts(language) }
 
+    /// 지금 고른 배열의 그림
+    private var selectedPreview: TazaLayoutPreview? {
+        let name = model.layoutName(language)
+        return model.layoutPreviews(language).first { $0.name == name }
+    }
+
+    /// 이 언어의 사전이 아직 기기에 없는가 — 배열도 그 팩에 함께 실려 온다. 받을 수
+    /// 없는 상태(배포처 미설정)도 마찬가지로 "아직 없다"이므로 같이 묶는다.
+    private var needsPack: Bool {
+        switch packs.states[language] {
+        case .notInstalled, .installing, .unavailable: true
+        default: false
+        }
+    }
+
     var body: some View {
         List {
-            Section("배열") {
-                // 배열이 한 벌뿐인 언어에서는 고를 것이 없으므로 이름만 보인다
+            Section {
+                // 고르는 일은 자기 화면에서 하고, 여기에는 지금 무엇을 치고 있는지만
+                // 남긴다 — 이름만으로는 알기 어려우므로 그림을 함께 둔다
                 if layouts.count > 1 {
-                    Picker("키 배열", selection: model.layoutBinding(for: language)) {
-                        ForEach(layouts, id: \.self) { name in
-                            Text(name).tag(name)
-                        }
+                    NavigationLink {
+                        LayoutSelectionList(model: model, language: language)
+                    } label: {
+                        LabeledContent("키 배열", value: model.layoutName(language))
                     }
                 } else {
                     LabeledContent("키 배열", value: model.layoutName(language))
                 }
+                if let preview = selectedPreview {
+                    LayoutPreviewView(preview)
+                        .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 12, trailing: 12))
+                }
+            } header: {
+                Text("배열")
+            } footer: {
+                // 배열은 사전과 같은 팩에 실려 온다 — 하나뿐인 까닭이 "이 언어에는 배열이
+                // 하나"인지 "아직 안 받았다"인지를 사용자가 알 수 있어야 한다
+                if layouts.count <= 1, needsPack {
+                    Text("사전을 받으면 이 언어의 다른 배열도 고를 수 있습니다.")
+                }
             }
 
-            Section("사전") {
+            Section {
                 HStack {
                     Text("\(model.displayName(language)) 사전")
                     Spacer()
@@ -38,6 +66,14 @@ struct LanguageSettingsList: View {
                     NavigationLink("사전 출처") {
                         PackSourceList(model: model, packs: packs, language: language)
                     }
+                }
+            } header: {
+                Text("사전")
+            } footer: {
+                // 받을 수 없는 까닭은 경고 기호만으로 알 수 없다 — 배포처가 없는 것인지
+                // 받다가 끊긴 것인지에 따라 사용자가 할 일이 다르다
+                if case .unavailable(let message) = packs.states[language] {
+                    Text(message)
                 }
             }
 

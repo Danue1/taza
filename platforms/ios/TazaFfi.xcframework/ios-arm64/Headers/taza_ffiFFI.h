@@ -391,6 +391,11 @@ void uniffi_taza_ffi_fn_method_keyboardsession_set_shortcuts(void*_Nonnull ptr, 
 int8_t uniffi_taza_ffi_fn_method_keyboardsession_sync_auto_shift(void*_Nonnull ptr, RustBuffer context, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_TIMER_FIRED
+#define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_TIMER_FIRED
+void uniffi_taza_ffi_fn_method_keyboardsession_timer_fired(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_TOGGLE_SHIFT_LOCK
 #define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_FN_METHOD_KEYBOARDSESSION_TOGGLE_SHIFT_LOCK
 int8_t uniffi_taza_ffi_fn_method_keyboardsession_toggle_shift_lock(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
@@ -885,6 +890,12 @@ uint16_t uniffi_taza_ffi_checksum_method_keyboardsession_set_shortcuts(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_SYNC_AUTO_SHIFT
 #define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_SYNC_AUTO_SHIFT
 uint16_t uniffi_taza_ffi_checksum_method_keyboardsession_sync_auto_shift(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_TIMER_FIRED
+#define UNIFFI_FFIDEF_UNIFFI_TAZA_FFI_CHECKSUM_METHOD_KEYBOARDSESSION_TIMER_FIRED
+uint16_t uniffi_taza_ffi_checksum_method_keyboardsession_timer_fired(void
     
 );
 #endif

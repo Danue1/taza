@@ -43,6 +43,10 @@ final class KeyboardViewController: UIInputViewController {
     var backspaceRepeatInterval: TimeInterval = 0
     /// shift를 두 번 눌러 고정하는 관례(순정) — 마지막으로 shift를 누른 시각
     var lastShiftPressedAt: Date?
+    /// 멀티탭 주기가 끝나기를 기다리는 타이머(천지인). 코어가 시한을 요청할 때마다
+    /// 갈아 끼운다 — 이어 누르면 시한이 새로 시작해야 하기 때문이다. 무엇이 몇 번째인지는
+    /// 코어가 알고 있고, 셸은 시각만 잰다.
+    var multitapTimer: Timer?
     /// 설정 앱이 값을 고쳤다는 신호를 듣는 자리 — 키보드가 떠 있는 동안에도 바뀐다
     var settingsObserver: SettingsBroadcast.Observer?
 
@@ -146,6 +150,9 @@ final class KeyboardViewController: UIInputViewController {
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
         endBackspaceRepeat()
+        // 키보드가 내려간 뒤 울리는 시한은 끊긴 주기를 다시 끊을 뿐이라 붙잡아 둘 것이 없다
+        multitapTimer?.invalidate()
+        multitapTimer = nil
         for (language, session) in sessions {
             learning.save(session.personalizationSnapshot(), for: language)
         }
@@ -274,7 +281,9 @@ extension KeyboardViewController: UIInputViewAudioFeedback {
         )
         candidateBarHeightConstraint.constant = metrics.candidateBarHeight
         heightConstraint.constant = metrics.totalHeight
-        gridView.setFrame(model(from: frame))
+        gridView.setFrame(
+            keyboardFrameModel(frame, languageDisplayName: activeSession?.language().displayName)
+        )
         refreshPanel(frame: frame)
     }
 

@@ -679,6 +679,12 @@ public protocol KeyboardSessionProtocol: AnyObject, Sendable {
     func syncAutoShift(context: FfiEditorContext)  -> Bool
     
     /**
+     * 멀티탭 시한이 다 됐다고 셸이 알려 준다 — 다음에 같은 키를 눌러도 주기가 아니라
+     * 새 글자로 시작한다. 이미 끝난 주기에 울린 타이머는 아무 일도 하지 않는다.
+     */
+    func timerFired() 
+    
+    /**
      * shift 키를 두 번 누른 것 — 두 번 누름을 알아보는 것은 플랫폼 제스처라 셸이 하고,
      * 고정할 수 있는 배열인지와 그 뒤 상태는 코어가 정한다. 고정되면 true.
      */
@@ -1019,6 +1025,16 @@ open func syncAutoShift(context: FfiEditorContext) -> Bool  {
         FfiConverterTypeFfiEditorContext_lower(context),$0
     )
 })
+}
+    
+    /**
+     * 멀티탭 시한이 다 됐다고 셸이 알려 준다 — 다음에 같은 키를 눌러도 주기가 아니라
+     * 새 글자로 시작한다. 이미 끝난 주기에 울린 타이머는 아무 일도 하지 않는다.
+     */
+open func timerFired()  {try! rustCall() {
+    uniffi_taza_ffi_fn_method_keyboardsession_timer_fired(self.uniffiClonePointer(),$0
+    )
+}
 }
     
     /**
@@ -3046,6 +3062,12 @@ public enum FfiEffect {
     )
     case moveCursor(offset: Int32
     )
+    /**
+     * 밀리초 뒤에 `timer_fired`를 부르라는 요청. 앞선 타이머는 갈아 끼운다 —
+     * 끄는 명령은 없다(이미 끝난 주기에 울린 타이머는 아무 일도 하지 않는다).
+     */
+    case setTimer(milliseconds: UInt32
+    )
 }
 
 
@@ -3078,6 +3100,9 @@ public struct FfiConverterTypeFfiEffect: FfiConverterRustBuffer {
         )
         
         case 6: return .moveCursor(offset: try FfiConverterInt32.read(from: &buf)
+        )
+        
+        case 7: return .setTimer(milliseconds: try FfiConverterUInt32.read(from: &buf)
         )
         
         default: throw UniffiInternalError.unexpectedEnumCase
@@ -3116,6 +3141,11 @@ public struct FfiConverterTypeFfiEffect: FfiConverterRustBuffer {
         case let .moveCursor(offset):
             writeInt(&buf, Int32(6))
             FfiConverterInt32.write(offset, into: &buf)
+            
+        
+        case let .setTimer(milliseconds):
+            writeInt(&buf, Int32(7))
+            FfiConverterUInt32.write(milliseconds, into: &buf)
             
         }
     }
@@ -4758,6 +4788,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_taza_ffi_checksum_method_keyboardsession_sync_auto_shift() != 7249) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_taza_ffi_checksum_method_keyboardsession_timer_fired() != 54615) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_taza_ffi_checksum_method_keyboardsession_toggle_shift_lock() != 60865) {

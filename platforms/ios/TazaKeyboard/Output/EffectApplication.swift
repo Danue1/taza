@@ -13,6 +13,17 @@ extension KeyboardViewController {
         refreshAutoShift()
     }
 
+    /// 앞선 시한은 갈아 끼운다 — 남겨 두면 이어 누르는 도중에 울려 주기를 일찍 끊는다.
+    private func scheduleMultitapTimeout(milliseconds: UInt32) {
+        multitapTimer?.invalidate()
+        multitapTimer = Timer.scheduledTimer(
+            withTimeInterval: TimeInterval(milliseconds) / 1000,
+            repeats: false
+        ) { [weak self] _ in
+            self?.activeSession?.timerFired()
+        }
+    }
+
     private func deleteCharacters(_ count: Int) {
         for _ in 0..<count {
             textDocumentProxy.deleteBackward()
@@ -45,6 +56,8 @@ extension KeyboardViewController {
                 candidateBar.setCandidates(candidates.map(candidateModel))
             case .moveCursor(let offset):
                 textDocumentProxy.adjustTextPosition(byCharacterOffset: Int(offset))
+            case .setTimer(let milliseconds):
+                scheduleMultitapTimeout(milliseconds: milliseconds)
             }
         }
     }

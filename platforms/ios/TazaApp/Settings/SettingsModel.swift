@@ -16,6 +16,9 @@ final class SettingsModel: ObservableObject {
 
     /// 표시 이름·키캡 표기·배열 목록은 코어가 팩 선언에서 읽어 준다
     private var info: [String: TazaLanguageInfo] = [:]
+    /// 배열 그림은 세션을 세워 받아 오므로 화면을 다시 그릴 때마다 만들지 않는다.
+    /// 팩이 바뀌면 `reloadLanguageInfo`가 비운다.
+    private var previews: [String: [TazaLayoutPreview]] = [:]
 
     init() {
         refreshKeyboardActivation()
@@ -25,6 +28,8 @@ final class SettingsModel: ObservableObject {
     /// 값이 바뀌었음을 화면과 **키보드 익스텐션 양쪽에** 알린다. 익스텐션은 다른
     /// 프로세스라 저장소만으로는 언제 바뀌었는지 알 수 없다.
     private func settingsChanged(_ kind: SettingsBroadcast.Kind) {
+        // 숫자 행처럼 키 자리를 바꾸는 설정이 있으므로 그림도 다시 받는다
+        previews.removeAll()
         objectWillChange.send()
         SettingsBroadcast.post(kind)
     }
@@ -108,12 +113,27 @@ final class SettingsModel: ObservableObject {
                     .map { (language.tag, $0) }
             }
         )
+        previews.removeAll()
         // 팩을 바꾼 쪽(PackLibraryModel)이 이미 알렸다 — 화면만 다시 그린다
         objectWillChange.send()
     }
 
     func availableLayouts(_ language: TazaLanguage) -> [String] {
         info[language.tag]?.layouts ?? []
+    }
+
+    /// 이 언어로 칠 수 있는 배열들의 문자면 그림.
+    func layoutPreviews(_ language: TazaLanguage) -> [TazaLayoutPreview] {
+        if let cached = previews[language.tag] {
+            return cached
+        }
+        let made = tazaLayoutPreviews(
+            for: language,
+            packURL: PackStore().packURL(for: language),
+            preferences: typingPreferences.core(for: language)
+        )
+        previews[language.tag] = made
+        return made
     }
 
     /// 고른 배열 — 고른 적이 없거나 팩 갱신으로 사라졌으면 팩이 밝힌 기본 배열이다

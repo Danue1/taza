@@ -18,8 +18,9 @@ public struct PackCatalogEntry: Codable, Sendable {
     public let archiveSha256: String
     public let packSize: UInt64
     public let packSha256: String
+    /// 원천 목록 — 팩 메타데이터와 같은 탭 구분 형태. 저작자 표시도 이 줄 안에 있다
+    /// (이름과 문구를 따로 두면 짝이 위치로만 맞아 하나만 비어도 전부 어긋난다).
     public let sources: String
-    public let attribution: String
 
     public var taza: TazaLanguage? {
         TazaLanguage.all.first { $0.packName == name }

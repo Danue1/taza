@@ -24,8 +24,19 @@ extension KeyboardViewController {
 
     /// 설정에서 고른 배열을 세션에 넣는다. 고른 적이 없거나 팩 갱신으로 그 배열이
     /// 사라졌으면 코어가 기본 배열에 머문다 — 셸이 되돌릴 것이 없다.
+    ///
+    /// 배열이 바뀌면 조합 규칙까지 갈릴 수 있으므로(두벌식 ↔ 천지인) 지금 화면에 나가
+    /// 있는 조합은 **바뀌기 전 규칙으로** 먼저 확정한다. 언어를 바꿀 때와 같은 이유이고
+    /// 같은 길이다 — 남겨 두면 새 합성기가 모르는 글자가 문서에 남는다.
     func applyLayoutChoice(to session: KeyboardSession, for language: TazaLanguage) {
-        guard let name = preferences.layoutName(for: language) else { return }
+        guard let name = preferences.layoutName(for: language),
+              name != session.selectedLayout()
+        else {
+            return
+        }
+        if session === activeSession {
+            apply(effects: session.handleEvent(event: .focusLost, context: currentContext()))
+        }
         _ = session.selectLayout(name: name)
     }
 

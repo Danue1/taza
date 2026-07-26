@@ -31,8 +31,8 @@ pub struct CatalogEntry {
     /// 압축을 푼 팩의 크기·해시 — 설치 직전에 한 번 더 검증한다.
     pub pack_size: u64,
     pub pack_sha256: String,
+    /// 원천 목록 — 팩 메타데이터와 같은 탭 구분 형태
     pub sources: String,
-    pub attribution: String,
 }
 
 pub struct Archive {
@@ -84,11 +84,16 @@ pub fn write_notice(path: &Path, catalog: &Catalog) -> Result<(), String> {
             pack.name, pack.language, pack.pack_version, pack.word_count
         ));
         for line in pack.sources.lines() {
-            document.push_str(&format!("- {line}\n"));
-        }
-        document.push_str("\n### 저작자 표시\n\n");
-        for line in pack.attribution.lines() {
-            document.push_str(&format!("> {line}\n"));
+            let mut fields = line.split('\t');
+            let (Some(name), Some(version), Some(license)) =
+                (fields.next(), fields.next(), fields.next())
+            else {
+                continue;
+            };
+            document.push_str(&format!("- **{name}** {version} — {license}\n"));
+            if let Some(attribution) = fields.next().filter(|text| !text.is_empty()) {
+                document.push_str(&format!("  > {attribution}\n"));
+            }
         }
     }
     document.push_str(

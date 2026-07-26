@@ -12,7 +12,9 @@ display_name = "English"
 keycap_label = "A"
 layout_name = "QWERTY"
 composer_skeleton = "latin"
-pack_version = 2
+pack_version = 3
+# 배열은 여러 벌이 실린다 — 첫 배열이 기본이고 나머지는 설정에서 고른다
+layout = "../english-layout.txt"
 
 [lexicon]
 encoding = "utf8"

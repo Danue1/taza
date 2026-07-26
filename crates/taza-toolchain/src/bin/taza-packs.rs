@@ -307,7 +307,6 @@ fn build(recipe_path: &Path, options: &Options) -> Result<CatalogEntry, String> 
         pack_size: assembled.bytes.len() as u64,
         pack_sha256: hex_digest(&assembled.bytes),
         sources: assemble::source_lines(&used),
-        attribution: assemble::attribution(&used),
     })
 }
 

@@ -28,6 +28,52 @@ impl FieldKind {
     pub fn assistance_enabled(self) -> bool {
         matches!(self, FieldKind::Text | FieldKind::Search)
     }
+
+    /// 문장 첫 글자를 자동으로 대문자로 올릴 필드인가. 순정은 이메일·URL·비밀번호에서
+    /// 올리지 않는다 — 그 자리에 들어갈 값은 문장이 아니기 때문이다.
+    pub fn auto_capitalizes(self) -> bool {
+        matches!(self, FieldKind::Text | FieldKind::Search)
+    }
+}
+
+/// 키보드가 차지하는 높이. 순정에는 없는 설정이지만 서드파티 키보드에서는 흔하다 —
+/// 실제 치수는 폼팩터가 정하고 이 값은 거기에 곱해진다.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum KeyboardHeight {
+    Compact,
+    #[default]
+    Standard,
+    Tall,
+}
+
+impl KeyboardHeight {
+    pub fn scale(self) -> f32 {
+        match self {
+            KeyboardHeight::Compact => 0.86,
+            KeyboardHeight::Standard => 1.0,
+            KeyboardHeight::Tall => 1.16,
+        }
+    }
+}
+
+/// 스페이스바를 끌어 커서를 옮길 때 손가락 이동이 커서에 얼마나 빨리 옮겨붙는가.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum CursorSensitivity {
+    Low,
+    #[default]
+    Standard,
+    High,
+}
+
+impl CursorSensitivity {
+    /// 한 칸을 옮기는 데 필요한 이동 거리에 곱하는 값 — 감도가 높을수록 짧아진다.
+    pub fn step_scale(self) -> f32 {
+        match self {
+            CursorSensitivity::Low => 1.6,
+            CursorSensitivity::Standard => 1.0,
+            CursorSensitivity::High => 0.65,
+        }
+    }
 }
 
 /// 사용자가 설정 화면에서 켜고 끄는 것. 양 플랫폼 모두 순정 키보드의 이 설정들을
@@ -44,16 +90,43 @@ pub struct UserPreferences {
     pub double_space_period: bool,
     /// 확정한 어휘를 개인 사전에 기록해 이후 제안에 반영한다
     pub personalized_learning: bool,
+    /// 문장이 시작되는 자리에서 shift를 미리 올려 둔다
+    pub auto_capitalization: bool,
+    /// 곧은 따옴표를 짝맞춤 따옴표로, `--`를 줄표로 바꾼다
+    pub smart_punctuation: bool,
+    /// 여는 괄호·따옴표를 치면 닫는 짝을 함께 넣고 그 사이로 커서를 옮긴다
+    pub auto_pairing: bool,
+    /// 후보 바에 낱말과 함께 이모지·기호·얼굴 문자를 곁들인다
+    pub annotation_candidates: bool,
+    /// 글자 키를 길게 눌러 변형 문자를 고를 수 있게 한다
+    pub key_alternates: bool,
+    /// 문자면 위에 숫자 행을 한 줄 둔다
+    pub number_row: bool,
+    /// 후보를 내지 않는 필드에서도 후보 바 자리를 남긴다 — 필드를 옮길 때 키보드
+    /// 높이가 변하는 것이 거슬리는 경우의 탈출구다
+    pub candidate_bar_always: bool,
+    pub keyboard_height: KeyboardHeight,
+    pub cursor_sensitivity: CursorSensitivity,
 }
 
 impl Default for UserPreferences {
-    /// 순정 키보드의 공장 초기값 — 넷 다 켜져 있다.
+    /// 순정 키보드의 공장 초기값. 순정에 없는 항목은 순정과 같아 보이는 쪽을 고른다 —
+    /// 자동 짝 넣기·숫자 행처럼 화면이나 입력 결과를 눈에 띄게 바꾸는 것은 꺼 둔다.
     fn default() -> Self {
         UserPreferences {
             auto_correction: true,
             predictions: true,
             double_space_period: true,
             personalized_learning: true,
+            auto_capitalization: true,
+            smart_punctuation: true,
+            auto_pairing: false,
+            annotation_candidates: true,
+            key_alternates: true,
+            number_row: false,
+            candidate_bar_always: false,
+            keyboard_height: KeyboardHeight::Standard,
+            cursor_sensitivity: CursorSensitivity::Standard,
         }
     }
 }
@@ -258,13 +331,14 @@ pub struct AnnotationPanelItem {
 }
 
 /// 검색면의 한 그룹. 그룹 단위로 인라인 배치되므로 셸은 헤더와 항목만 그린다.
+/// 헤더 문구는 싣지 않는다 — 갈래(`group`)와 묶음(`category`)이 곧 신원이고, 그것을
+/// 어느 나라 말로 적을지는 화면의 일이다. 둘 다 비면 최근에 고른 것들이다.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AnnotationPanelGroup {
     /// 이 그룹의 갈래. 최근 사용처럼 갈래가 섞이는 그룹은 None이다.
     pub group: Option<CandidateGroup>,
     /// 이모지 묶음이면 그 자리 — 셸이 묶음마다 다른 표식을 세우는 통로다.
     pub category: Option<EmojiCategory>,
-    pub label: String,
     pub items: Vec<AnnotationPanelItem>,
 }
 

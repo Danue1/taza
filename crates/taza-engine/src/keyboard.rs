@@ -4,8 +4,14 @@ pub mod layouts;
 
 pub use hit::{KeyProbability, KeySignal};
 
-use crate::contract::{FieldKind, InputEvent};
+use crate::contract::{FieldKind, InputEvent, UserPreferences};
 use crate::lang::LanguageDescriptor;
+
+/// 숫자 행 한 칸의 폭 — 열 칸이 한 줄을 가득 채운다.
+const NUMBER_ROW_KEY_WIDTH: f32 = 0.1;
+/// 숫자 행의 높이 — 글자 행보다 낮게 잡는다. 순정에 없는 줄이라 자리를 덜 차지해야
+/// 문자 행이 좁아 보이지 않는다.
+const NUMBER_ROW_HEIGHT: f32 = 0.8;
 
 /// 커서를 한 칸 옮기는 데 필요한 가로 이동 거리(pt). 순정처럼 손가락을 따라 커서가
 /// 흐르려면 이 값이 글자 하나의 폭에 가까워야 한다 — 크게 잡으면 커서가 손가락을
@@ -120,6 +126,25 @@ fn is_hangul_script(character: char) -> bool {
     matches!(character, '\u{1100}'..='\u{11FF}' | '\u{3130}'..='\u{318F}' | '\u{AC00}'..='\u{D7A3}')
 }
 
+/// 문자면 위에 얹는 숫자 행. 배열과 무관하게 같은 줄이므로(어느 언어든 숫자는 아라비아
+/// 숫자다) 팩 데이터가 아니라 코어가 만든다 — 배열마다 이 줄을 다시 싣게 하지 않는다.
+fn number_row() -> LayoutRow {
+    LayoutRow {
+        keys: "1234567890"
+            .chars()
+            .map(|digit| LayoutKey {
+                action: KeyAction::Character {
+                    base: digit,
+                    shifted: digit,
+                },
+                width_ratio: NUMBER_ROW_KEY_WIDTH,
+                alternates: Vec::new(),
+            })
+            .collect(),
+        height_ratio: NUMBER_ROW_HEIGHT,
+    }
+}
+
 /// 레이어가 차지하는 높이 — 표준 행 몇 개분인가. 패널(통합 검색면)도 자기 높이를 갖는다.
 fn layer_rows(layout: &KeyboardLayout) -> f32 {
     layout.panel_rows.max(0.0)
@@ -232,13 +257,24 @@ pub enum KeyRole {
     Blank,
 }
 
+/// 낱말로 적히는 키의 갈래. 글자·기호 키는 여기 오지 않는다 — 그 라벨은 어느 나라
+/// 말로 보든 같은 글자다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KeyLegend {
+    /// 줄바꿈 — 순정은 필드에 따라 "return"·"go"·"send"로 갈린다
+    Return,
+    Search,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct FrameKey {
     pub position: KeyPosition,
     pub label: String,
     pub bounds: KeyBounds,
     /// VoiceOver/TalkBack에 노출할 라벨 — 접근성은 비통일 영역이 아니라 계약의 일부
-    pub accessibility_label: String,
+    /// 사람 말로 적히는 키 — 글자가 아니라 낱말이라 화면 언어를 탄다. 어느 낱말인지는
+    /// 코어가 정하고(필드가 시키는 동작), 그 말을 무엇으로 적을지는 셸이 정한다.
+    pub legend: Option<KeyLegend>,
     pub shift_active: bool,
     /// 이 필드에서 눈에 띄어야 하는 키 — 검색 필드의 리턴키처럼 순정이 강조색을 쓰는
     /// 자리다. 어떤 색인지는 셸의 디자인 시스템이 정한다.
@@ -275,8 +311,13 @@ pub struct Keyboard {
     metrics: KeyboardMetrics,
     active_layer: usize,
     shift: ShiftState,
+    /// 지금 올라간 shift가 사용자가 올린 것이 아니라 자동 대문자화가 올린 것인가.
+    /// 자동으로 올린 것만 자동으로 내린다 — 사용자가 올린 shift를 문맥이 내려 버리면
+    /// 방금 누른 키가 없던 일이 된다.
+    shift_from_auto: bool,
     cursor_drag: Option<CursorDrag>,
     field: FieldKind,
+    preferences: UserPreferences,
     /// 레이어와 필드를 모두 적용한 배열. 프레임과 히트 테스트가 같은 것을 봐야 눌린
     /// 자리와 그려진 자리가 어긋나지 않으므로 한 번 만들어 두고 함께 쓴다.
     active: KeyboardLayout,
@@ -292,22 +333,37 @@ struct CursorDrag {
 impl Keyboard {
     pub fn new(layout_set: KeyboardLayoutSet, language: LanguageDescriptor) -> Self {
         assert!(!layout_set.layers.is_empty(), "레이어가 최소 1개 필요");
-        let active = field::apply(&layout_set.layers[0], FieldKind::default());
-        Keyboard {
+        let mut keyboard = Keyboard {
             layout_set,
             language,
             metrics: KeyboardMetrics::default(),
             active_layer: 0,
             shift: ShiftState::Released,
+            shift_from_auto: false,
             cursor_drag: None,
             field: FieldKind::default(),
-            active,
-        }
+            preferences: UserPreferences::default(),
+            active: KeyboardLayout {
+                rows: Vec::new(),
+                panel_rows: 0.0,
+            },
+        };
+        keyboard.rebuild();
+        keyboard
     }
 
     /// 셸이 자기 크기·폼팩터를 알게 될 때마다(첫 배치, 회전, 분할) 주입한다.
     pub fn set_metrics(&mut self, metrics: KeyboardMetrics) {
         self.metrics = metrics;
+    }
+
+    /// 화면을 바꾸는 설정(숫자 행·키보드 높이·변형 문자·커서 감도)이 여기로 들어온다.
+    pub fn set_preferences(&mut self, preferences: UserPreferences) {
+        let rebuilds = self.preferences.number_row != preferences.number_row;
+        self.preferences = preferences;
+        if rebuilds {
+            self.rebuild();
+        }
     }
 
     /// 셸이 편집 대상이 바뀔 때마다 알려 주는 필드 성격. 배열·리턴키·후보 바 자리가
@@ -329,7 +385,17 @@ impl Keyboard {
     }
 
     fn rebuild(&mut self) {
-        self.active = field::apply(&self.layout_set.layers[self.active_layer], self.field);
+        let mut layout = field::apply(&self.layout_set.layers[self.active_layer], self.field);
+        // 숫자 행은 문자면에만 붙는다 — 심볼면에는 이미 숫자가 있고, 숫자 패드와 검색면은
+        // 행을 늘릴 자리가 아니다
+        if self.preferences.number_row
+            && self.active_layer == 0
+            && layout.panel_rows <= 0.0
+            && !field::uses_number_pad(self.field)
+        {
+            layout.rows.insert(0, number_row());
+        }
+        self.active = layout;
     }
 
     /// 지금 레이아웃·폼팩터에 맞는 실측 치수. 프레임을 다시 받지 않고 높이만
@@ -338,10 +404,13 @@ impl Keyboard {
         let form_factor = self.metrics.form_factor;
         // 행 높이는 표준 행 대비 배수이므로, 그 합이 곧 몇 행치 높이인지가 된다
         let rows = layer_rows(self.layout());
+        let scale = self.preferences.keyboard_height.scale();
         FrameMetrics {
-            grid_height: form_factor.key_row_height_points() * rows,
+            grid_height: form_factor.key_row_height_points() * rows * scale,
             // 후보를 내지 않는 필드에서는 바 자리를 없애 키보드가 낮아진다(순정 실측)
-            candidate_bar_height: if field::shows_candidate_bar(self.field) {
+            candidate_bar_height: if field::shows_candidate_bar(self.field)
+                || self.preferences.candidate_bar_always
+            {
                 form_factor.candidate_bar_height_points()
             } else {
                 0.0
@@ -394,7 +463,30 @@ impl Keyboard {
             ShiftState::Locked => ShiftState::Released,
             _ => ShiftState::Locked,
         };
+        self.shift_from_auto = false;
         true
+    }
+
+    /// 문장 시작 여부를 shift에 반영한다. 판단(지금이 문장 첫 자리인가)은 Engine이
+    /// 문맥으로 하고, 여기서는 사용자가 손으로 만든 shift 상태를 지키며 반영만 한다.
+    /// 프레임을 다시 그려야 하면 true.
+    pub fn set_auto_shift(&mut self, engaged: bool) -> bool {
+        if self.shift == ShiftState::Locked || !self.supports_shift_lock() {
+            return false;
+        }
+        match (engaged, self.shift) {
+            (true, ShiftState::Released) => {
+                self.shift = ShiftState::Pressed;
+                self.shift_from_auto = true;
+                true
+            }
+            (false, ShiftState::Pressed) if self.shift_from_auto => {
+                self.shift = ShiftState::Released;
+                self.shift_from_auto = false;
+                true
+            }
+            _ => false,
+        }
     }
 
     /// 레이어 전환 키 라벨 — 순정 관례: 문자면 복귀는 스크립트에 맞게(ABC/한글),
@@ -419,12 +511,16 @@ impl Keyboard {
         }
     }
 
-    /// 리턴키 문구 — 순정은 필드가 시키는 동작을 적는다(검색 필드는 "검색").
-    fn enter_label(&self) -> String {
-        match self.field {
-            FieldKind::Search => "검색".to_string(),
-            _ => "⏎".to_string(),
+    /// 리턴키가 시키는 동작 — 순정은 필드마다 다른 낱말을 적는다. 낱말 자체는 셸이
+    /// 화면 언어로 옮긴다.
+    fn key_legend(&self, action: &KeyAction) -> Option<KeyLegend> {
+        if *action != KeyAction::Enter {
+            return None;
         }
+        Some(match self.field {
+            FieldKind::Search => KeyLegend::Search,
+            _ => KeyLegend::Return,
+        })
     }
 
     fn key_label(&self, action: &KeyAction) -> String {
@@ -436,33 +532,9 @@ impl Keyboard {
             KeyAction::Shift => if self.shift == ShiftState::Locked { "⇪" } else { "⇧" }.to_string(),
             KeyAction::Backspace => "⌫".to_string(),
             KeyAction::Space => self.language.display_name.clone(),
-            KeyAction::Enter => self.enter_label(),
+            KeyAction::Enter => "⏎".to_string(),
             KeyAction::LayerSwitch { target } => self.layer_switch_label(*target),
             KeyAction::LanguageSwitch => self.language.keycap_label.clone(),
-            KeyAction::Blank => String::new(),
-        }
-    }
-
-    fn accessibility_label(&self, action: &KeyAction) -> String {
-        match action {
-            KeyAction::Character { .. } => self.key_character(action).unwrap().to_string(),
-            KeyAction::Text(text) => text.clone(),
-            KeyAction::Shift => "shift".to_string(),
-            KeyAction::Backspace => "backspace".to_string(),
-            KeyAction::Space => "space".to_string(),
-            KeyAction::Enter => match self.field {
-                FieldKind::Search => "search".to_string(),
-                _ => "enter".to_string(),
-            },
-            KeyAction::LayerSwitch { target } => match target {
-                0 => "letters".to_string(),
-                1 => "numbers".to_string(),
-                2 => "symbols".to_string(),
-                _ => "emoji".to_string(),
-            },
-            KeyAction::LanguageSwitch => {
-                format!("language, {}", self.language.display_name)
-            }
             KeyAction::Blank => String::new(),
         }
     }
@@ -487,6 +559,9 @@ impl Keyboard {
     /// 길게 눌러 고를 수 있는 것들 — 배열이 밝힌 변형 앞에 지금 누르고 있는 글자를 세운다.
     /// 그래야 팝업이 열린 뒤에도 손을 그대로 떼면 치던 글자가 들어간다(순정 관례).
     fn key_alternates(&self, action: &KeyAction, declared: &[char]) -> Vec<String> {
+        if !self.preferences.key_alternates {
+            return Vec::new();
+        }
         let Some(character) = self.key_character(action) else {
             return declared.iter().map(char::to_string).collect();
         };
@@ -517,7 +592,7 @@ impl Keyboard {
                         font_size: self.key_font_size(&key.action, &label),
                         label,
                         bounds: bounds[key_index],
-                        accessibility_label: self.accessibility_label(&key.action),
+                        legend: self.key_legend(&key.action),
                         shift_active: key.action == KeyAction::Shift && self.shifted(),
                         emphasized: key.action == KeyAction::Enter
                             && self.field == FieldKind::Search,
@@ -558,6 +633,8 @@ impl Keyboard {
                 } else {
                     ShiftState::Pressed
                 };
+                // 손으로 만든 상태는 문맥이 되돌리지 않는다
+                self.shift_from_auto = false;
                 PressOutcome {
                     event: None,
                     layout_changed: true,
@@ -577,6 +654,7 @@ impl Keyboard {
                 let layout_changed = self.shift == ShiftState::Pressed;
                 if self.shift == ShiftState::Pressed {
                     self.shift = ShiftState::Released;
+                    self.shift_from_auto = false;
                 }
                 PressOutcome {
                     event: Some(InputEvent::Key(signal)),
@@ -589,6 +667,7 @@ impl Keyboard {
                 // 고정된 shift는 심볼면을 다녀와도 남는다(순정 관례)
                 if self.shift == ShiftState::Pressed {
                     self.shift = ShiftState::Released;
+                    self.shift_from_auto = false;
                 }
                 self.rebuild();
                 PressOutcome {
@@ -635,6 +714,7 @@ impl Keyboard {
     pub fn select_alternate(&mut self, alternate: &str) -> Option<InputEvent> {
         if self.shift == ShiftState::Pressed {
             self.shift = ShiftState::Released;
+            self.shift_from_auto = false;
         }
         alternate
             .chars()
@@ -651,7 +731,8 @@ impl Keyboard {
 
     /// 드래그 중 새로 발생한 이동 칸수(부호 = 방향). 드래그 중이 아니면 0.
     pub fn update_cursor_drag(&mut self, x: f32) -> i32 {
-        let step = CURSOR_DRAG_STEP_POINTS / self.metrics.width_points.max(1.0);
+        let step = CURSOR_DRAG_STEP_POINTS * self.preferences.cursor_sensitivity.step_scale()
+            / self.metrics.width_points.max(1.0);
         let Some(drag) = &mut self.cursor_drag else {
             return 0;
         };

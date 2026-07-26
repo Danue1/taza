@@ -132,10 +132,8 @@ fn personalization_snapshot_over_ffi() {
 fn preferences_injection_reaches_the_core() {
     let session = KeyboardSession::new("en".to_string()).unwrap();
     session.set_preferences(FfiUserPreferences {
-        auto_correction: true,
-        predictions: true,
         double_space_period: false,
-        personalized_learning: true,
+        ..taza_ffi::default_user_preferences()
     });
     let effects = session.handle_event(
         FfiInputEvent::Separator {
@@ -185,8 +183,8 @@ fn pack_archive_installs_after_verification() {
     metadata.set(taza_engine::pack::metadata::keys::PACK_VERSION, "7");
     metadata.set(taza_engine::pack::metadata::keys::WORD_COUNT, "1");
     metadata.set(
-        taza_engine::pack::metadata::keys::ATTRIBUTION,
-        "테스트 원천",
+        taza_engine::pack::metadata::keys::SOURCES,
+        "테스트 원천\t1.0\tCC-BY 4.0\t테스트 원천 표시\n칸이 모자란 줄",
     );
     let mut writer = PackWriter::new("en");
     writer.add_section(SectionKind::Lexicon, lexicon.build());
@@ -216,7 +214,11 @@ fn pack_archive_installs_after_verification() {
     .unwrap();
     assert_eq!(installed.language, "en");
     assert_eq!(installed.pack_version, 7);
-    assert_eq!(installed.attribution, "테스트 원천");
+    // 칸이 모자란 줄은 버린다 — 형식이 다른 옛 팩을 반쯤 읽지 않는다
+    assert_eq!(installed.sources.len(), 1);
+    assert_eq!(installed.sources[0].name, "테스트 원천");
+    assert_eq!(installed.sources[0].license, "CC-BY 4.0");
+    assert_eq!(installed.sources[0].attribution, "테스트 원천 표시");
     assert_eq!(
         read_installed_pack(destination.to_string_lossy().to_string())
             .unwrap()

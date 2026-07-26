@@ -36,9 +36,42 @@ pub struct FfiInstalledPack {
     pub language: String,
     pub pack_version: u32,
     pub word_count: u32,
-    /// 고지 화면에 그대로 싣는 저작자 표시 문구
-    pub attribution: String,
+    /// 이 팩이 실은 원천들 — 고지 화면이 원천마다 한 줄로 그린다
+    pub sources: Vec<FfiPackSource>,
     pub byte_size: u64,
+}
+
+/// 팩이 밝히는 원천 하나. 이름·판·라이선스와 저작자 표시가 한 덩어리로 묶여 있어야
+/// 화면이 둘을 위치로 짝지으려 하지 않는다.
+#[derive(uniffi::Record)]
+pub struct FfiPackSource {
+    pub name: String,
+    pub version: String,
+    pub license: String,
+    /// 라이선스가 요구하는 표시 문구. 요구하지 않는 원천은 비어 있다.
+    pub attribution: String,
+}
+
+/// 메타데이터의 탭 구분 줄을 원천 목록으로 옮긴다. 칸이 모자라는 줄은 버린다 —
+/// 형식이 다른 옛 팩을 반쯤 읽어 엉뚱한 고지를 내놓느니 그 원천을 빼는 편이 낫다.
+fn parse_sources(text: &str) -> Vec<FfiPackSource> {
+    text.lines()
+        .filter_map(|line| {
+            let mut fields = line.split('\t');
+            let name = fields.next()?;
+            let version = fields.next()?;
+            let license = fields.next()?;
+            if name.is_empty() {
+                return None;
+            }
+            Some(FfiPackSource {
+                name: name.to_string(),
+                version: version.to_string(),
+                license: license.to_string(),
+                attribution: fields.next().unwrap_or_default().to_string(),
+            })
+        })
+        .collect()
 }
 
 fn hex_digest(bytes: &[u8]) -> String {
@@ -76,7 +109,7 @@ fn describe(path: &Path, bytes: &[u8]) -> Result<FfiInstalledPack, FfiInstallErr
         language: pack.language().to_string(),
         pack_version: read(keys::PACK_VERSION).parse().unwrap_or(0),
         word_count: read(keys::WORD_COUNT).parse().unwrap_or(0),
-        attribution: read(keys::ATTRIBUTION).to_string(),
+        sources: parse_sources(read(keys::SOURCES)),
         byte_size: bytes.len() as u64,
     })
 }

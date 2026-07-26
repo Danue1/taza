@@ -4,9 +4,13 @@
 //! 레이어 관례: 0 = 문자(언어별), 1 = 심볼 1면(숫자·기본 기호), 2 = 심볼 2면,
 //! 3 = 통합 검색면(이모지·기호·얼굴 문자 — 키 대신 패널이 자리를 갖는다).
 //!
+//! 한 언어가 배열을 여러 벌 실을 수 있다(두벌식·세벌식, QWERTY·Dvorak). 첫 배열이
+//! 그 언어의 기본이고, 어느 것을 쓸지는 설정이 정한다.
+//!
 //! 와이어 레이아웃 (little-endian):
 //! ```text
-//! layer_count u8
+//! 0u8 | layout_count u8
+//! 배열마다: name_length u8 | name UTF-8 × n | layer_count u8
 //! 레이어마다: panel_per_mille u16 | row_count u8
 //!   행마다: height_per_mille u16 | key_count u8
 //!     키마다: kind u8 | width_per_mille u16 | base u32 | shifted u32
@@ -16,6 +20,9 @@
 //! kind: 1=Character, 2=Shift, 3=Backspace, 4=Space, 5=Enter,
 //! 6=LayerSwitch(base=대상 레이어), 7=LanguageSwitch, 8=Text, 9=Blank.
 //! base/shifted는 Character·LayerSwitch만 의미하고, alternate는 Character만 의미한다.
+//!
+//! 맨 앞의 0은 배열 목록이 실렸다는 표시다 — 배열이 하나뿐이던 시절의 팩은 그 자리에
+//! layer_count가 있었고 레이어가 0개인 팩은 없으므로, 두 형식이 서로를 가리지 않는다.
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum KeyAction {
@@ -70,8 +77,45 @@ pub struct KeyboardLayoutSet {
     pub layers: Vec<KeyboardLayout>,
 }
 
-pub fn deserialize(bytes: &[u8]) -> Option<KeyboardLayoutSet> {
+/// 이름이 붙은 배열 한 벌. 이름은 설정 화면에 그대로 나가므로 사람이 부르는 말이다
+/// ("두벌식", "QWERTY").
+#[derive(Debug, Clone, PartialEq)]
+pub struct NamedLayoutSet {
+    pub name: String,
+    pub layouts: KeyboardLayoutSet,
+}
+
+/// 팩이 싣는 배열 전부. 첫 항목이 그 언어의 기본 배열이다.
+pub fn deserialize(bytes: &[u8]) -> Option<Vec<NamedLayoutSet>> {
     let mut offset = 0usize;
+    // 배열이 하나뿐이던 시절의 팩 — 이름은 팩 메타데이터의 것을 쓰라는 뜻으로 비운다
+    if bytes.first()? != &0 {
+        return Some(vec![NamedLayoutSet {
+            name: String::new(),
+            layouts: deserialize_set(bytes, &mut offset)?,
+        }]);
+    }
+    offset += 1;
+    let layout_count = *bytes.get(offset)? as usize;
+    offset += 1;
+    let mut layouts = Vec::with_capacity(layout_count);
+    for _ in 0..layout_count {
+        let name_length = *bytes.get(offset)? as usize;
+        offset += 1;
+        let name = std::str::from_utf8(bytes.get(offset..offset + name_length)?).ok()?;
+        offset += name_length;
+        layouts.push(NamedLayoutSet {
+            name: name.to_string(),
+            layouts: deserialize_set(bytes, &mut offset)?,
+        });
+    }
+    Some(layouts)
+}
+
+/// 배열 한 벌을 읽고 `cursor`를 그 뒤로 옮긴다. 실패하면 커서는 옮기지 않는다 —
+/// 어차피 섹션 전체를 버린다.
+fn deserialize_set(bytes: &[u8], cursor: &mut usize) -> Option<KeyboardLayoutSet> {
+    let mut offset = *cursor;
     let read_u8 = |offset: &mut usize| -> Option<u8> {
         let value = *bytes.get(*offset)?;
         *offset += 1;
@@ -147,5 +191,6 @@ pub fn deserialize(bytes: &[u8]) -> Option<KeyboardLayoutSet> {
             panel_rows: panel_per_mille as f32 / 1000.0,
         });
     }
+    *cursor = offset;
     Some(KeyboardLayoutSet { layers })
 }

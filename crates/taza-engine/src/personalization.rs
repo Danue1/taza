@@ -94,6 +94,12 @@ impl PersonalizationStore {
         &self.recent_annotations
     }
 
+    /// 자주 쓰는 목록만 비운다 — 낱말 학습과 따로 지울 수 있어야 한다. 이모지 하나가
+    /// 남기는 자취와 배운 어휘는 사용자에게 전혀 다른 것이다.
+    pub fn clear_recent_annotations(&mut self) {
+        self.recent_annotations.clear();
+    }
+
     /// 랭킹에 더해지는 개인화 가중치: 사용 횟수 + 최근 사용 보너스
     pub fn weight(&self, word: &str) -> u32 {
         let Some(entry) = self.entries.get(word) else {

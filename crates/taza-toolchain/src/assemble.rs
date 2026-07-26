@@ -128,7 +128,6 @@ pub fn assemble(
         metadata.set(keys::AFFIXES, affixes.join("\n"));
     }
     metadata.set(keys::SOURCES, source_lines(sources));
-    metadata.set(keys::ATTRIBUTION, attribution(sources));
 
     let mut writer = PackWriter::new(&recipe.language);
     writer.add_section(SectionKind::Lexicon, lexicon_section);
@@ -142,10 +141,17 @@ pub fn assemble(
         writer.add_section(SectionKind::AnnotationCatalog, section);
     }
     if let Some(layout_text) = layout_text {
-        writer.add_section(
-            SectionKind::Layout,
-            layout::serialize(&layout::parse(layout_text)?),
-        );
+        let mut layouts = layout::parse(layout_text)?;
+        // 이름 없이 적힌 배열은 레시피가 이름을 댄다 — 배열이 한 벌뿐인 파일에서는
+        // 파일 안에 이름을 또 적게 하지 않는다
+        for entry in &mut layouts {
+            if entry.name.is_empty() {
+                entry.name = recipe.layout_name.clone();
+            }
+        }
+        // 첫 배열이 그 언어의 기본이므로 메타데이터의 배열 이름도 그것을 따른다
+        metadata.set(keys::LAYOUT_NAME, &layouts[0].name);
+        writer.add_section(SectionKind::Layout, layout::serialize(&layouts));
     }
     writer.add_section(SectionKind::Metadata, metadata.build());
     Ok(AssembledPack {
@@ -162,18 +168,20 @@ pub fn assemble(
 
 /// 고지는 실제로 팩에 들어간 원천만 적는다 — 선언해 두었지만 자리에 없어 건너뛴
 /// 원천까지 적으면 쓰지도 않은 데이터를 출처로 밝히는 셈이 된다.
+/// 원천 하나가 한 줄이고, 그 줄이 자기 이름·판·라이선스·저작자 표시를 모두 갖는다.
+/// 와이어 형태는 `taza_engine::pack::metadata::keys::SOURCES` 참조.
 pub fn source_lines(sources: &[&Source]) -> String {
     sources
         .iter()
-        .map(|source| format!("{} {} ({})", source.name, source.version, source.license))
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
-pub fn attribution(sources: &[&Source]) -> String {
-    sources
-        .iter()
-        .map(|source| source.attribution.clone())
+        .map(|source| {
+            [
+                source.name.as_str(),
+                source.version.as_str(),
+                source.license.as_str(),
+                source.attribution.as_str(),
+            ]
+            .join("\t")
+        })
         .collect::<Vec<_>>()
         .join("\n")
 }

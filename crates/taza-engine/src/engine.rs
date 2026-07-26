@@ -7,8 +7,7 @@ use std::sync::Arc;
 
 use crate::contract::{
     AnnotationPanel, AnnotationPanelGroup, AnnotationPanelItem, Candidate, CandidateGroup,
-    Composer, ComposerEvent, ComposerOutput, EditorContext, Effect, EmojiCategory, FieldKind,
-    InputEvent, Pack,
+    Composer, ComposerEvent, ComposerOutput, EditorContext, Effect, FieldKind, InputEvent, Pack,
     SuggestionRequest, UserPreferences,
 };
 use crate::keyboard::{
@@ -16,8 +15,9 @@ use crate::keyboard::{
 };
 use crate::lang::LanguageDescriptor;
 use crate::pack::PackError;
+use crate::pack::layout::NamedLayoutSet;
 use crate::personalization::{PersonalizationState, PersonalizationStore};
-use crate::policy::Assistance;
+use crate::policy::{Assistance, PunctuationOutcome};
 use crate::suggest::{Suggester, Suggestion, SuggestionSources};
 
 /// 언어팩 바이트의 소유자. 온디바이스에서는 mmap, 테스트·평가에서는 `Vec<u8>`이며
@@ -39,32 +39,23 @@ const PANEL_GROUP_LIMIT: usize = 128;
 /// 검색어로 표를 훑을 때 모으는 항목 수 — 갈래로 나눈 뒤 그룹별 상한이 다시 걸린다.
 const PANEL_SEARCH_POOL: usize = PANEL_GROUP_LIMIT * 3;
 
-/// 검색면 그룹 이름 — 키 라벨과 마찬가지로 코어가 정한다(셸은 그리기만 한다).
-fn panel_group_label(group: CandidateGroup) -> &'static str {
-    match group {
-        CandidateGroup::Word => "낱말",
-        CandidateGroup::Emoji => "이모지",
-        CandidateGroup::Symbol => "기호",
-        CandidateGroup::Emoticon => "얼굴 문자",
+/// 방금 낸 Effect를 문맥에 미리 적용한 결과. 셸이 문맥을 다시 읽어 오기 전에 코어가
+/// 스스로 판단해야 하는 것(자동 대문자화)이 쓴다. 문맥을 못 받는 앱에서는 None 그대로다.
+fn text_after(context: &EditorContext, effects: &[Effect]) -> Option<String> {
+    let mut text = context.text_before_cursor.clone()?;
+    for effect in effects {
+        match effect {
+            Effect::CommitText(committed) => text.push_str(committed),
+            Effect::DeleteBackward(count) => {
+                for _ in 0..*count {
+                    text.pop();
+                }
+            }
+            _ => {}
+        }
     }
+    Some(text)
 }
-
-/// 이모지 묶음 이름 — 빌트인 키보드가 쓰는 이름을 그대로 따른다(계승 원칙).
-fn emoji_category_label(category: EmojiCategory) -> &'static str {
-    match category {
-        EmojiCategory::SmileysAndPeople => "스마일리 및 사람",
-        EmojiCategory::AnimalsAndNature => "동물 및 자연",
-        EmojiCategory::FoodAndDrink => "음식 및 음료",
-        EmojiCategory::Activities => "활동",
-        EmojiCategory::TravelAndPlaces => "여행 및 장소",
-        EmojiCategory::Objects => "사물",
-        EmojiCategory::Symbols => "기호",
-        EmojiCategory::Flags => "깃발",
-    }
-}
-
-/// 최근에 고른 것들이 모이는 그룹의 이름 — 갈래가 섞이므로 갈래 이름을 쓸 수 없다.
-const PANEL_RECENT_LABEL: &str = "자주 쓰는";
 
 /// 터치 한 번의 결과 — 입력이 만든 Effect와, 코어가 판정할 수 없어 셸에 넘기는 요청.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -81,6 +72,10 @@ pub struct Engine {
     composer: Box<dyn Composer>,
     suggester: Suggester,
     keyboard: Keyboard,
+    /// 이 언어로 칠 수 있는 배열들 — 팩이 실은 목록이고, 팩이 없으면 골격의 내장 배열
+    /// 하나다. 어느 것으로 칠지는 설정이 정한다.
+    layouts: Vec<NamedLayoutSet>,
+    selected_layout: usize,
     personalization: PersonalizationStore,
     /// 팩 교체로 키보드를 다시 만들어도 셸이 주입한 표시 환경은 이어져야 한다
     metrics: KeyboardMetrics,
@@ -118,10 +113,16 @@ impl Engine {
     /// 언어의 기본 합성기 대신 다른 합성기를 꽂는다. 한 언어에 복수 배열·합성기를
     /// 두는 경우(인도계 음역↔네이티브 등)와 테스트가 쓰는 통로다.
     pub fn with_composer(language: LanguageDescriptor, composer: Box<dyn Composer>) -> Self {
+        let builtin = NamedLayoutSet {
+            name: language.layout_name.clone(),
+            layouts: language.builtin_layout(),
+        };
         Engine {
             suggester: Suggester::new(language.suggestion_policy()),
             composer,
-            keyboard: Keyboard::new(language.builtin_layout(), language.clone()),
+            keyboard: Keyboard::new(builtin.layouts.clone(), language.clone()),
+            layouts: vec![builtin],
+            selected_layout: 0,
             language,
             personalization: PersonalizationStore::new(),
             metrics: KeyboardMetrics::default(),
@@ -144,24 +145,80 @@ impl Engine {
     pub fn load_pack(&mut self, pack: Arc<dyn PackBytes>) -> Result<(), PackError> {
         let opened = Pack::open(pack.bytes())?;
         let declared = LanguageDescriptor::from_pack(&opened);
-        let layout = opened.layout();
+        let packed_layouts = opened.layouts();
         if let Some(declared) = declared {
             if declared.skeleton != self.language.skeleton
                 && let Some(composer) = declared.skeleton.composer()
             {
                 self.composer = composer;
             }
-            self.suggester = Suggester::new(declared.suggestion_policy());
             self.language = declared;
         }
-        let layout = layout.unwrap_or_else(|| self.language.builtin_layout());
-        // 배열이 바뀌어도 셸이 알려 준 표시 환경과 필드 성격은 이어진다
-        let field = self.keyboard.field();
-        self.keyboard = Keyboard::new(layout, self.language.clone());
-        self.keyboard.set_metrics(self.metrics);
-        self.keyboard.set_field(field);
+        self.refresh_suggester();
+        // 고르고 있던 배열은 이름으로 이어 간다 — 팩을 갱신했다고 배열이 되돌아가면
+        // 사용자가 고른 것이 배포 때마다 풀린다
+        let chosen = self.layout_name().to_string();
+        self.layouts = packed_layouts.unwrap_or_else(|| {
+            vec![NamedLayoutSet {
+                name: String::new(),
+                layouts: self.language.builtin_layout(),
+            }]
+        });
+        // 이름 없이 실려 온 배열(배열이 하나뿐이던 시절의 팩)은 팩 메타데이터가 이름을 댄다
+        for entry in &mut self.layouts {
+            if entry.name.is_empty() {
+                entry.name = self.language.layout_name.clone();
+            }
+        }
+        self.selected_layout = self
+            .layouts
+            .iter()
+            .position(|entry| entry.name == chosen)
+            .unwrap_or(0);
+        self.rebuild_keyboard();
         self.pack = Some(pack);
         Ok(())
+    }
+
+    /// 이 언어로 칠 수 있는 배열의 이름들 — 설정 화면의 선택지가 된다.
+    pub fn available_layouts(&self) -> Vec<String> {
+        self.layouts.iter().map(|entry| entry.name.clone()).collect()
+    }
+
+    /// 지금 치고 있는 배열의 이름.
+    pub fn layout_name(&self) -> &str {
+        self.layouts
+            .get(self.selected_layout)
+            .map(|entry| entry.name.as_str())
+            .unwrap_or(&self.language.layout_name)
+    }
+
+    /// 배열을 바꾼다. 그런 이름의 배열이 없으면 아무것도 하지 않고 false —
+    /// 설정에 남아 있는 이름이 팩 갱신으로 사라졌을 때 조용히 기본값에 머문다.
+    pub fn select_layout(&mut self, name: &str) -> bool {
+        let Some(index) = self.layouts.iter().position(|entry| entry.name == name) else {
+            return false;
+        };
+        if index == self.selected_layout {
+            return true;
+        }
+        self.selected_layout = index;
+        self.rebuild_keyboard();
+        true
+    }
+
+    /// 배열이 바뀌어도 셸이 알려 준 표시 환경·설정·필드 성격은 이어진다.
+    fn rebuild_keyboard(&mut self) {
+        let layers = self
+            .layouts
+            .get(self.selected_layout)
+            .map(|entry| entry.layouts.clone())
+            .unwrap_or_else(|| self.language.builtin_layout());
+        let field = self.keyboard.field();
+        self.keyboard = Keyboard::new(layers, self.language.clone());
+        self.keyboard.set_metrics(self.metrics);
+        self.keyboard.set_preferences(self.preferences);
+        self.keyboard.set_field(field);
     }
 
     /// 사용자 설정 주입 — 셸이 설정 저장소에서 읽어 넣는다. 팩과 무관한 값이라
@@ -169,6 +226,28 @@ impl Engine {
     /// 이 호출로 반영된다.
     pub fn set_preferences(&mut self, preferences: UserPreferences) {
         self.preferences = preferences;
+        self.keyboard.set_preferences(preferences);
+        self.refresh_suggester();
+    }
+
+    /// 후보 바 구성은 언어(골격)가 정한 정책 위에 사용자 설정을 덮은 결과다 — 설정이
+    /// 바뀌거나 팩이 바뀌면 둘을 다시 합친다.
+    fn refresh_suggester(&mut self) {
+        let mut policy = self.language.suggestion_policy();
+        if !self.preferences.annotation_candidates {
+            policy.annotation_limit = 0;
+        }
+        self.suggester = Suggester::new(policy);
+    }
+
+    /// 문맥이 문장 첫 자리를 가리키면 shift를 미리 올린다. 프레임을 다시 그려야 하면
+    /// true — 셸은 초점·필드가 바뀔 때와 입력을 적용한 뒤에 부른다.
+    pub fn sync_auto_shift(&mut self, context: &EditorContext) -> bool {
+        let engaged = self.preferences.auto_capitalization
+            && context.field.auto_capitalizes()
+            && !self.composer.is_composing()
+            && crate::policy::sentence_start(context.text_before_cursor.as_deref());
+        self.keyboard.set_auto_shift(engaged)
     }
 
     /// 표시 환경 주입 — 셸이 자기 크기를 알게 될 때(첫 배치, 회전, 분할) 부른다.
@@ -205,9 +284,16 @@ impl Engine {
             Some(event) => self.handle(event, context),
             None => Vec::new(),
         };
+        // 방금 넣은 것까지 반영한 문맥으로 다음 글자의 shift를 정한다 — 셸이 문맥을
+        // 다시 읽어 오기를 기다리면 마침표를 찍고 친 첫 글자가 소문자로 들어간다
+        let applied = EditorContext {
+            text_before_cursor: text_after(context, &effects),
+            ..context.clone()
+        };
+        let shift_changed = self.sync_auto_shift(&applied);
         PressResult {
             effects,
-            layout_changed: outcome.layout_changed,
+            layout_changed: outcome.layout_changed || shift_changed,
             request: outcome.request,
         }
     }
@@ -258,6 +344,15 @@ impl Engine {
             }
             InputEvent::Key(signal) => {
                 let character = signal.character();
+                // 부호 규칙은 합성기보다 먼저 본다 — 언어와 무관한 규칙을 언어 수만큼
+                // 늘리지 않기 위해서다. 조합 중에는 성립하지 않는다: 어절 안의 따옴표를
+                // 갈아치우면 사전 조회 키가 어긋난다("don't"의 조회 키가 달라진다).
+                if !self.composer.is_composing()
+                    && let Some(outcome) =
+                        crate::policy::punctuation(character, &self.preferences, context)
+                {
+                    return self.emit_punctuation(outcome);
+                }
                 self.touches.push(signal);
                 self.feed(ComposerEvent::Key(character), context, None)
             }
@@ -289,6 +384,26 @@ impl Engine {
                 )
             }
         }
+    }
+
+    /// 짝맞춤 부호·자동 짝 넣기의 결과를 Effect로 옮긴다. 합성기를 거치지 않으므로
+    /// 어절 문맥은 여기서 끊는다 — 괄호나 따옴표 뒤는 새 어절이다.
+    fn emit_punctuation(&mut self, outcome: PunctuationOutcome) -> Vec<Effect> {
+        let mut effects = Vec::new();
+        if outcome.output.delete_before_commit > 0 {
+            effects.push(Effect::DeleteBackward(outcome.output.delete_before_commit));
+        }
+        if let Some(commit) = outcome.output.commit {
+            effects.push(Effect::CommitText(commit.surface));
+        }
+        if outcome.cursor_offset != 0 {
+            effects.push(Effect::MoveCursor(outcome.cursor_offset));
+        }
+        self.touches.clear();
+        self.previous_word = None;
+        self.reverted_correction = None;
+        self.replace_suggestions(Vec::new(), &mut effects);
+        effects
     }
 
     /// 진행 중 조합을 언어별 규칙으로 확정하고 후보 바를 비운다. 커서가 옮겨 가거나
@@ -329,10 +444,10 @@ impl Engine {
                 })
                 .collect();
             if !recent.is_empty() {
+                // 갈래도 묶음도 없는 그룹이 곧 "최근에 고른 것들"이다
                 groups.push(AnnotationPanelGroup {
                     group: None,
                     category: None,
-                    label: PANEL_RECENT_LABEL.to_string(),
                     items: recent,
                 });
             }
@@ -353,11 +468,6 @@ impl Engine {
                     groups.push(AnnotationPanelGroup {
                         group: Some(section.group),
                         category: section.category,
-                        label: match section.category {
-                            Some(category) => emoji_category_label(category),
-                            None => panel_group_label(section.group),
-                        }
-                        .to_string(),
                         items,
                     });
                 }
@@ -387,7 +497,6 @@ impl Engine {
                 groups.push(AnnotationPanelGroup {
                     group: Some(group),
                     category: None,
-                    label: panel_group_label(group).to_string(),
                     items,
                 });
             }
@@ -435,6 +544,12 @@ impl Engine {
     /// 학습을 끄는 설정과 짝이다: 설정은 앞으로를 막고 이것은 지난 것을 지운다.
     pub fn reset_personalization(&mut self) {
         self.personalization = PersonalizationStore::new();
+    }
+
+    /// 통합 검색면의 "자주 쓰는" 목록만 비운다. 배운 어휘는 그대로 둔다 — 이모지가
+    /// 남긴 자취를 지우려는 사람이 사전까지 잃을 이유가 없다.
+    pub fn reset_recent_annotations(&mut self) {
+        self.personalization.clear_recent_annotations();
     }
 
     /// 합성기를 돌린 뒤 랭킹·자동교정·학습을 얹어 Effect로 옮긴다.

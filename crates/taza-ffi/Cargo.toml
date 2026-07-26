@@ -10,20 +10,24 @@ crate-type = ["lib", "staticlib", "cdylib"]
 [[bin]]
 name = "uniffi-bindgen"
 path = "src/bindgen.rs"
+# 바인딩 생성기는 데스크톱 도구다 — 기기에 나가는 정적 라이브러리가 clap·askama까지
+# 끌고 가지 않도록 그 의존성을 이 기능 뒤에 둔다.
+required-features = ["cli"]
 
 [features]
 default = ["lang-latin", "lang-hangul"]
+cli = ["uniffi/cli"]
 lang-latin = ["taza-engine/lang-latin"]
 lang-hangul = ["taza-engine/lang-hangul"]
 
 [dependencies]
+memmap2.workspace = true
+ruzstd.workspace = true
+sha2.workspace = true
 taza-engine.workspace = true
-uniffi = { version = "0.29", features = ["cli"] }
-memmap2 = "0.9"
-thiserror = "2"
-ruzstd = "0.8.3"
-sha2 = "0.11.0"
+thiserror.workspace = true
+uniffi.workspace = true
 
 [dev-dependencies]
-sha2 = "0.11.0"
+sha2.workspace = true
 taza-toolchain.workspace = true

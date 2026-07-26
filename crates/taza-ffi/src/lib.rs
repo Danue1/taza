@@ -12,11 +12,11 @@ pub use install::{
 use std::sync::{Arc, Mutex};
 
 use taza_engine::contract::{
-    Candidate, CandidateGroup, CandidateKind, EditorContext, Effect, EmojiCategory, FieldKind,
-    InputEvent, KeySignal, UserPreferences,
+    Candidate, CandidateGroup, CandidateKind, CursorSensitivity, EditorContext, Effect,
+    EmojiCategory, FieldKind, InputEvent, KeySignal, KeyboardHeight, UserPreferences,
 };
 use taza_engine::engine::{Engine, PackBytes};
-use taza_engine::keyboard::{FormFactor, KeyRole, KeyboardMetrics, ShellRequest};
+use taza_engine::keyboard::{FormFactor, KeyLegend, KeyRole, KeyboardMetrics, ShellRequest};
 use taza_engine::lang::LanguageDescriptor;
 use taza_engine::personalization::PersonalizationState;
 
@@ -59,18 +59,110 @@ pub struct FfiUserPreferences {
     pub predictions: bool,
     pub double_space_period: bool,
     pub personalized_learning: bool,
+    pub auto_capitalization: bool,
+    pub smart_punctuation: bool,
+    pub auto_pairing: bool,
+    pub annotation_candidates: bool,
+    pub key_alternates: bool,
+    pub number_row: bool,
+    pub candidate_bar_always: bool,
+    pub keyboard_height: FfiKeyboardHeight,
+    pub cursor_sensitivity: FfiCursorSensitivity,
+}
+
+#[derive(uniffi::Enum)]
+pub enum FfiKeyboardHeight {
+    Compact,
+    Standard,
+    Tall,
+}
+
+#[derive(uniffi::Enum)]
+pub enum FfiCursorSensitivity {
+    Low,
+    Standard,
+    High,
+}
+
+/// 스냅샷에 무엇이 얼마나 들어 있는지. 형식의 주인이 여기이므로 세는 일도 여기서 한다 —
+/// 셸이 줄을 뜯어보기 시작하면 형식이 두 곳에 살게 된다.
+#[derive(uniffi::Record)]
+pub struct FfiPersonalizationSummary {
+    pub learned_words: u32,
+    pub recent_annotations: u32,
+}
+
+/// 설정 화면이 "지우기" 앞에서 무엇이 남아 있는지 보여 주는 통로.
+#[uniffi::export]
+pub fn personalization_summary(lines: Vec<String>) -> FfiPersonalizationSummary {
+    let count = |prefix: &str| {
+        lines
+            .iter()
+            .filter(|line| line.starts_with(prefix))
+            .count() as u32
+    };
+    FfiPersonalizationSummary {
+        learned_words: count("w\t"),
+        recent_annotations: count("a\t"),
+    }
 }
 
 /// 아직 사용자가 건드리지 않은 설정의 값. 기본값의 주인은 코어이므로 셸은 자기 표를
 /// 두지 않고 이 함수를 부른다.
 #[uniffi::export]
 pub fn default_user_preferences() -> FfiUserPreferences {
-    let defaults = UserPreferences::default();
+    convert_preferences_out(UserPreferences::default())
+}
+
+fn convert_preferences_out(preferences: UserPreferences) -> FfiUserPreferences {
     FfiUserPreferences {
-        auto_correction: defaults.auto_correction,
-        predictions: defaults.predictions,
-        double_space_period: defaults.double_space_period,
-        personalized_learning: defaults.personalized_learning,
+        auto_correction: preferences.auto_correction,
+        predictions: preferences.predictions,
+        double_space_period: preferences.double_space_period,
+        personalized_learning: preferences.personalized_learning,
+        auto_capitalization: preferences.auto_capitalization,
+        smart_punctuation: preferences.smart_punctuation,
+        auto_pairing: preferences.auto_pairing,
+        annotation_candidates: preferences.annotation_candidates,
+        key_alternates: preferences.key_alternates,
+        number_row: preferences.number_row,
+        candidate_bar_always: preferences.candidate_bar_always,
+        keyboard_height: match preferences.keyboard_height {
+            KeyboardHeight::Compact => FfiKeyboardHeight::Compact,
+            KeyboardHeight::Standard => FfiKeyboardHeight::Standard,
+            KeyboardHeight::Tall => FfiKeyboardHeight::Tall,
+        },
+        cursor_sensitivity: match preferences.cursor_sensitivity {
+            CursorSensitivity::Low => FfiCursorSensitivity::Low,
+            CursorSensitivity::Standard => FfiCursorSensitivity::Standard,
+            CursorSensitivity::High => FfiCursorSensitivity::High,
+        },
+    }
+}
+
+fn convert_preferences_in(preferences: FfiUserPreferences) -> UserPreferences {
+    UserPreferences {
+        auto_correction: preferences.auto_correction,
+        predictions: preferences.predictions,
+        double_space_period: preferences.double_space_period,
+        personalized_learning: preferences.personalized_learning,
+        auto_capitalization: preferences.auto_capitalization,
+        smart_punctuation: preferences.smart_punctuation,
+        auto_pairing: preferences.auto_pairing,
+        annotation_candidates: preferences.annotation_candidates,
+        key_alternates: preferences.key_alternates,
+        number_row: preferences.number_row,
+        candidate_bar_always: preferences.candidate_bar_always,
+        keyboard_height: match preferences.keyboard_height {
+            FfiKeyboardHeight::Compact => KeyboardHeight::Compact,
+            FfiKeyboardHeight::Standard => KeyboardHeight::Standard,
+            FfiKeyboardHeight::Tall => KeyboardHeight::Tall,
+        },
+        cursor_sensitivity: match preferences.cursor_sensitivity {
+            FfiCursorSensitivity::Low => CursorSensitivity::Low,
+            FfiCursorSensitivity::Standard => CursorSensitivity::Standard,
+            FfiCursorSensitivity::High => CursorSensitivity::High,
+        },
     }
 }
 
@@ -135,14 +227,13 @@ pub struct FfiAnnotationPanelItem {
     pub text: String,
 }
 
-/// 검색면의 한 그룹 — 셸은 헤더(label)와 항목만 그린다. `group`이 없으면 갈래가 섞인
-/// 그룹(자주 쓰는)이다.
+/// 검색면의 한 그룹. 헤더 문구는 싣지 않는다 — 갈래(`group`)와 묶음(`category`)이 곧
+/// 신원이고, 그것을 어느 나라 말로 적을지는 화면의 일이다. 둘 다 비면 최근에 고른 것들이다.
 #[derive(uniffi::Record)]
 pub struct FfiAnnotationPanelGroup {
     pub group: Option<FfiCandidateGroup>,
     /// 이모지 묶음이면 그 자리 — 셸이 묶음마다 다른 표식을 세운다
     pub category: Option<FfiEmojiCategory>,
-    pub label: String,
     pub items: Vec<FfiAnnotationPanelItem>,
 }
 
@@ -199,12 +290,21 @@ pub enum FfiKeyRole {
     Blank,
 }
 
+/// 낱말로 적히는 키의 갈래 — 셸이 화면 언어로 옮긴다.
+#[derive(uniffi::Enum)]
+pub enum FfiKeyLegend {
+    Return,
+    Search,
+}
+
 #[derive(uniffi::Record)]
 pub struct FfiFrameKey {
     pub row: u32,
     pub index: u32,
     pub label: String,
-    pub accessibility_label: String,
+    /// 낱말로 적히는 키 — 화면 언어를 타므로 셸이 자기 말로 옮긴다. 없으면 `label`이
+    /// 그대로 나가는 글자·기호 키다.
+    pub legend: Option<FfiKeyLegend>,
     pub bounds: FfiKeyBounds,
     pub shift_active: bool,
     /// 이 필드에서 강조색으로 그릴 키 (검색 필드의 리턴키 등)
@@ -328,7 +428,10 @@ fn convert_frame_key(key: taza_engine::keyboard::FrameKey) -> FfiFrameKey {
         row: key.position.row as u32,
         index: key.position.index as u32,
         label: key.label,
-        accessibility_label: key.accessibility_label,
+        legend: key.legend.map(|legend| match legend {
+            KeyLegend::Return => FfiKeyLegend::Return,
+            KeyLegend::Search => FfiKeyLegend::Search,
+        }),
         bounds: FfiKeyBounds {
             x: key.bounds.x,
             y: key.bounds.y,
@@ -439,12 +542,33 @@ impl KeyboardSession {
         self.engine
             .lock()
             .unwrap()
-            .set_preferences(UserPreferences {
-                auto_correction: preferences.auto_correction,
-                predictions: preferences.predictions,
-                double_space_period: preferences.double_space_period,
-                personalized_learning: preferences.personalized_learning,
-            });
+            .set_preferences(convert_preferences_in(preferences));
+    }
+
+    /// 이 언어로 칠 수 있는 배열의 이름들 — 첫 항목이 기본 배열이다.
+    pub fn available_layouts(&self) -> Vec<String> {
+        self.engine.lock().unwrap().available_layouts()
+    }
+
+    /// 지금 치고 있는 배열의 이름.
+    pub fn selected_layout(&self) -> String {
+        self.engine.lock().unwrap().layout_name().to_string()
+    }
+
+    /// 배열을 바꾼다. 그런 이름이 없으면 false — 설정에 남은 이름이 팩 갱신으로
+    /// 사라졌을 때 셸이 기본 배열로 되돌리는 신호다.
+    pub fn select_layout(&self, name: String) -> bool {
+        self.engine.lock().unwrap().select_layout(&name)
+    }
+
+    /// 문맥이 문장 첫 자리를 가리키면 shift를 미리 올린다. 초점·필드가 바뀌었을 때와
+    /// `handle_event`로 입력을 넣은 뒤에 부른다(`press_at`은 스스로 한다).
+    /// 프레임을 다시 그려야 하면 true.
+    pub fn sync_auto_shift(&self, context: FfiEditorContext) -> bool {
+        self.engine
+            .lock()
+            .unwrap()
+            .sync_auto_shift(&convert_context(&context))
     }
 
     /// 표시 환경 주입 — 셸이 자기 크기를 알게 될 때(첫 배치, 회전, 분할) 부른다.
@@ -562,7 +686,6 @@ impl KeyboardSession {
                 .map(|group| FfiAnnotationPanelGroup {
                     group: group.group.map(convert_candidate_group),
                     category: group.category.map(convert_emoji_category),
-                    label: group.label,
                     items: group
                         .items
                         .into_iter()
@@ -609,6 +732,11 @@ impl KeyboardSession {
             lines.push(format!("a\t{tag}\t{text}"));
         }
         lines
+    }
+
+    /// 통합 검색면의 "자주 쓰는" 목록만 비운다 — 배운 어휘는 그대로 둔다.
+    pub fn reset_recent_annotations(&self) {
+        self.engine.lock().unwrap().reset_recent_annotations();
     }
 
     /// 배운 것을 전부 잊는다 — 순정의 "키보드 사전 재설정". 셸은 이 호출과 함께

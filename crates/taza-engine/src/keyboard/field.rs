@@ -121,9 +121,8 @@ fn strip_for_password(row: &LayoutRow) -> LayoutRow {
 /// 필드에 맞춰 배열을 고친다. 패널이 있는 레이어(통합 검색면)는 건드리지 않는다 —
 /// 그 자리는 필드가 아니라 검색면이 소유한다.
 pub(crate) fn apply(layout: &KeyboardLayout, field: FieldKind) -> KeyboardLayout {
-    match field {
-        FieldKind::Number | FieldKind::Decimal | FieldKind::Phone => return number_pad(field),
-        _ => {}
+    if uses_number_pad(field) {
+        return number_pad(field);
     }
     if layout.panel_rows > 0.0 {
         return layout.clone();
@@ -168,6 +167,15 @@ fn row_space_width(row: &LayoutRow) -> f32 {
         .find(|key| key.action == KeyAction::Space)
         .map(|key| key.width_ratio)
         .unwrap_or(0.0)
+}
+
+/// 배열을 통째로 숫자 패드로 가는 필드인가. 이 필드들에는 글자 행이 없으므로 문자면을
+/// 전제한 손질(숫자 행 추가 등)이 끼어들 자리도 없다.
+pub(crate) fn uses_number_pad(field: FieldKind) -> bool {
+    matches!(
+        field,
+        FieldKind::Number | FieldKind::Decimal | FieldKind::Phone
+    )
 }
 
 /// 필드가 후보 바 자리를 갖는가. 순정은 이메일·URL·숫자 필드에서 예측 바 영역 자체를

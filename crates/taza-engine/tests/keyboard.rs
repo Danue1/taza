@@ -1,7 +1,8 @@
 use taza_engine::contract::{EditorContext, Effect, FieldKind, InputEvent};
 use taza_engine::engine::Engine;
 use taza_engine::keyboard::{
-    FormFactor, KeyRole, KeySignal, Keyboard, KeyboardFrame, KeyboardMetrics, ShellRequest, layouts,
+    FormFactor, KeyLegend, KeyRole, KeySignal, Keyboard, KeyboardFrame, KeyboardMetrics, ShellRequest,
+    layouts,
 };
 use taza_engine::lang::LanguageDescriptor;
 
@@ -135,22 +136,18 @@ fn shift_toggles_off_when_pressed_twice() {
 }
 
 #[test]
-fn accessibility_labels_name_control_keys() {
+fn control_keys_carry_a_role_the_shell_can_name() {
     let keyboard = Keyboard::new(
         layouts::qwerty(),
         LanguageDescriptor::builtin("en").unwrap(),
     );
     let frame = keyboard.frame();
-    let labels: Vec<&str> = frame
-        .rows
-        .iter()
-        .flatten()
-        .map(|key| key.accessibility_label.as_str())
-        .collect();
-    assert!(labels.contains(&"shift"));
-    assert!(labels.contains(&"backspace"));
-    assert!(labels.contains(&"space"));
-    assert!(labels.contains(&"enter"));
+    // 접근성 문구는 셸이 화면 언어로 짓는다 — 코어는 어느 키인지(역할)만 밝힌다
+    let roles: Vec<KeyRole> = frame.rows.iter().flatten().map(|key| key.role).collect();
+    assert!(roles.contains(&KeyRole::Shift));
+    assert!(roles.contains(&KeyRole::Backspace));
+    assert!(roles.contains(&KeyRole::Space));
+    assert!(roles.contains(&KeyRole::Enter));
 }
 
 #[test]
@@ -215,17 +212,21 @@ fn layout_from_pack_roundtrip_drives_keyboard() {
     // 높이가 다른 행도 팩 데이터로 실려 간다 — 폼팩터별 배열 확장의 통로
     let mut source = layouts::dubeolsik();
     source.layers[0].rows[0].height_ratio = 0.8;
+    let named = vec![taza_engine::pack::layout::NamedLayoutSet {
+        name: "두벌식".to_string(),
+        layouts: source.clone(),
+    }];
     let mut writer = PackWriter::new("ko");
-    writer.add_section(
-        SectionKind::Layout,
-        taza_toolchain::layout::serialize(&source),
-    );
+    writer.add_section(SectionKind::Layout, taza_toolchain::layout::serialize(&named));
     let bytes = writer.finish();
 
-    let loaded = Pack::open(&bytes).unwrap().layout().unwrap();
-    assert_eq!(loaded, source);
+    let loaded = Pack::open(&bytes).unwrap().layouts().unwrap();
+    assert_eq!(loaded, named);
 
-    let mut keyboard = Keyboard::new(loaded, LanguageDescriptor::builtin("ko").unwrap());
+    let mut keyboard = Keyboard::new(
+        loaded[0].layouts.clone(),
+        LanguageDescriptor::builtin("ko").unwrap(),
+    );
     let frame = keyboard.frame();
     let (x, y) = key_center(&frame, "ㄱ");
     assert_eq!(pressed(&mut keyboard, x, y), Some('ㄱ'));
@@ -253,11 +254,11 @@ fn bottom_row_order_is_symbols_emoji_language_space_enter() {
     // 심볼 다음이 통합 검색면 진입 — 순정 이모지 키와 같은 웃는 얼굴
     assert_eq!(bottom[0].label, "123");
     assert_eq!(bottom[1].label, "☺");
-    assert_eq!(bottom[1].accessibility_label, "emoji");
+    assert_eq!(bottom[1].role, KeyRole::LayerSwitch);
     // 스페이스바는 순정 관례대로 현재 언어를 표기한다
     assert_eq!(bottom[3].label, "English");
     assert_eq!(bottom[2].label, "A");
-    assert_eq!(bottom[2].accessibility_label, "language, English");
+    assert_eq!(bottom[2].role, KeyRole::LanguageSwitch);
 }
 
 /// 통합 검색면은 키 대신 패널이 자리를 갖는다 — 하단 행만 키로 남고, 키보드 전체 높이는
@@ -599,8 +600,8 @@ fn search_field_only_changes_the_return_key() {
 
     assert_eq!(frame.rows[0].len(), plain.rows[0].len());
     let enter = frame.rows[3].last().unwrap();
-    assert_eq!(enter.label, "검색");
-    assert_eq!(enter.accessibility_label, "search");
+    // 리턴키가 무슨 낱말로 적힐지는 갈래로만 알린다 — 낱말 자체는 셸의 몫이다
+    assert_eq!(enter.legend, Some(KeyLegend::Search));
     assert!(enter.emphasized);
     // 검색어야말로 예측이 쓸모 있는 자리라 후보 바는 그대로 둔다
     assert!(frame.metrics.candidate_bar_height > 0.0);
@@ -644,4 +645,60 @@ fn text_keys_commit_after_finalizing_the_composition() {
         })
         .collect();
     assert_eq!(committed.last().map(|text| text.as_str()), Some(".com"));
+}
+
+#[test]
+fn pack_can_carry_several_layouts_and_the_engine_switches_between_them() {
+    use std::sync::Arc;
+    use taza_engine::engine::PackBytes;
+    use taza_engine::pack::SectionKind;
+    use taza_toolchain::PackWriter;
+    use taza_toolchain::metadata::MetadataBuilder;
+
+    let text = "\
+=== QWERTY
+q w e
+layer1*0.15 space*0.55 enter*0.3
+---
+1 2 3
+layer0*0.15 space*0.55 enter*0.3
+=== Dvorak
+p y f
+layer1*0.15 space*0.55 enter*0.3
+";
+    let mut metadata = MetadataBuilder::new();
+    metadata.set("display_name", "English");
+    metadata.set("keycap_label", "A");
+    metadata.set("layout_name", "QWERTY");
+    metadata.set("composer_skeleton", "latin");
+    metadata.set("lexicon_encoding", "utf8");
+
+    let mut writer = PackWriter::new("en");
+    writer.add_section(
+        SectionKind::Layout,
+        taza_toolchain::layout::serialize(&taza_toolchain::layout::parse(text).unwrap()),
+    );
+    writer.add_section(SectionKind::Metadata, metadata.build());
+    let bytes = writer.finish();
+
+    let mut engine = Engine::new(LanguageDescriptor::builtin("en").unwrap()).unwrap();
+    engine
+        .load_pack(Arc::new(bytes) as Arc<dyn PackBytes>)
+        .unwrap();
+    assert_eq!(engine.available_layouts(), vec!["QWERTY", "Dvorak"]);
+    assert_eq!(engine.layout_name(), "QWERTY");
+    key_center(&engine.frame(), "q");
+
+    assert!(engine.select_layout("Dvorak"));
+    assert_eq!(engine.layout_name(), "Dvorak");
+    key_center(&engine.frame(), "p");
+    // 심볼면은 첫 배열에서 물려받는다 — 배열마다 다시 싣지 않는다
+    let frame = engine.frame();
+    let (x, y) = key_center(&frame, "123");
+    engine.press_at(x, y, &EditorContext::unavailable());
+    key_center(&engine.frame(), "1");
+
+    // 없는 이름은 조용히 무시된다 — 팩 갱신으로 사라진 배열이 설정에 남아 있을 수 있다
+    assert!(!engine.select_layout("Colemak"));
+    assert_eq!(engine.layout_name(), "Dvorak");
 }

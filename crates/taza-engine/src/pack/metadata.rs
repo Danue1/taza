@@ -12,10 +12,10 @@ pub mod keys {
     pub const PACK_VERSION: &str = "pack_version";
     /// 팩을 만든 레시피 이름
     pub const RECIPE: &str = "recipe";
-    /// 원천 목록 — `이름 버전 (라이선스)` 한 줄씩
+    /// 원천 목록 — 한 줄에 원천 하나이고, 탭으로 나눈 네 칸이 순서대로
+    /// `이름 · 판 · 라이선스 · 저작자 표시 문구`다. 이름과 문구를 따로 두면 짝이
+    /// 위치로만 맞아, 문구가 빈 원천이 하나 생기는 순간 전부 어긋난다.
     pub const SOURCES: &str = "sources";
-    /// 저작자 표시 문구 — 앱이 고지 화면에 그대로 싣는다.
-    pub const ATTRIBUTION: &str = "attribution";
     /// lexicon 표제어 수
     pub const WORD_COUNT: &str = "word_count";
     /// 언어모델 섹션에 담긴 bigram 수 (0이면 섹션 없음)

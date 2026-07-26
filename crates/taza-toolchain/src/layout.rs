@@ -18,13 +18,74 @@
 //! ```
 
 use taza_engine::pack::layout::{
-    KeyAction, KeyboardLayout, KeyboardLayoutSet, LayoutKey, LayoutRow,
+    KeyAction, KeyboardLayout, KeyboardLayoutSet, LayoutKey, LayoutRow, NamedLayoutSet,
 };
 
 const DEFAULT_KEY_WIDTH: f32 = 0.1;
 const DEFAULT_ROW_HEIGHT: f32 = 1.0;
 
-pub fn parse(text: &str) -> Result<KeyboardLayoutSet, String> {
+/// 한 파일에 배열을 여러 벌 적을 수 있다 — `=== <이름>` 줄이 새 배열을 연다. 이름 줄이
+/// 하나도 없으면 파일 전체가 이름 없는 배열 한 벌이고, 이름은 레시피가 댄다.
+///
+/// 뒤에 오는 배열이 레이어를 덜 적으면 첫 배열의 나머지 레이어를 그대로 물려받는다.
+/// 배열끼리 다른 것은 대개 문자면뿐이라(QWERTY와 Dvorak의 심볼면은 같다) 이 규칙이
+/// 없으면 심볼면 세 벌이 배열마다 복사된다.
+pub fn parse(text: &str) -> Result<Vec<NamedLayoutSet>, String> {
+    let mut blocks: Vec<(String, String)> = Vec::new();
+    for line in text.lines() {
+        match line.trim().strip_prefix("===") {
+            Some(name) => blocks.push((name.trim().to_string(), String::new())),
+            None => match blocks.last_mut() {
+                Some((_, body)) => {
+                    body.push_str(line);
+                    body.push('\n');
+                }
+                // 이름 줄보다 앞에 있는 내용은 이름 없는 첫 배열이다
+                None => blocks.push((String::new(), format!("{line}\n"))),
+            },
+        }
+    }
+    // 첫 이름 줄보다 앞에 머리말만 있는 파일에서는 이름 없는 빈 블록이 생긴다
+    blocks.retain(|(name, body)| !name.is_empty() || has_content(body));
+    let mut named: Vec<NamedLayoutSet> = Vec::new();
+    for (name, body) in blocks {
+        // 이름만 있고 내용이 없는 블록은 오타이므로 그냥 지나가지 않는다
+        let mut layouts = parse_set(&body)?;
+        if let Some(first) = named.first()
+            && layouts.layers.len() < first.layouts.layers.len()
+        {
+            layouts
+                .layers
+                .extend_from_slice(&first.layouts.layers[layouts.layers.len()..]);
+        }
+        named.push(NamedLayoutSet { name, layouts });
+    }
+    if named.is_empty() {
+        return Err("레이아웃에 행이 없음".to_string());
+    }
+    Ok(named)
+}
+
+/// 글자 하나의 대문자 — 대문자가 두 글자 이상이 되는 경우(ß→SS)는 키 하나에 담을 수
+/// 없으므로 그대로 둔다. 그런 글자는 배열이 시프트 표기를 직접 적어야 한다.
+fn uppercase(characters: &str) -> String {
+    let mut iterator = characters.chars();
+    let (Some(character), None) = (iterator.next(), iterator.next()) else {
+        return characters.to_string();
+    };
+    let mut upper = character.to_uppercase();
+    match (upper.next(), upper.next()) {
+        (Some(single), None) => single.to_string(),
+        _ => characters.to_string(),
+    }
+}
+
+fn has_content(text: &str) -> bool {
+    text.lines()
+        .any(|line| !line.trim().is_empty() && !line.trim().starts_with('#'))
+}
+
+fn parse_set(text: &str) -> Result<KeyboardLayoutSet, String> {
     let mut layers = Vec::new();
     let mut rows = Vec::new();
     let mut panel_rows = 0.0f32;
@@ -94,10 +155,13 @@ pub fn parse(text: &str) -> Result<KeyboardLayoutSet, String> {
                 characters => {
                     let (base, shifted) = match characters.split_once(':') {
                         Some((base, shifted)) if !base.is_empty() && !shifted.is_empty() => {
-                            (base, shifted)
+                            (base.to_string(), shifted.to_string())
                         }
-                        _ => (characters, characters),
+                        // 시프트 표기를 적지 않은 글자는 대문자로 올라간다. 대소문자가
+                        // 없는 스크립트(한글 자모·숫자·기호)에서는 같은 글자 그대로다.
+                        _ => (characters.to_string(), uppercase(characters)),
                     };
+                    let (base, shifted) = (base.as_str(), shifted.as_str());
                     // 시프트 표기 없이 여러 글자면 한 번에 넣는 키다 (`.com`)
                     if base == shifted && base.chars().count() > 1 {
                         keys.push(LayoutKey {
@@ -141,9 +205,21 @@ pub fn parse(text: &str) -> Result<KeyboardLayoutSet, String> {
 }
 
 /// 섹션 바이트 레이아웃은 `taza_engine::pack::layout` 참조.
-pub fn serialize(layout_set: &KeyboardLayoutSet) -> Vec<u8> {
+pub fn serialize(named: &[NamedLayoutSet]) -> Vec<u8> {
+    assert!(named.len() <= u8::MAX as usize);
+    let mut output = vec![0u8, named.len() as u8];
+    for entry in named {
+        assert!(entry.name.len() <= u8::MAX as usize);
+        output.push(entry.name.len() as u8);
+        output.extend_from_slice(entry.name.as_bytes());
+        serialize_set(&entry.layouts, &mut output);
+    }
+    output
+}
+
+fn serialize_set(layout_set: &KeyboardLayoutSet, output: &mut Vec<u8>) {
     assert!(layout_set.layers.len() <= u8::MAX as usize);
-    let mut output = vec![layout_set.layers.len() as u8];
+    output.push(layout_set.layers.len() as u8);
     for layer in &layout_set.layers {
         let panel_per_mille = (layer.panel_rows * 1000.0).round() as u16;
         output.extend_from_slice(&panel_per_mille.to_le_bytes());
@@ -184,5 +260,4 @@ pub fn serialize(layout_set: &KeyboardLayoutSet) -> Vec<u8> {
             }
         }
     }
-    output
 }

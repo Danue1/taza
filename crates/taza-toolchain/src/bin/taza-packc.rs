@@ -198,7 +198,7 @@ mod tests {
         assert_eq!(lexicon.frequency("the"), Some(100));
         assert_eq!(lexicon.frequency("theme"), Some(40));
         assert!(pack.language_model().is_none());
-        assert!(pack.layout().is_none());
+        assert!(pack.layouts().is_none());
     }
 
     #[test]
@@ -223,7 +223,8 @@ mod tests {
         use taza_engine::pack::layout::KeyAction;
         let layout_text = "ㅂ:ㅃ ㅈ:ㅉ\nshift*0.15 ㅋ backspace*0.15\nlayer1*0.15 space*0.55 enter*0.3\n---\n1 2 3\nlayer0*0.15 space*0.55 enter*0.3\n";
         let bytes = compile("ko", "안녕\t10\n", None, Some(layout_text), false).unwrap();
-        let layout_set = Pack::open(&bytes).unwrap().layout().unwrap();
+        let layouts = Pack::open(&bytes).unwrap().layouts().unwrap();
+        let layout_set = &layouts[0].layouts;
         assert_eq!(layout_set.layers.len(), 2);
 
         let letters = &layout_set.layers[0];
@@ -254,14 +255,16 @@ mod tests {
         use taza_engine::pack::layout::KeyAction;
         let layout_text = "a[àá] ([[{<] )[]}>]\nlayer1*0.125 language*0.125 space*0.45 enter*0.3\n";
         let bytes = compile("en", "the\t10\n", None, Some(layout_text), false).unwrap();
-        let layout_set = Pack::open(&bytes).unwrap().layout().unwrap();
+        let layouts = Pack::open(&bytes).unwrap().layouts().unwrap();
+        let layout_set = &layouts[0].layouts;
         let letters = &layout_set.layers[0];
 
         assert_eq!(
             letters.rows[0].keys[0].action,
+            // 시프트 표기를 적지 않은 글자는 대문자로 올라간다
             KeyAction::Character {
                 base: 'a',
-                shifted: 'a'
+                shifted: 'A'
             }
         );
         assert_eq!(letters.rows[0].keys[0].alternates, vec!['à', 'á']);

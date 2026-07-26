@@ -107,9 +107,8 @@ impl Package {
         if declared.peek().is_none() {
             return true;
         }
-        declared.any(|dependency| {
-            !dependency.optional || enabled_optional.contains(dependency_name)
-        })
+        declared
+            .any(|dependency| !dependency.optional || enabled_optional.contains(dependency_name))
     }
 }
 
@@ -205,8 +204,7 @@ fn run() -> Result<(), String> {
     let catalog_path = root.join("data/licenses.json");
     std::fs::write(
         &catalog_path,
-        serde_json::to_string_pretty(&catalog)
-            .map_err(|error| format!("직렬화 실패: {error}"))?,
+        serde_json::to_string_pretty(&catalog).map_err(|error| format!("직렬화 실패: {error}"))?,
     )
     .map_err(|error| format!("{} 쓰기 실패: {error}", catalog_path.display()))?;
 
@@ -344,9 +342,7 @@ fn license_texts(manifest_path: &Path) -> Vec<String> {
                 .and_then(|name| name.to_str())
                 .unwrap_or_default()
                 .to_lowercase();
-            LICENSE_FILE_STEMS
-                .iter()
-                .any(|stem| name.starts_with(stem))
+            LICENSE_FILE_STEMS.iter().any(|stem| name.starts_with(stem))
         })
         .collect();
     files.sort();

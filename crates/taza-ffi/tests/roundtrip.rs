@@ -157,7 +157,7 @@ fn metrics_injection_changes_measured_sizes() {
             < 1e-6
     );
 
-    session.set_metrics(FfiFormFactor::PhoneLandscape, 844.0);
+    session.set_metrics(FfiFormFactor::PhoneLandscape, 844.0, 1.0);
     let landscape = session.keyboard_frame();
     // 배열은 그대로고 높이만 줄어든다 — 폼팩터 판단은 코어가 한다
     assert_eq!(landscape.rows[0].len(), 10);

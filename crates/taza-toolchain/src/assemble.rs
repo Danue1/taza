@@ -29,16 +29,30 @@ fn encode(word: &str, encoding: LexiconEncoding) -> Option<String> {
     KeyEncoding::from(encoding).encode(word)
 }
 
-pub fn assemble(
-    recipe: &Recipe,
-    sources: &[&Source],
-    words: &[(String, u32)],
-    bigrams: &[(String, String, u32)],
-    annotations: &[Annotation],
-    emoji_order: &[(EmojiCategory, String)],
-    affixes: &[String],
-    layout_text: Option<&str>,
-) -> Result<AssembledPack, String> {
+/// 팩 하나를 조립하는 데 필요한 재료 전부. 인자를 여덟 개 늘어놓는 대신 묶는다 —
+/// 재료가 하나 더 생길 때 호출부가 전부 흔들리지 않게 하는 값이기도 하다.
+pub struct PackInputs<'source> {
+    pub recipe: &'source Recipe,
+    pub sources: &'source [&'source Source],
+    pub words: &'source [(String, u32)],
+    pub bigrams: &'source [(String, String, u32)],
+    pub annotations: &'source [Annotation],
+    pub emoji_order: &'source [(EmojiCategory, String)],
+    pub affixes: &'source [String],
+    pub layout_text: Option<&'source str>,
+}
+
+pub fn assemble(inputs: PackInputs<'_>) -> Result<AssembledPack, String> {
+    let PackInputs {
+        recipe,
+        sources,
+        words,
+        bigrams,
+        annotations,
+        emoji_order,
+        affixes,
+        layout_text,
+    } = inputs;
     let mut lexicon = LexiconBuilder::new();
     for (word, score) in words {
         if let Some(encoded) = encode(word, recipe.lexicon.encoding) {

@@ -1,7 +1,7 @@
 //! 언어를 가리지 않는 순정 키보드 관습 규칙. 계약(타입)이나 조립(engine)이 아니라
 //! "무엇을 해야 하는가"의 판단만 둔다.
 
-use crate::contract::{CommittedText, ComposerOutput, EditorContext, UserPreferences};
+use crate::contract::{CommittedText, ComposerOutput, EditorContext, FieldTraits, UserPreferences};
 
 /// 문장을 끝내는 부호 — 이 뒤에 공백이 오면 다음 글자가 새 문장의 첫 글자다.
 const SENTENCE_TERMINATORS: [char; 6] = ['.', '!', '?', '…', '。', '？'];
@@ -27,11 +27,17 @@ pub(crate) struct Assistance {
     pub personalizing: bool,
 }
 
-pub(crate) fn assistance(preferences: &UserPreferences, context: &EditorContext) -> Assistance {
+/// 앱이 밝힌 것과 사용자 설정을 AND로 묶는다 — 어느 한쪽이 끄면 꺼진다. 앱이 자동
+/// 수정을 끄라고 한 칸(코드 입력란 등)에서 우리 설정이 이기면 안 된다.
+pub(crate) fn assistance(
+    preferences: &UserPreferences,
+    traits: FieldTraits,
+    context: &EditorContext,
+) -> Assistance {
     // 비밀번호·이메일 같은 필드에서는 설정과 무관하게 전부 끈다 (순정 키보드 관습)
     let enabled = context.field.assistance_enabled();
     Assistance {
-        correcting: enabled && preferences.auto_correction,
+        correcting: enabled && preferences.auto_correction && traits.autocorrect,
         predicting: enabled && preferences.predictions,
         personalizing: enabled && preferences.personalized_learning,
     }
@@ -55,6 +61,14 @@ pub(crate) fn double_space_period(context: &EditorContext) -> Option<ComposerOut
         commit: Some(CommittedText::plain(". ".to_string())),
         ..ComposerOutput::default()
     })
+}
+
+/// 지금 자리가 낱말의 첫 글자인가 — 앱이 낱말마다 대문자를 요구할 때(이름 칸 등) 쓴다.
+pub(crate) fn word_start(text_before_cursor: Option<&str>) -> bool {
+    match text_before_cursor.and_then(|text| text.chars().next_back()) {
+        None => true,
+        Some(previous) => !previous.is_alphanumeric(),
+    }
 }
 
 /// 지금 자리가 문장의 첫 글자인가 — 자동 대문자화가 shift를 미리 올릴 조건이다.
@@ -90,8 +104,10 @@ pub(crate) struct PunctuationOutcome {
 fn smart_quote(character: char, text_before_cursor: Option<&str>) -> Option<char> {
     let opening = match text_before_cursor.and_then(|text| text.chars().next_back()) {
         None => true,
-        Some(previous) => !(previous.is_alphanumeric()
-            || matches!(previous, ')' | ']' | '}' | '\u{201D}' | '\u{2019}')),
+        Some(previous) => {
+            !(previous.is_alphanumeric()
+                || matches!(previous, ')' | ']' | '}' | '\u{201D}' | '\u{2019}'))
+        }
     };
     match (character, opening) {
         ('"', true) => Some('\u{201C}'),
@@ -114,9 +130,12 @@ fn closing_pair(character: char) -> Option<char> {
 pub(crate) fn punctuation(
     character: char,
     preferences: &UserPreferences,
+    traits: FieldTraits,
     context: &EditorContext,
 ) -> Option<PunctuationOutcome> {
     let text = context.text_before_cursor.as_deref();
+    // 앱이 곧은 따옴표를 요구했으면 사용자 설정보다 그쪽이 세다
+    let smart = preferences.smart_punctuation && traits.smart_punctuation;
     let plain = |delete: usize, commit: String, cursor_offset: i32| PunctuationOutcome {
         output: ComposerOutput {
             delete_before_commit: delete,
@@ -127,17 +146,14 @@ pub(crate) fn punctuation(
     };
 
     // `--` → 줄표. 셋째 하이픈까지 먹으면 `---`를 칠 길이 없어지므로 한 번만 바꾼다.
-    if preferences.smart_punctuation && character == '-' {
+    if smart && character == '-' {
         let tail: Vec<char> = text.unwrap_or("").chars().rev().take(2).collect();
         if tail.first() == Some(&'-') && tail.get(1) != Some(&'-') {
             return Some(plain(1, "\u{2014}".to_string(), 0));
         }
     }
 
-    let substituted = preferences
-        .smart_punctuation
-        .then(|| smart_quote(character, text))
-        .flatten();
+    let substituted = smart.then(|| smart_quote(character, text)).flatten();
     let effective = substituted.unwrap_or(character);
 
     if preferences.auto_pairing
@@ -175,12 +191,19 @@ mod tests {
     #[test]
     fn quotes_open_and_close_by_what_precedes_them() {
         let preferences = UserPreferences::default();
-        let opening = punctuation('"', &preferences, &context("said ")).unwrap();
+        let opening =
+            punctuation('"', &preferences, FieldTraits::default(), &context("said ")).unwrap();
         assert_eq!(
             opening.output.commit,
             Some(CommittedText::plain("\u{201C}".to_string()))
         );
-        let closing = punctuation('"', &preferences, &context("said \u{201C}hi")).unwrap();
+        let closing = punctuation(
+            '"',
+            &preferences,
+            FieldTraits::default(),
+            &context("said \u{201C}hi"),
+        )
+        .unwrap();
         assert_eq!(
             closing.output.commit,
             Some(CommittedText::plain("\u{201D}".to_string()))
@@ -193,7 +216,8 @@ mod tests {
             auto_pairing: true,
             ..UserPreferences::default()
         };
-        let outcome = punctuation('(', &preferences, &context("call")).unwrap();
+        let outcome =
+            punctuation('(', &preferences, FieldTraits::default(), &context("call")).unwrap();
         assert_eq!(
             outcome.output.commit,
             Some(CommittedText::plain("()".to_string()))
@@ -202,21 +226,40 @@ mod tests {
     }
 
     #[test]
+    fn the_app_can_veto_smart_punctuation() {
+        let preferences = UserPreferences::default();
+        let traits = FieldTraits {
+            smart_punctuation: false,
+            ..FieldTraits::default()
+        };
+        assert!(punctuation('"', &preferences, traits, &context("said ")).is_none());
+    }
+
+    #[test]
     fn plain_characters_stay_on_the_composer_path() {
         let preferences = UserPreferences::default();
-        assert!(punctuation('a', &preferences, &context("")).is_none());
-        assert!(punctuation('(', &preferences, &context("")).is_none());
+        assert!(punctuation('a', &preferences, FieldTraits::default(), &context("")).is_none());
+        assert!(punctuation('(', &preferences, FieldTraits::default(), &context("")).is_none());
     }
 
     #[test]
     fn double_hyphen_becomes_a_dash_once() {
         let preferences = UserPreferences::default();
-        let outcome = punctuation('-', &preferences, &context("wait-")).unwrap();
+        let outcome =
+            punctuation('-', &preferences, FieldTraits::default(), &context("wait-")).unwrap();
         assert_eq!(outcome.output.delete_before_commit, 1);
         assert_eq!(
             outcome.output.commit,
             Some(CommittedText::plain("\u{2014}".to_string()))
         );
-        assert!(punctuation('-', &preferences, &context("wait--")).is_none());
+        assert!(
+            punctuation(
+                '-',
+                &preferences,
+                FieldTraits::default(),
+                &context("wait--")
+            )
+            .is_none()
+        );
     }
 }

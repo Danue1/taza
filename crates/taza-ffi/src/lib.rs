@@ -12,8 +12,9 @@ pub use install::{
 use std::sync::{Arc, Mutex};
 
 use taza_engine::contract::{
-    Candidate, CandidateGroup, CandidateKind, CursorSensitivity, EditorContext, Effect,
-    EmojiCategory, FieldKind, InputEvent, KeySignal, KeyboardHeight, UserPreferences,
+    Candidate, CandidateGroup, CandidateKind, Capitalization, CursorSensitivity, EditorContext,
+    Effect, EmojiCategory, FieldKind, FieldTraits, InputEvent, KeySignal, KeyboardHeight,
+    ReturnKey, UserPreferences,
 };
 use taza_engine::engine::{Engine, PackBytes};
 use taza_engine::keyboard::{FormFactor, KeyLegend, KeyRole, KeyboardMetrics, ShellRequest};
@@ -42,6 +43,71 @@ pub enum FfiFieldKind {
     Decimal,
     Phone,
     Password,
+}
+
+/// 리턴키가 시키는 동작 — iOS `returnKeyType`, Android `imeOptions`를 셸이 옮긴다.
+#[derive(uniffi::Enum)]
+pub enum FfiReturnKey {
+    Return,
+    Go,
+    Search,
+    Send,
+    Next,
+    Done,
+    Join,
+    Route,
+    Continue,
+}
+
+/// 앱이 요구하는 자동 대문자화의 범위 — iOS `autocapitalizationType`.
+#[derive(uniffi::Enum)]
+pub enum FfiCapitalization {
+    None,
+    Words,
+    Sentences,
+    AllCharacters,
+}
+
+/// 편집 대상이 스스로 밝힌 성격. 값의 주인이 앱이라 사용자 설정과 AND로 묶인다.
+#[derive(uniffi::Record)]
+pub struct FfiFieldTraits {
+    pub kind: FfiFieldKind,
+    pub return_key: FfiReturnKey,
+    pub capitalization: FfiCapitalization,
+    pub autocorrect: bool,
+    pub smart_punctuation: bool,
+}
+
+fn convert_field_traits(traits: &FfiFieldTraits) -> FieldTraits {
+    FieldTraits {
+        kind: convert_field(&traits.kind),
+        return_key: match traits.return_key {
+            FfiReturnKey::Return => ReturnKey::Return,
+            FfiReturnKey::Go => ReturnKey::Go,
+            FfiReturnKey::Search => ReturnKey::Search,
+            FfiReturnKey::Send => ReturnKey::Send,
+            FfiReturnKey::Next => ReturnKey::Next,
+            FfiReturnKey::Done => ReturnKey::Done,
+            FfiReturnKey::Join => ReturnKey::Join,
+            FfiReturnKey::Route => ReturnKey::Route,
+            FfiReturnKey::Continue => ReturnKey::Continue,
+        },
+        capitalization: match traits.capitalization {
+            FfiCapitalization::None => Capitalization::None,
+            FfiCapitalization::Words => Capitalization::Words,
+            FfiCapitalization::Sentences => Capitalization::Sentences,
+            FfiCapitalization::AllCharacters => Capitalization::AllCharacters,
+        },
+        autocorrect: traits.autocorrect,
+        smart_punctuation: traits.smart_punctuation,
+    }
+}
+
+/// 친 말과 그 자리에 들어갈 말. 순정의 "텍스트 대치"와 같다.
+#[derive(uniffi::Record)]
+pub struct FfiShortcut {
+    pub trigger: String,
+    pub replacement: String,
 }
 
 #[derive(uniffi::Record)]
@@ -95,12 +161,7 @@ pub struct FfiPersonalizationSummary {
 /// 설정 화면이 "지우기" 앞에서 무엇이 남아 있는지 보여 주는 통로.
 #[uniffi::export]
 pub fn personalization_summary(lines: Vec<String>) -> FfiPersonalizationSummary {
-    let count = |prefix: &str| {
-        lines
-            .iter()
-            .filter(|line| line.starts_with(prefix))
-            .count() as u32
-    };
+    let count = |prefix: &str| lines.iter().filter(|line| line.starts_with(prefix)).count() as u32;
     FfiPersonalizationSummary {
         learned_words: count("w\t"),
         recent_annotations: count("a\t"),
@@ -294,7 +355,14 @@ pub enum FfiKeyRole {
 #[derive(uniffi::Enum)]
 pub enum FfiKeyLegend {
     Return,
+    Go,
     Search,
+    Send,
+    Next,
+    Done,
+    Join,
+    Route,
+    Continue,
 }
 
 #[derive(uniffi::Record)]
@@ -430,7 +498,14 @@ fn convert_frame_key(key: taza_engine::keyboard::FrameKey) -> FfiFrameKey {
         label: key.label,
         legend: key.legend.map(|legend| match legend {
             KeyLegend::Return => FfiKeyLegend::Return,
+            KeyLegend::Go => FfiKeyLegend::Go,
             KeyLegend::Search => FfiKeyLegend::Search,
+            KeyLegend::Send => FfiKeyLegend::Send,
+            KeyLegend::Next => FfiKeyLegend::Next,
+            KeyLegend::Done => FfiKeyLegend::Done,
+            KeyLegend::Join => FfiKeyLegend::Join,
+            KeyLegend::Route => FfiKeyLegend::Route,
+            KeyLegend::Continue => FfiKeyLegend::Continue,
         }),
         bounds: FfiKeyBounds {
             x: key.bounds.x,
@@ -571,9 +646,20 @@ impl KeyboardSession {
             .sync_auto_shift(&convert_context(&context))
     }
 
+    /// 사용자 대치 표 주입(순정의 "텍스트 대치"). 값의 주인은 설정 앱이다.
+    pub fn set_shortcuts(&self, shortcuts: Vec<FfiShortcut>) {
+        self.engine.lock().unwrap().set_shortcuts(
+            shortcuts
+                .into_iter()
+                .filter(|entry| !entry.trigger.is_empty())
+                .map(|entry| (entry.trigger, entry.replacement))
+                .collect(),
+        );
+    }
+
     /// 표시 환경 주입 — 셸이 자기 크기를 알게 될 때(첫 배치, 회전, 분할) 부른다.
     /// 이후 프레임의 치수는 이 값을 따른다.
-    pub fn set_metrics(&self, form_factor: FfiFormFactor, width_points: f32) {
+    pub fn set_metrics(&self, form_factor: FfiFormFactor, width_points: f32, text_scale: f32) {
         self.engine.lock().unwrap().set_metrics(KeyboardMetrics {
             form_factor: match form_factor {
                 FfiFormFactor::PhonePortrait => FormFactor::PhonePortrait,
@@ -581,13 +667,23 @@ impl KeyboardSession {
                 FfiFormFactor::Tablet => FormFactor::Tablet,
             },
             width_points,
+            text_scale,
         });
     }
 
     /// 편집 대상이 바뀔 때(초점 이동, 앱 전환) 셸이 알려 주는 필드 성격. 배열·리턴키·
     /// 후보 바 자리가 여기서 갈리므로 프레임을 받기 전에 넣는다.
-    pub fn set_field(&self, field: FfiFieldKind) {
-        self.engine.lock().unwrap().set_field(convert_field(&field));
+    pub fn set_field(&self, traits: FfiFieldTraits) {
+        self.engine
+            .lock()
+            .unwrap()
+            .set_field(convert_field_traits(&traits));
+    }
+
+    /// 이메일·URL·비밀번호처럼 라틴 글자를 넣게 되어 있는 칸인가. 어느 언어로 열지는
+    /// 언어 목록을 가진 셸이 정하므로 코어는 "라틴이 맞다"만 말한다.
+    pub fn field_prefers_latin(&self) -> bool {
+        self.engine.lock().unwrap().field_prefers_latin()
     }
 
     /// 프레임 전체를 받지 않고 치수만 필요할 때(입력 뷰 높이 제약).

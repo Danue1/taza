@@ -36,6 +36,77 @@ impl FieldKind {
     }
 }
 
+/// 리턴키가 시키는 동작. 순정은 앱이 밝힌 것을 그대로 적는다(iOS `returnKeyType`,
+/// Android `imeOptions`) — 낱말 자체는 화면 언어를 타므로 셸이 옮긴다.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum ReturnKey {
+    #[default]
+    Return,
+    Go,
+    Search,
+    Send,
+    Next,
+    Done,
+    Join,
+    Route,
+    Continue,
+}
+
+/// 앱이 요구하는 자동 대문자화의 범위. 순정은 이것을 그대로 따른다 — 이름 칸에서
+/// 낱말마다 대문자를 올리는 것도, 코드 칸에서 아예 올리지 않는 것도 앱이 정한 일이다.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Capitalization {
+    None,
+    Words,
+    #[default]
+    Sentences,
+    AllCharacters,
+}
+
+/// 편집 대상이 스스로 밝힌 성격. 값의 주인이 **앱**이라는 점에서 사용자 설정과 다르다 —
+/// 둘은 AND로 결합한다: 사용자가 자동 수정을 켜 두었어도 앱이 끄라고 하면 꺼진다.
+///
+/// 필드가 바뀔 때 한 번 주입된다(이벤트마다 오는 `EditorContext`와 달리 화면을 정하는
+/// 값이라, 이벤트가 오기 전에 이미 맞아 있어야 한다).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FieldTraits {
+    pub kind: FieldKind,
+    pub return_key: ReturnKey,
+    pub capitalization: Capitalization,
+    /// 앱이 자동 수정을 허용하는가 (iOS `autocorrectionType`)
+    pub autocorrect: bool,
+    /// 앱이 짝맞춤 부호를 허용하는가 (iOS `smartQuotesType`·`smartDashesType`)
+    pub smart_punctuation: bool,
+}
+
+impl Default for FieldTraits {
+    /// 앱이 아무 말도 하지 않을 때 — 순정의 기본값과 같다.
+    fn default() -> Self {
+        FieldTraits {
+            kind: FieldKind::default(),
+            return_key: ReturnKey::default(),
+            capitalization: Capitalization::default(),
+            autocorrect: true,
+            smart_punctuation: true,
+        }
+    }
+}
+
+impl FieldTraits {
+    /// 앱이 리턴키를 따로 밝히지 않았을 때의 값 — 검색 칸이면 "검색"이다. 순정도
+    /// 앱이 말이 없으면 칸의 성격에서 미룬다.
+    pub fn of(kind: FieldKind) -> Self {
+        FieldTraits {
+            kind,
+            return_key: match kind {
+                FieldKind::Search => ReturnKey::Search,
+                _ => ReturnKey::Return,
+            },
+            ..FieldTraits::default()
+        }
+    }
+}
+
 /// 키보드가 차지하는 높이. 순정에는 없는 설정이지만 서드파티 키보드에서는 흔하다 —
 /// 실제 치수는 폼팩터가 정하고 이 값은 거기에 곱해진다.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

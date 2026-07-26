@@ -1,8 +1,8 @@
-use taza_engine::contract::{EditorContext, Effect, FieldKind, InputEvent};
+use taza_engine::contract::{EditorContext, Effect, FieldKind, FieldTraits, InputEvent};
 use taza_engine::engine::Engine;
 use taza_engine::keyboard::{
-    FormFactor, KeyLegend, KeyRole, KeySignal, Keyboard, KeyboardFrame, KeyboardMetrics, ShellRequest,
-    layouts,
+    FormFactor, KeyLegend, KeyRole, KeySignal, Keyboard, KeyboardFrame, KeyboardMetrics,
+    ShellRequest, layouts,
 };
 use taza_engine::lang::LanguageDescriptor;
 
@@ -217,7 +217,10 @@ fn layout_from_pack_roundtrip_drives_keyboard() {
         layouts: source.clone(),
     }];
     let mut writer = PackWriter::new("ko");
-    writer.add_section(SectionKind::Layout, taza_toolchain::layout::serialize(&named));
+    writer.add_section(
+        SectionKind::Layout,
+        taza_toolchain::layout::serialize(&named),
+    );
     let bytes = writer.finish();
 
     let loaded = Pack::open(&bytes).unwrap().layouts().unwrap();
@@ -433,6 +436,7 @@ fn form_factor_drives_measured_sizes() {
     keyboard.set_metrics(KeyboardMetrics {
         form_factor: FormFactor::PhoneLandscape,
         width_points: 844.0,
+        text_scale: 1.0,
     });
     let landscape = keyboard.frame();
     // 가로에서는 행 높이만 줄고 배열은 그대로다 (순정 관례)
@@ -443,6 +447,7 @@ fn form_factor_drives_measured_sizes() {
     keyboard.set_metrics(KeyboardMetrics {
         form_factor: FormFactor::Tablet,
         width_points: 1024.0,
+        text_scale: 1.0,
     });
     let tablet = keyboard.frame().metrics;
     assert!(tablet.grid_height > portrait.grid_height);
@@ -478,6 +483,7 @@ fn cursor_drag_sensitivity_is_physical() {
     narrow.set_metrics(KeyboardMetrics {
         form_factor: FormFactor::PhonePortrait,
         width_points: 400.0,
+        text_scale: 1.0,
     });
     let mut wide = Keyboard::new(
         layouts::qwerty(),
@@ -486,6 +492,7 @@ fn cursor_drag_sensitivity_is_physical() {
     wide.set_metrics(KeyboardMetrics {
         form_factor: FormFactor::Tablet,
         width_points: 800.0,
+        text_scale: 1.0,
     });
 
     narrow.begin_cursor_drag(0.0);
@@ -520,7 +527,7 @@ fn number_fields_open_a_number_pad() {
         layouts::qwerty(),
         LanguageDescriptor::builtin("en").unwrap(),
     );
-    keyboard.set_field(FieldKind::Number);
+    keyboard.set_field(FieldTraits::of(FieldKind::Number));
     let frame = keyboard.frame();
 
     // 순정처럼 3열 4행이고, 좌하단은 눌리지 않는 빈 자리다
@@ -542,10 +549,10 @@ fn decimal_and_phone_fields_differ_only_in_the_corner_key() {
         layouts::qwerty(),
         LanguageDescriptor::builtin("en").unwrap(),
     );
-    keyboard.set_field(FieldKind::Decimal);
+    keyboard.set_field(FieldTraits::of(FieldKind::Decimal));
     assert_eq!(keyboard.frame().rows[3][0].label, ".");
 
-    keyboard.set_field(FieldKind::Phone);
+    keyboard.set_field(FieldTraits::of(FieldKind::Phone));
     let frame = keyboard.frame();
     assert_eq!(frame.rows[3][0].label, "+*#");
     assert_eq!(frame.rows[0][1].label, "2");
@@ -558,7 +565,7 @@ fn email_field_puts_at_and_dot_beside_a_shorter_space() {
         LanguageDescriptor::builtin("en").unwrap(),
     );
     let plain_space = key_width(&keyboard.frame(), "English");
-    keyboard.set_field(FieldKind::Email);
+    keyboard.set_field(FieldTraits::of(FieldKind::Email));
     let frame = keyboard.frame();
 
     key_center(&frame, "@");
@@ -576,7 +583,7 @@ fn url_field_replaces_space_with_dot_slash_and_domain() {
         layouts::qwerty(),
         LanguageDescriptor::builtin("en").unwrap(),
     );
-    keyboard.set_field(FieldKind::Url);
+    keyboard.set_field(FieldTraits::of(FieldKind::Url));
     let frame = keyboard.frame();
     assert!(frame.rows[3].iter().all(|key| key.role != KeyRole::Space));
 
@@ -595,7 +602,7 @@ fn search_field_only_changes_the_return_key() {
         LanguageDescriptor::builtin("en").unwrap(),
     );
     let plain = keyboard.frame();
-    keyboard.set_field(FieldKind::Search);
+    keyboard.set_field(FieldTraits::of(FieldKind::Search));
     let frame = keyboard.frame();
 
     assert_eq!(frame.rows[0].len(), plain.rows[0].len());
@@ -613,7 +620,7 @@ fn password_field_strips_emoji_and_language_keys() {
         layouts::qwerty(),
         LanguageDescriptor::builtin("en").unwrap(),
     );
-    keyboard.set_field(FieldKind::Password);
+    keyboard.set_field(FieldTraits::of(FieldKind::Password));
     let frame = keyboard.frame();
 
     let bottom = &frame.rows[3];
@@ -630,7 +637,7 @@ fn password_field_strips_emoji_and_language_keys() {
 fn text_keys_commit_after_finalizing_the_composition() {
     let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap()).unwrap();
     let context = EditorContext::unavailable();
-    engine.set_field(FieldKind::Url);
+    engine.set_field(FieldTraits::of(FieldKind::Url));
     let frame = engine.frame();
 
     // 조합 중이던 한글을 먼저 확정하고 나서 `.com`이 들어간다

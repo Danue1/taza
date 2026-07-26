@@ -1,7 +1,7 @@
 //! 설정이 화면과 입력에 실제로 닿는지 — 값이 코어까지 흘러 들어와 결과를 바꾸는가.
 
 use taza_engine::contract::{
-    CursorSensitivity, EditorContext, Effect, FieldKind, InputEvent, KeyboardHeight,
+    CursorSensitivity, EditorContext, Effect, FieldKind, FieldTraits, InputEvent, KeyboardHeight,
     UserPreferences,
 };
 use taza_engine::engine::Engine;
@@ -13,6 +13,7 @@ fn engine(preferences: UserPreferences) -> Engine {
     engine.set_metrics(KeyboardMetrics {
         form_factor: FormFactor::PhonePortrait,
         width_points: 390.0,
+        text_scale: 1.0,
     });
     engine.set_preferences(preferences);
     engine
@@ -41,11 +42,7 @@ fn key_center(frame: &KeyboardFrame, label: &str) -> (f32, f32) {
 }
 
 fn has_key(frame: &KeyboardFrame, label: &str) -> bool {
-    frame
-        .rows
-        .iter()
-        .flatten()
-        .any(|key| key.label == label)
+    frame.rows.iter().flatten().any(|key| key.label == label)
 }
 
 fn key(character: char) -> InputEvent {
@@ -85,7 +82,7 @@ fn number_row_stays_off_the_number_pad() {
         number_row: true,
         ..UserPreferences::default()
     });
-    keyboard.set_field(FieldKind::Phone);
+    keyboard.set_field(FieldTraits::of(FieldKind::Phone));
     // 숫자 패드에는 이미 숫자가 있다 — 행을 덧붙이면 같은 키가 두 벌이 된다
     assert_eq!(keyboard.frame().rows.len(), 4);
 }
@@ -105,14 +102,14 @@ fn keyboard_height_scales_the_grid_only() {
 #[test]
 fn candidate_bar_can_be_kept_in_fields_that_drop_it() {
     let mut default = engine(UserPreferences::default());
-    default.set_field(FieldKind::Email);
+    default.set_field(FieldTraits::of(FieldKind::Email));
     assert_eq!(default.frame_metrics().candidate_bar_height, 0.0);
 
     let mut always = engine(UserPreferences {
         candidate_bar_always: true,
         ..UserPreferences::default()
     });
-    always.set_field(FieldKind::Email);
+    always.set_field(FieldTraits::of(FieldKind::Email));
     assert!(always.frame_metrics().candidate_bar_height > 0.0);
 }
 
@@ -185,7 +182,7 @@ fn typing_a_period_and_space_raises_shift_without_waiting_for_the_shell() {
 #[test]
 fn auto_capitalization_leaves_email_fields_alone() {
     let mut engine = engine(UserPreferences::default());
-    engine.set_field(FieldKind::Email);
+    engine.set_field(FieldTraits::of(FieldKind::Email));
     let (x, y) = key_center(&engine.frame(), "a");
     engine.sync_auto_shift(&EditorContext {
         field: FieldKind::Email,
@@ -199,10 +196,7 @@ fn smart_punctuation_curls_quotes_by_what_precedes_them() {
     let mut engine = engine(UserPreferences::default());
     let opening = engine.handle(key('"'), &context("said "));
     assert_eq!(committed(&opening), "\u{201C}");
-    let closing = engine.handle(
-        key('"'),
-        &context("said \u{201C}hi"),
-    );
+    let closing = engine.handle(key('"'), &context("said \u{201C}hi"));
     assert_eq!(committed(&closing), "\u{201D}");
 }
 
@@ -212,10 +206,7 @@ fn smart_punctuation_off_leaves_the_straight_quote() {
         smart_punctuation: false,
         ..UserPreferences::default()
     });
-    let effects = engine.handle(
-        key('"'),
-        &context("said "),
-    );
+    let effects = engine.handle(key('"'), &context("said "));
     assert_eq!(committed(&effects), "\"");
 }
 
@@ -240,4 +231,23 @@ fn turning_off_annotations_rebuilds_the_ranking_policy() {
     });
     engine.set_preferences(UserPreferences::default());
     assert!(engine.handle(key('a'), &context("")).len() <= 2);
+}
+
+#[test]
+fn a_user_shortcut_replaces_the_typed_word_at_the_boundary() {
+    use std::collections::BTreeMap;
+    let mut engine = engine(UserPreferences::default());
+    engine.set_shortcuts(BTreeMap::from([(
+        "ttyl".to_string(),
+        "talk to you later".to_string(),
+    )]));
+    for character in "ttyl".chars() {
+        engine.handle(key(character), &context(""));
+    }
+    let effects = engine.handle(InputEvent::Separator(' '), &context("ttyl"));
+    assert_eq!(committed(&effects), "talk to you later ");
+
+    // 바로 뒤의 Backspace는 친 대로 되돌린다 — 자동교정 되돌리기와 같은 길이다
+    let reverted = engine.handle(InputEvent::Backspace, &context("talk to you later "));
+    assert_eq!(committed(&reverted), "ttyl");
 }

@@ -4,7 +4,9 @@ pub mod layouts;
 
 pub use hit::{KeyProbability, KeySignal};
 
-use crate::contract::{FieldKind, InputEvent, UserPreferences};
+use crate::contract::{
+    Capitalization, FieldKind, FieldTraits, InputEvent, ReturnKey, UserPreferences,
+};
 use crate::lang::LanguageDescriptor;
 
 /// 숫자 행 한 칸의 폭 — 열 칸이 한 줄을 가득 채운다.
@@ -13,11 +15,31 @@ const NUMBER_ROW_KEY_WIDTH: f32 = 0.1;
 /// 문자 행이 좁아 보이지 않는다.
 const NUMBER_ROW_HEIGHT: f32 = 0.8;
 
+/// 숫자 행의 키와 길게 눌러 나오는 것들. 숫자 하나에 딸린 기호는 대개 그 숫자로 부르는
+/// 것이라(1→느낌표, 6→탈자 부호) 심볼면까지 가지 않고 그 자리에서 닿는다.
+const NUMBER_ROW_KEYS: [(char, &str); 10] = [
+    ('1', "!¹½"),
+    ('2', "@²"),
+    ('3', "#³"),
+    ('4', "$₩¢£¥€"),
+    ('5', "%‰"),
+    ('6', "^"),
+    ('7', "&"),
+    ('8', "*"),
+    ('9', "("),
+    ('0', ")°"),
+];
+
 /// 커서를 한 칸 옮기는 데 필요한 가로 이동 거리(pt). 순정처럼 손가락을 따라 커서가
 /// 흐르려면 이 값이 글자 하나의 폭에 가까워야 한다 — 크게 잡으면 커서가 손가락을
 /// 뒤늦게 따라오며 툭툭 건너뛴다. 정규화 좌표가 아니라 물리 거리로 잡아야 화면이
 /// 넓어져도 손가락이 같은 만큼 움직인다.
 const CURSOR_DRAG_STEP_POINTS: f32 = 5.0;
+
+/// 글자 배율의 상한. 이보다 키우면 라벨이 키 밖으로 번진다 — 접근성 크기 단계는
+/// 본문 글꼴 기준 2배를 넘지만, 키 하나에 글자 하나가 들어가야 하는 자리에는 그대로
+/// 쓸 수 없다.
+const TEXT_SCALE_LIMIT: f32 = 1.4;
 
 // 레이아웃 데이터 타입은 언어팩 와이어 타입이 원본이다 — 배열 추가는 팩 배포로 끝난다.
 pub use crate::pack::layout::{KeyAction, KeyboardLayout, KeyboardLayoutSet, LayoutKey, LayoutRow};
@@ -89,6 +111,12 @@ pub struct KeyboardMetrics {
     /// 키보드가 차지하는 가로 폭. 물리 거리로 판정해야 하는 동작(커서 이동 감도)이
     /// 화면 크기에 휘둘리지 않게 한다.
     pub width_points: f32,
+    /// 시스템 글자 크기 설정이 요구하는 배율. 셸이 플랫폼 값(iOS Dynamic Type,
+    /// Android fontScale)에서 옮겨 준다.
+    ///
+    /// **글꼴에만 곱하고 키 높이에는 곱하지 않는다** — 순정 키보드도 글자 크기를 키우면
+    /// 라벨만 커지고 판은 그대로다. 판까지 커지면 화면의 절반을 키보드가 먹는다.
+    pub text_scale: f32,
 }
 
 impl Default for KeyboardMetrics {
@@ -97,6 +125,7 @@ impl Default for KeyboardMetrics {
         KeyboardMetrics {
             form_factor: FormFactor::PhonePortrait,
             width_points: 390.0,
+            text_scale: 1.0,
         }
     }
 }
@@ -130,15 +159,15 @@ fn is_hangul_script(character: char) -> bool {
 /// 숫자다) 팩 데이터가 아니라 코어가 만든다 — 배열마다 이 줄을 다시 싣게 하지 않는다.
 fn number_row() -> LayoutRow {
     LayoutRow {
-        keys: "1234567890"
-            .chars()
-            .map(|digit| LayoutKey {
+        keys: NUMBER_ROW_KEYS
+            .iter()
+            .map(|(digit, alternates)| LayoutKey {
                 action: KeyAction::Character {
-                    base: digit,
-                    shifted: digit,
+                    base: *digit,
+                    shifted: *digit,
                 },
                 width_ratio: NUMBER_ROW_KEY_WIDTH,
-                alternates: Vec::new(),
+                alternates: alternates.chars().collect(),
             })
             .collect(),
         height_ratio: NUMBER_ROW_HEIGHT,
@@ -261,9 +290,31 @@ pub enum KeyRole {
 /// 말로 보든 같은 글자다.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KeyLegend {
-    /// 줄바꿈 — 순정은 필드에 따라 "return"·"go"·"send"로 갈린다
     Return,
+    Go,
     Search,
+    Send,
+    Next,
+    Done,
+    Join,
+    Route,
+    Continue,
+}
+
+impl From<ReturnKey> for KeyLegend {
+    fn from(key: ReturnKey) -> Self {
+        match key {
+            ReturnKey::Return => KeyLegend::Return,
+            ReturnKey::Go => KeyLegend::Go,
+            ReturnKey::Search => KeyLegend::Search,
+            ReturnKey::Send => KeyLegend::Send,
+            ReturnKey::Next => KeyLegend::Next,
+            ReturnKey::Done => KeyLegend::Done,
+            ReturnKey::Join => KeyLegend::Join,
+            ReturnKey::Route => KeyLegend::Route,
+            ReturnKey::Continue => KeyLegend::Continue,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -316,7 +367,8 @@ pub struct Keyboard {
     /// 방금 누른 키가 없던 일이 된다.
     shift_from_auto: bool,
     cursor_drag: Option<CursorDrag>,
-    field: FieldKind,
+    /// 편집 대상이 밝힌 성격 — 배열·리턴키·보조 기능이 여기서 갈린다
+    traits: FieldTraits,
     preferences: UserPreferences,
     /// 레이어와 필드를 모두 적용한 배열. 프레임과 히트 테스트가 같은 것을 봐야 눌린
     /// 자리와 그려진 자리가 어긋나지 않으므로 한 번 만들어 두고 함께 쓴다.
@@ -341,7 +393,7 @@ impl Keyboard {
             shift: ShiftState::Released,
             shift_from_auto: false,
             cursor_drag: None,
-            field: FieldKind::default(),
+            traits: FieldTraits::default(),
             preferences: UserPreferences::default(),
             active: KeyboardLayout {
                 rows: Vec::new(),
@@ -352,9 +404,16 @@ impl Keyboard {
         keyboard
     }
 
-    /// 셸이 자기 크기·폼팩터를 알게 될 때마다(첫 배치, 회전, 분할) 주입한다.
+    /// 셸이 자기 크기·폼팩터를 알게 될 때마다(첫 배치, 회전, 분할, 글자 크기 변경)
+    /// 주입한다.
     pub fn set_metrics(&mut self, metrics: KeyboardMetrics) {
         self.metrics = metrics;
+    }
+
+    /// 글자 크기 배율. 아주 큰 설정에서도 라벨이 키를 넘지 않도록 위를 막는다 —
+    /// 접근성 크기를 그대로 곱하면 글자가 옆 키를 침범한다.
+    fn text_scale(&self) -> f32 {
+        self.metrics.text_scale.clamp(1.0, TEXT_SCALE_LIMIT)
     }
 
     /// 화면을 바꾸는 설정(숫자 행·키보드 높이·변형 문자·커서 감도)이 여기로 들어온다.
@@ -368,11 +427,16 @@ impl Keyboard {
 
     /// 셸이 편집 대상이 바뀔 때마다 알려 주는 필드 성격. 배열·리턴키·후보 바 자리가
     /// 여기서 갈리므로(`docs/inputmode.md`) 셸은 값만 넘기고 판단하지 않는다.
-    pub fn set_field(&mut self, field: FieldKind) {
-        if self.field == field {
+    pub fn set_field(&mut self, traits: FieldTraits) {
+        if self.traits == traits {
             return;
         }
-        self.field = field;
+        let same_kind = self.traits.kind == traits.kind;
+        self.traits = traits;
+        if same_kind {
+            // 리턴키 낱말만 달라진 것이면 배열을 다시 만들 필요가 없다
+            return;
+        }
         // 숫자 패드에서 돌아올 때 문자면으로 되돌린다 — 필드가 바뀌면 직전 필드에서
         // 고른 레이어는 의미가 없다
         self.active_layer = 0;
@@ -381,17 +445,35 @@ impl Keyboard {
     }
 
     pub fn field(&self) -> FieldKind {
-        self.field
+        self.traits.kind
+    }
+
+    pub fn traits(&self) -> FieldTraits {
+        self.traits
+    }
+
+    /// 지금 자리에서 shift를 올려야 하는가 — 앱이 요구한 범위와 문맥을 함께 본다.
+    /// 판단 재료(문장 시작 여부)는 Engine이 문맥에서 뽑아 넘긴다.
+    pub(crate) fn capitalizes(&self, sentence_start: bool, word_start: bool) -> bool {
+        if !self.traits.kind.auto_capitalizes() {
+            return false;
+        }
+        match self.traits.capitalization {
+            Capitalization::None => false,
+            Capitalization::Sentences => sentence_start,
+            Capitalization::Words => word_start,
+            Capitalization::AllCharacters => true,
+        }
     }
 
     fn rebuild(&mut self) {
-        let mut layout = field::apply(&self.layout_set.layers[self.active_layer], self.field);
+        let mut layout = field::apply(&self.layout_set.layers[self.active_layer], self.traits.kind);
         // 숫자 행은 문자면에만 붙는다 — 심볼면에는 이미 숫자가 있고, 숫자 패드와 검색면은
         // 행을 늘릴 자리가 아니다
         if self.preferences.number_row
             && self.active_layer == 0
             && layout.panel_rows <= 0.0
-            && !field::uses_number_pad(self.field)
+            && !field::uses_number_pad(self.traits.kind)
         {
             layout.rows.insert(0, number_row());
         }
@@ -405,17 +487,18 @@ impl Keyboard {
         // 행 높이는 표준 행 대비 배수이므로, 그 합이 곧 몇 행치 높이인지가 된다
         let rows = layer_rows(self.layout());
         let scale = self.preferences.keyboard_height.scale();
+        let text_scale = self.text_scale();
         FrameMetrics {
             grid_height: form_factor.key_row_height_points() * rows * scale,
             // 후보를 내지 않는 필드에서는 바 자리를 없애 키보드가 낮아진다(순정 실측)
-            candidate_bar_height: if field::shows_candidate_bar(self.field)
+            candidate_bar_height: if field::shows_candidate_bar(self.traits.kind)
                 || self.preferences.candidate_bar_always
             {
                 form_factor.candidate_bar_height_points()
             } else {
                 0.0
             },
-            letter_font_size: form_factor.letter_font_size_points(),
+            letter_font_size: form_factor.letter_font_size_points() * text_scale,
         }
     }
 
@@ -423,11 +506,14 @@ impl Keyboard {
     /// 들여다보고 판단하지 않도록 코어가 실측값으로 내려 준다.
     fn key_font_size(&self, action: &KeyAction, label: &str) -> f32 {
         let form_factor = self.metrics.form_factor;
-        match action {
-            KeyAction::Character { .. } | KeyAction::Text(_) => form_factor.letter_font_size_points(),
+        let base = match action {
+            KeyAction::Character { .. } | KeyAction::Text(_) => {
+                form_factor.letter_font_size_points()
+            }
             _ if label.chars().count() > 1 => form_factor.word_font_size_points(),
             _ => form_factor.control_font_size_points(),
-        }
+        };
+        base * self.text_scale()
     }
 
     fn layout(&self) -> &KeyboardLayout {
@@ -493,8 +579,13 @@ impl Keyboard {
     /// 심볼 1·2면은 123 / #+=. 비밀번호 필드에서는 순정처럼 `.?123`이 된다.
     fn layer_switch_label(&self, target: u8) -> String {
         match target {
-            1 if self.field == FieldKind::Password => ".?123".to_string(),
-            0 => if self.uses_hangul_letters() { "한글" } else { "ABC" }.to_string(),
+            1 if self.traits.kind == FieldKind::Password => ".?123".to_string(),
+            0 => if self.uses_hangul_letters() {
+                "한글"
+            } else {
+                "ABC"
+            }
+            .to_string(),
             1 => "123".to_string(),
             2 => "#+=".to_string(),
             // 통합 검색면 — 순정 이모지 키와 같은 웃는 얼굴
@@ -517,10 +608,7 @@ impl Keyboard {
         if *action != KeyAction::Enter {
             return None;
         }
-        Some(match self.field {
-            FieldKind::Search => KeyLegend::Search,
-            _ => KeyLegend::Return,
-        })
+        Some(KeyLegend::from(self.traits.return_key))
     }
 
     fn key_label(&self, action: &KeyAction) -> String {
@@ -529,7 +617,12 @@ impl Keyboard {
             KeyAction::Text(text) => text.clone(),
             // 고정된 shift는 순정처럼 다른 기호로 알린다 — 한 번 누르면 풀린다는 뜻이
             // 라벨에서 드러나야 한다
-            KeyAction::Shift => if self.shift == ShiftState::Locked { "⇪" } else { "⇧" }.to_string(),
+            KeyAction::Shift => if self.shift == ShiftState::Locked {
+                "⇪"
+            } else {
+                "⇧"
+            }
+            .to_string(),
             KeyAction::Backspace => "⌫".to_string(),
             KeyAction::Space => self.language.display_name.clone(),
             KeyAction::Enter => "⏎".to_string(),
@@ -585,20 +678,20 @@ impl Keyboard {
                     .map(|(key_index, key)| {
                         let label = self.key_label(&key.action);
                         FrameKey {
-                        position: KeyPosition {
-                            row: row_index,
-                            index: key_index,
-                        },
-                        font_size: self.key_font_size(&key.action, &label),
-                        label,
-                        bounds: bounds[key_index],
-                        legend: self.key_legend(&key.action),
-                        shift_active: key.action == KeyAction::Shift && self.shifted(),
-                        emphasized: key.action == KeyAction::Enter
-                            && self.field == FieldKind::Search,
-                        role: self.key_role(&key.action),
-                        alternates: self.key_alternates(&key.action, &key.alternates),
-                    }
+                            position: KeyPosition {
+                                row: row_index,
+                                index: key_index,
+                            },
+                            font_size: self.key_font_size(&key.action, &label),
+                            label,
+                            bounds: bounds[key_index],
+                            legend: self.key_legend(&key.action),
+                            shift_active: key.action == KeyAction::Shift && self.shifted(),
+                            emphasized: key.action == KeyAction::Enter
+                                && self.traits.kind == FieldKind::Search,
+                            role: self.key_role(&key.action),
+                            alternates: self.key_alternates(&key.action, &key.alternates),
+                        }
                     })
                     .collect()
             })

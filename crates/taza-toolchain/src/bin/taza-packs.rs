@@ -248,16 +248,16 @@ fn build(recipe_path: &Path, options: &Options) -> Result<CatalogEntry, String> 
         .transpose()?;
     let used: Vec<&taza_toolchain::recipe::Source> =
         extracted.iter().map(|(source, _)| *source).collect();
-    let assembled = assemble::assemble(
-        &recipe,
-        &used,
-        &words,
-        &bigrams,
-        &annotations,
-        &emoji_order,
-        &affixes,
-        layout_text.as_deref(),
-    )?;
+    let assembled = assemble::assemble(assemble::PackInputs {
+        recipe: &recipe,
+        sources: &used,
+        words: &words,
+        bigrams: &bigrams,
+        annotations: &annotations,
+        emoji_order: &emoji_order,
+        affixes: &affixes,
+        layout_text: layout_text.as_deref(),
+    })?;
     let packs_directory = options.data_directory.join("packs");
     std::fs::create_dir_all(&packs_directory)
         .map_err(|error| format!("{} 만들기 실패: {error}", packs_directory.display()))?;

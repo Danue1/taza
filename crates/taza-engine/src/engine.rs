@@ -3,12 +3,13 @@
 //!
 //! sans-io는 유지된다 — 파일을 여는 일은 셸의 몫이고, 코어는 이미 열린 바이트만 받는다.
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use crate::contract::{
     AnnotationPanel, AnnotationPanelGroup, AnnotationPanelItem, Candidate, CandidateGroup,
-    Composer, ComposerEvent, ComposerOutput, EditorContext, Effect, FieldKind, InputEvent, Pack,
-    SuggestionRequest, UserPreferences,
+    Composer, ComposerEvent, ComposerOutput, EditorContext, Effect, FieldKind, FieldTraits,
+    InputEvent, Pack, SuggestionRequest, UserPreferences,
 };
 use crate::keyboard::{
     FrameKey, FrameMetrics, KeySignal, Keyboard, KeyboardFrame, KeyboardMetrics, ShellRequest,
@@ -89,6 +90,9 @@ pub struct Engine {
     /// 지금 어절에 대해 눌린 키 신호들. 조회 키의 **끝에서부터** 맞춰 쓴다 — 커서 이동
     /// 뒤 문맥에서 되가져온 앞부분에는 신호가 없으므로 조회 키보다 짧을 수 있다.
     touches: Vec<KeySignal>,
+    /// 사용자가 정한 대치 표(순정의 "텍스트 대치") — 친 말을 확정하는 순간 갈아치운다.
+    /// 값의 주인은 설정 앱이므로 코어는 주입받아 조회만 한다.
+    shortcuts: BTreeMap<String, String>,
     /// 방금 자동교정으로 갈아치운 것 — 바로 뒤에 오는 Backspace는 이것을 되돌린다.
     /// 다음 입력이 하나라도 지나가면 사라진다(순정 키보드 관습).
     reverted_correction: Option<Correction>,
@@ -131,6 +135,7 @@ impl Engine {
             suggestions: Vec::new(),
             previous_word: None,
             touches: Vec::new(),
+            shortcuts: BTreeMap::new(),
             reverted_correction: None,
         }
     }
@@ -182,7 +187,10 @@ impl Engine {
 
     /// 이 언어로 칠 수 있는 배열의 이름들 — 설정 화면의 선택지가 된다.
     pub fn available_layouts(&self) -> Vec<String> {
-        self.layouts.iter().map(|entry| entry.name.clone()).collect()
+        self.layouts
+            .iter()
+            .map(|entry| entry.name.clone())
+            .collect()
     }
 
     /// 지금 치고 있는 배열의 이름.
@@ -214,11 +222,11 @@ impl Engine {
             .get(self.selected_layout)
             .map(|entry| entry.layouts.clone())
             .unwrap_or_else(|| self.language.builtin_layout());
-        let field = self.keyboard.field();
+        let traits = self.keyboard.traits();
         self.keyboard = Keyboard::new(layers, self.language.clone());
         self.keyboard.set_metrics(self.metrics);
         self.keyboard.set_preferences(self.preferences);
-        self.keyboard.set_field(field);
+        self.keyboard.set_field(traits);
     }
 
     /// 사용자 설정 주입 — 셸이 설정 저장소에서 읽어 넣는다. 팩과 무관한 값이라
@@ -243,11 +251,19 @@ impl Engine {
     /// 문맥이 문장 첫 자리를 가리키면 shift를 미리 올린다. 프레임을 다시 그려야 하면
     /// true — 셸은 초점·필드가 바뀔 때와 입력을 적용한 뒤에 부른다.
     pub fn sync_auto_shift(&mut self, context: &EditorContext) -> bool {
+        let text = context.text_before_cursor.as_deref();
         let engaged = self.preferences.auto_capitalization
-            && context.field.auto_capitalizes()
             && !self.composer.is_composing()
-            && crate::policy::sentence_start(context.text_before_cursor.as_deref());
+            && self.keyboard.capitalizes(
+                crate::policy::sentence_start(text),
+                crate::policy::word_start(text),
+            );
         self.keyboard.set_auto_shift(engaged)
+    }
+
+    /// 사용자 대치 표 주입 — 설정 앱이 값의 주인이고 코어는 조회만 한다.
+    pub fn set_shortcuts(&mut self, shortcuts: BTreeMap<String, String>) {
+        self.shortcuts = shortcuts;
     }
 
     /// 표시 환경 주입 — 셸이 자기 크기를 알게 될 때(첫 배치, 회전, 분할) 부른다.
@@ -259,8 +275,17 @@ impl Engine {
     /// 편집 대상이 바뀔 때 셸이 알려 주는 필드 성격. 보조 기능은 이벤트마다 오는
     /// `EditorContext`가 정하지만, 화면(배열·리턴키·후보 바 자리)은 이벤트 없이도
     /// 그려야 하므로 별도로 주입받는다.
-    pub fn set_field(&mut self, field: FieldKind) {
-        self.keyboard.set_field(field);
+    pub fn set_field(&mut self, traits: FieldTraits) {
+        self.keyboard.set_field(traits);
+    }
+
+    /// 이메일·URL처럼 라틴 글자를 넣게 되어 있는 칸인가. 어느 언어로 열지는 언어 목록을
+    /// 가진 셸이 정하므로, 코어는 "라틴이 맞다"만 말한다(순정도 이 칸들을 라틴으로 연다).
+    pub fn field_prefers_latin(&self) -> bool {
+        matches!(
+            self.keyboard.field(),
+            FieldKind::Email | FieldKind::Url | FieldKind::Password
+        )
     }
 
     pub fn frame_metrics(&self) -> FrameMetrics {
@@ -348,8 +373,12 @@ impl Engine {
                 // 늘리지 않기 위해서다. 조합 중에는 성립하지 않는다: 어절 안의 따옴표를
                 // 갈아치우면 사전 조회 키가 어긋난다("don't"의 조회 키가 달라진다).
                 if !self.composer.is_composing()
-                    && let Some(outcome) =
-                        crate::policy::punctuation(character, &self.preferences, context)
+                    && let Some(outcome) = crate::policy::punctuation(
+                        character,
+                        &self.preferences,
+                        self.keyboard.traits(),
+                        context,
+                    )
                 {
                     return self.emit_punctuation(outcome);
                 }
@@ -515,7 +544,8 @@ impl Engine {
         if text.is_empty() {
             return Vec::new();
         }
-        let assistance = crate::policy::assistance(&self.preferences, context);
+        let assistance =
+            crate::policy::assistance(&self.preferences, self.keyboard.traits(), context);
         let mut effects = self.finalize_composition();
         effects.push(Effect::CommitText(text.to_string()));
         if assistance.personalizing && !context.incognito {
@@ -567,7 +597,8 @@ impl Engine {
             .and_then(|holder| Pack::open(holder.bytes()).ok());
         let was_composing = self.composer.is_composing();
         let output = self.compose(event, context);
-        let assistance = crate::policy::assistance(&self.preferences, context);
+        let assistance =
+            crate::policy::assistance(&self.preferences, self.keyboard.traits(), context);
 
         let ComposerOutput {
             mut delete_before_commit,
@@ -583,6 +614,19 @@ impl Engine {
 
         // 어절이 끝났는가 — 경계 문자를 쳤거나 후보를 골랐거나
         let confirmed = match boundary {
+            // 사용자가 손수 정한 대치가 사전 교정보다 세다 — 자동교정은 사전이 미루어
+            // 짐작한 것이고 이쪽은 사람이 그렇게 하라고 적어 둔 것이다.
+            Some(boundary) if self.shortcuts.contains_key(&boundary.surface) => {
+                let replacement = self.shortcuts[&boundary.surface].clone();
+                delete_before_commit += boundary.surface.chars().count();
+                commit_text.push_str(&replacement);
+                commit_text.push(boundary.separator);
+                self.reverted_correction = Some(Correction {
+                    original: boundary.surface,
+                    committed: format!("{}{}", replacement, boundary.separator),
+                });
+                Some(boundary.key)
+            }
             Some(boundary) => {
                 let correction = if assistance.correcting {
                     self.suggester

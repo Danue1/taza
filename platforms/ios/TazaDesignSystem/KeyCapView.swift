@@ -81,9 +81,6 @@ public final class KeyCapView: UIView {
         addSubview(labelView)
 
         switch appearance {
-        case .space:
-            // 순정과 달리 현재 언어 표기를 두지 않는다 — 스페이스는 빈 바탕으로 둔다
-            labelView.text = nil
         case .language:
             labelView.textAlignment = .center
             labelView.font = TazaTheme.Typography.languageKeyLabel(size: fontSize)
@@ -92,7 +89,7 @@ public final class KeyCapView: UIView {
             labelView.textAlignment = .center
             labelView.font = TazaTheme.Typography.keyLabel(size: fontSize)
             labelView.textColor = TazaTheme.Color.emphasizedLabel
-        case .letter, .control, .blank:
+        case .letter, .control, .blank, .space:
             labelView.textAlignment = .center
             labelView.font = TazaTheme.Typography.keyLabel(size: fontSize)
             labelView.textColor = TazaTheme.Color.label

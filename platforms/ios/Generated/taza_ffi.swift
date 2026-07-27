@@ -628,9 +628,10 @@ public protocol KeyboardSessionProtocol: AnyObject, Sendable {
     func restorePersonalization(lines: [String]) 
     
     /**
-     * 길게 눌러 연 팝업에서 고른 변형 문자 — 일반 키 입력과 같은 경로로 흐른다.
+     * 길게 눌러 연 팝업에서 고른 변형 문자 — 일반 키 입력과 같은 경로로 흐르므로
+     * 누름과 같은 결과를 낸다. 일회성 shift가 이 입력으로 풀리면 판을 다시 그려야 한다.
      */
-    func selectAlternate(alternate: String, context: FfiEditorContext)  -> [FfiEffect]
+    func selectAlternate(alternate: String, context: FfiEditorContext)  -> FfiPressResult
     
     /**
      * 검색면에서 고른 것을 넣는다 — 진행 중 조합 확정과 최근 사용 기록은 코어가 한다.
@@ -923,10 +924,11 @@ open func restorePersonalization(lines: [String])  {try! rustCall() {
 }
     
     /**
-     * 길게 눌러 연 팝업에서 고른 변형 문자 — 일반 키 입력과 같은 경로로 흐른다.
+     * 길게 눌러 연 팝업에서 고른 변형 문자 — 일반 키 입력과 같은 경로로 흐르므로
+     * 누름과 같은 결과를 낸다. 일회성 shift가 이 입력으로 풀리면 판을 다시 그려야 한다.
      */
-open func selectAlternate(alternate: String, context: FfiEditorContext) -> [FfiEffect]  {
-    return try!  FfiConverterSequenceTypeFfiEffect.lift(try! rustCall() {
+open func selectAlternate(alternate: String, context: FfiEditorContext) -> FfiPressResult  {
+    return try!  FfiConverterTypeFfiPressResult_lift(try! rustCall() {
     uniffi_taza_ffi_fn_method_keyboardsession_select_alternate(self.uniffiClonePointer(),
         FfiConverterString.lower(alternate),
         FfiConverterTypeFfiEditorContext_lower(context),$0
@@ -2400,16 +2402,26 @@ public struct FfiPressResult {
      * 코어가 셸에 낸 요청 — 언어 목록·순서는 셸이 소유하므로 전환 자체는 셸이 한다
      */
     public var requestsNextLanguage: Bool
+    /**
+     * 곧장 가라고 지목된 언어의 태그 (천지인의 ABC·한글). 쓰고 있지 않은 언어면
+     * 셸이 흘려보낸다 — 무엇을 쓰고 있는지는 셸만 안다.
+     */
+    public var requestsLanguage: String?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
     public init(effects: [FfiEffect], layoutChanged: Bool, 
         /**
          * 코어가 셸에 낸 요청 — 언어 목록·순서는 셸이 소유하므로 전환 자체는 셸이 한다
-         */requestsNextLanguage: Bool) {
+         */requestsNextLanguage: Bool, 
+        /**
+         * 곧장 가라고 지목된 언어의 태그 (천지인의 ABC·한글). 쓰고 있지 않은 언어면
+         * 셸이 흘려보낸다 — 무엇을 쓰고 있는지는 셸만 안다.
+         */requestsLanguage: String?) {
         self.effects = effects
         self.layoutChanged = layoutChanged
         self.requestsNextLanguage = requestsNextLanguage
+        self.requestsLanguage = requestsLanguage
     }
 }
 
@@ -2429,6 +2441,9 @@ extension FfiPressResult: Equatable, Hashable {
         if lhs.requestsNextLanguage != rhs.requestsNextLanguage {
             return false
         }
+        if lhs.requestsLanguage != rhs.requestsLanguage {
+            return false
+        }
         return true
     }
 
@@ -2436,6 +2451,7 @@ extension FfiPressResult: Equatable, Hashable {
         hasher.combine(effects)
         hasher.combine(layoutChanged)
         hasher.combine(requestsNextLanguage)
+        hasher.combine(requestsLanguage)
     }
 }
 
@@ -2450,7 +2466,8 @@ public struct FfiConverterTypeFfiPressResult: FfiConverterRustBuffer {
             try FfiPressResult(
                 effects: FfiConverterSequenceTypeFfiEffect.read(from: &buf), 
                 layoutChanged: FfiConverterBool.read(from: &buf), 
-                requestsNextLanguage: FfiConverterBool.read(from: &buf)
+                requestsNextLanguage: FfiConverterBool.read(from: &buf), 
+                requestsLanguage: FfiConverterOptionString.read(from: &buf)
         )
     }
 
@@ -2458,6 +2475,7 @@ public struct FfiConverterTypeFfiPressResult: FfiConverterRustBuffer {
         FfiConverterSequenceTypeFfiEffect.write(value.effects, into: &buf)
         FfiConverterBool.write(value.layoutChanged, into: &buf)
         FfiConverterBool.write(value.requestsNextLanguage, into: &buf)
+        FfiConverterOptionString.write(value.requestsLanguage, into: &buf)
     }
 }
 
@@ -3850,6 +3868,14 @@ public enum FfiKeyRole {
     case layerSwitch
     case languageSwitch
     /**
+     * 정해진 언어로 곧장 가는 키 (천지인의 ABC·한글)
+     */
+    case languageSelect
+    /**
+     * 커서를 오른쪽으로 옮기는 키 (천지인의 →)
+     */
+    case cursorRight
+    /**
      * 눌리지 않는 빈 자리 — 셸은 키를 그리지 않는다
      */
     case blank
@@ -3884,7 +3910,11 @@ public struct FfiConverterTypeFfiKeyRole: FfiConverterRustBuffer {
         
         case 7: return .languageSwitch
         
-        case 8: return .blank
+        case 8: return .languageSelect
+        
+        case 9: return .cursorRight
+        
+        case 10: return .blank
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -3922,8 +3952,16 @@ public struct FfiConverterTypeFfiKeyRole: FfiConverterRustBuffer {
             writeInt(&buf, Int32(7))
         
         
-        case .blank:
+        case .languageSelect:
             writeInt(&buf, Int32(8))
+        
+        
+        case .cursorRight:
+            writeInt(&buf, Int32(9))
+        
+        
+        case .blank:
+            writeInt(&buf, Int32(10))
         
         }
     }
@@ -4763,7 +4801,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_taza_ffi_checksum_method_keyboardsession_restore_personalization() != 5700) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_taza_ffi_checksum_method_keyboardsession_select_alternate() != 49148) {
+    if (uniffi_taza_ffi_checksum_method_keyboardsession_select_alternate() != 40919) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_taza_ffi_checksum_method_keyboardsession_select_annotation() != 8739) {

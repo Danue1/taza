@@ -37,6 +37,11 @@ extension KeyboardViewController {
     /// 고른 것 하나만 일반 키 입력과 같은 경로로 흘려보낸다.
     func commitAlternate(_ alternate: String) {
         guard let session = activeSession else { return }
-        apply(effects: session.selectAlternate(alternate: alternate, context: currentContext()))
+        let result = session.selectAlternate(alternate: alternate, context: currentContext())
+        apply(effects: result.effects)
+        // 일회성 shift가 이 입력으로 풀렸을 수 있다 — 코어가 갱신 여부까지 알려 준다
+        if result.layoutChanged {
+            refreshFrame()
+        }
     }
 }

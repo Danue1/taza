@@ -5,13 +5,20 @@
 // 우회하는 것이 이 형식의 알려진 관례다.
 TAZA_SLASH = /
 
-TAZA_PACK_CATALOG_URL = https:$(TAZA_SLASH)$(TAZA_SLASH)github.com/Danue1/taza/releases/download/packs/catalog.json
-
-// 로컬 개발용 덮어쓰기. `Packs.local.xcconfig`를 만들어 두면 Xcode에서 실행하든
-// xcodebuild로 빌드하든 그 값이 쓰인다 (이 파일보다 뒤에 오므로 이긴다).
-// 이 파일은 git이 무시하므로 실수로 커밋되지 않는다. 보기:
+// 언어팩을 아직 어디에도 올리지 않았으므로 기본 배포처는 저장소 안의 카탈로그다 —
+// `taza-packs`가 만든 `data/packs`를 그대로 가리키면 받아 설치하는 길 전체가
+// 아무 준비 없이 돈다. 배포처가 생기면 아래 릴리스 URL로 이 줄을 바꾼다.
 //
-//   TAZA_PACK_CATALOG_URL = file:$(TAZA_SLASH)$(TAZA_SLASH)$(TAZA_SLASH)Users/…/taza/data/packs/catalog.json
+//   TAZA_PACK_CATALOG_URL = https:$(TAZA_SLASH)$(TAZA_SLASH)github.com/Danue1/taza/releases/download/packs/catalog.json
+//
+// `$(SRCROOT)`는 `platforms/ios`이므로 두 단 올라가 저장소 뿌리로 간다. 경로가
+// 절대이므로 `file:` 뒤의 슬래시는 둘이면 된다(셋째는 경로가 들고 있다).
+TAZA_PACK_CATALOG_URL = file:$(TAZA_SLASH)$(TAZA_SLASH)$(SRCROOT)/../../data/packs/catalog.json
+
+// 개발용 덮어쓰기. `Packs.local.xcconfig`를 만들어 두면 Xcode에서 실행하든
+// xcodebuild로 빌드하든 그 값이 쓰인다 (이 파일보다 뒤에 오므로 이긴다).
+// 이 파일은 git이 무시하므로 실수로 커밋되지 않는다. 사내 호스트에 올려 두고
+// 받아 보는 것처럼 기본값과 다른 자리를 볼 때 쓴다.
 //
 // 한 번만 쓰고 말 것이면 파일을 만들지 말고 명령행에 넘겨도 된다 — 그쪽이 더 세다:
 //   xcodebuild … TAZA_PACK_CATALOG_URL="file:///…/catalog.json"

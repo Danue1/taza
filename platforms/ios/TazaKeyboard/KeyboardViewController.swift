@@ -35,8 +35,9 @@ final class KeyboardViewController: UIInputViewController {
 
     var languageMenu: PopupMenuView?
     var alternatesPopup: AlternatesPopupView?
-    /// 손을 뗄 때 확정할 자리 — 삭제를 뺀 모든 키가 이 길을 지난다
-    var deferredPressPoint: CGPoint?
+    /// 손을 뗄 때 확정할 자리 — 삭제를 뺀 모든 키가 이 길을 지난다. 빠르게 치면 앞
+    /// 손가락이 떨어지기 전에 다음 손가락이 닿으므로 손가락마다 하나씩 둔다.
+    var deferredPresses: [KeyboardGridView.TouchIdentifier: CGPoint] = [:]
     /// 백스페이스를 누르고 있는 동안 이어 지우는 틱 — 누를 때 한 번 지운 뒤, 길게 누르기가
     /// 걸리면 이 간격으로 계속 지운다. 오래 누를수록 간격이 줄어 빨라진다(순정 관례).
     var backspaceRepeatTimer: Timer?
@@ -55,6 +56,9 @@ final class KeyboardViewController: UIInputViewController {
     /// 다루지 못하는 앱에서도 동작이 같다. 화면에 나가 있는 composing을 추적한다.
     var composingOnScreen = ""
     var applyingEffects = false
+    /// 우리가 마지막으로 남긴 커서 앞 텍스트. 조합 창이 없는 언어에서도 커서가 옮겨 간
+    /// 것을 알아보려면 견줄 것이 있어야 한다 — 아직 아무것도 넣지 않았으면 nil이다.
+    var lastAppliedTail: String?
 
     // MARK: - 생명주기
 
@@ -185,8 +189,11 @@ extension KeyboardViewController: UIInputViewAudioFeedback {
         candidateBar = bar
 
         let grid = KeyboardGridView()
-        grid.onPress = { [weak self] point in self?.pressBegan(at: point) }
-        grid.onTouchEnded = { [weak self] point in self?.touchEnded(at: point) }
+        grid.onPress = { [weak self] point, touch in self?.pressBegan(at: point, touch: touch) }
+        grid.onTouchEnded = { [weak self] point, touch in
+            self?.touchEnded(at: point, touch: touch)
+        }
+        grid.onTouchCancelled = { [weak self] touch in self?.touchCancelled(touch) }
         grid.onLongPressBegan = { [weak self] point in self?.longPressBegan(at: point) }
         grid.onLongPressChanged = { [weak self] point in self?.longPressChanged(at: point) }
         grid.onLongPressEnded = { [weak self] _ in self?.longPressEnded() }

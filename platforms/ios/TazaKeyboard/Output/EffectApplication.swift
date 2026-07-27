@@ -32,7 +32,11 @@ extension KeyboardViewController {
 
     func apply(effects: [FfiEffect]) {
         applyingEffects = true
-        defer { applyingEffects = false }
+        defer {
+            applyingEffects = false
+            // 우리가 남긴 문서 끝 — 다음 알림이 이것과 어긋나면 바깥에서 움직인 것이다
+            lastAppliedTail = textDocumentProxy.documentContextBeforeInput ?? ""
+        }
         for effect in effects {
             switch effect {
             case .commitText(let text):
@@ -62,17 +66,23 @@ extension KeyboardViewController {
         }
     }
 
-    /// textDidChange는 우리 편집 뒤에도 호출된다. 문서 끝이 화면 composing과 일치하면
-    /// 우리 상태 그대로이므로 무시하고, 어긋났을 때(커서 이동·외부 수정)만 코어 finalize로
-    /// 동기화한다 — 문맥 재동기화(reconciliation) 규칙의 셸 구현.
+    /// textDidChange는 우리 편집 뒤에도 호출된다. 문서 끝이 우리가 남긴 그대로면 무시하고,
+    /// 어긋났을 때(커서 이동·외부 수정)만 코어 finalize로 동기화한다 — 문맥 재동기화
+    /// (reconciliation) 규칙의 셸 구현.
+    ///
+    /// 조합 창이 없는 언어(라틴)에서도 판단할 것이 있다: 커서가 다른 자리로 옮겨 갔으면
+    /// 후보 바에 남은 것은 그 자리의 어절이 아니다. 그래서 기준을 조합 창 하나에 걸지
+    /// 않고, 우리가 마지막으로 남긴 문서 끝과 견준다.
     override func textDidChange(_ textInput: UITextInput?) {
         super.textDidChange(textInput)
         // 다른 필드로 초점이 옮겨 갔을 수 있다 — 화면부터 그 필드에 맞춘다
         updateField()
         guard !applyingEffects, let session = activeSession else { return }
-        if composingOnScreen.isEmpty { return }
         let tail = textDocumentProxy.documentContextBeforeInput ?? ""
-        if tail.hasSuffix(composingOnScreen) { return }
+        let unchanged = composingOnScreen.isEmpty
+            ? lastAppliedTail.map { $0 == tail } ?? true
+            : tail.hasSuffix(composingOnScreen)
+        if unchanged { return }
         composingOnScreen = ""
         apply(effects: session.handleEvent(event: .cursorMoved, context: currentContext()))
     }

@@ -62,6 +62,8 @@ private func accessibilityLabel(for key: FfiFrameKey) -> String {
     case .enter: legend(for: key)
     case .layerSwitch: NSLocalizedString("자판 전환", comment: "레이어 전환 키")
     case .languageSwitch: NSLocalizedString("언어", comment: "언어 전환 키")
+    case .languageSelect: key.label
+    case .cursorRight: NSLocalizedString("커서 오른쪽", comment: "커서 오른쪽 이동 키")
     case .blank: ""
     }
 }
@@ -72,7 +74,7 @@ private func appearance(for key: FfiFrameKey) -> KeyCapView.Appearance {
     }
     switch key.role {
     case .character: return .letter
-    case .languageSwitch: return .language
+    case .languageSwitch, .languageSelect: return .language
     case .space: return .space
     case .blank: return .blank
     default: return .control
@@ -81,7 +83,7 @@ private func appearance(for key: FfiFrameKey) -> KeyCapView.Appearance {
 
 private func hint(for key: FfiFrameKey) -> String? {
     switch key.role {
-    case .languageSwitch:
+    case .languageSwitch, .languageSelect:
         NSLocalizedString("길게 눌러 언어와 설정 선택", comment: "언어 키 길게 누르기")
     case .space:
         NSLocalizedString("길게 눌러 커서 이동", comment: "스페이스 키 길게 누르기")

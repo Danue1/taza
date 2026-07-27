@@ -109,6 +109,14 @@ impl Engine {
         pack: Option<&Pack<'_>>,
         assistance: Assistance,
     ) -> Confirmed {
+        // 어절이 비어 있으면 갈아치울 것도 없다 — 부호를 잇달아 치는 자리가 그렇다
+        if boundary.surface.is_empty() {
+            return Confirmed {
+                key: boundary.key,
+                delete_before_commit: 0,
+                text: boundary.separator.to_string(),
+            };
+        }
         // 사용자가 손수 정한 대치가 사전 교정보다 세다 — 자동교정은 사전이 미루어
         // 짐작한 것이고 이쪽은 사람이 그렇게 하라고 적어 둔 것이다.
         let replaced = match self.shortcuts.get(&boundary.surface) {

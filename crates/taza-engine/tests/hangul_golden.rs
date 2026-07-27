@@ -286,3 +286,43 @@ fn snapshot_roundtrip_preserves_composing() {
     let output = restored.feed(ComposerEvent::Key('ㅏ'), &context);
     assert_eq!(output.composing.unwrap().text, "가바");
 }
+
+/// 커서가 한글이 아닌 자리로 옮겨 갔으면 어절도 거기서 새로 시작한다. 쥐고 있던 자모를
+/// 그대로 두면 남의 자리 어절로 제안하고, 경계에서는 그 길이만큼 지운다.
+#[test]
+fn the_word_follows_the_caret() {
+    let mut composer = HangulComposer::new();
+    let typing = EditorContext {
+        text_before_cursor: Some(String::new()),
+        incognito: false,
+        field: taza_engine::contract::FieldKind::Text,
+    };
+    // 세 음절을 치면 첫 음절은 조합 창 밖으로 확정되고 어절 자모에만 남는다
+    for character in "ㄱㅏㄴㅏㄷㅏ".chars() {
+        composer.feed(ComposerEvent::Key(character), &typing);
+    }
+    // 조합 창을 다 물러 비운다 — 어절 자모에는 확정된 앞부분이 남는다
+    let unavailable = EditorContext::unavailable();
+    for _ in 0..4 {
+        composer.feed(ComposerEvent::Backspace, &unavailable);
+    }
+    let elsewhere = EditorContext {
+        text_before_cursor: Some("abc".to_string()),
+        ..typing.clone()
+    };
+    let output = composer.feed(ComposerEvent::Key('ㅁ'), &elsewhere);
+    assert_eq!(
+        output.suggest,
+        SuggestionRequest::Word {
+            key: "a".to_string()
+        }
+    );
+    assert_eq!(output.delete_before_commit, 0);
+
+    // 경계에서 지우는 것도 그 자리의 어절뿐이다
+    let boundary = composer.feed(ComposerEvent::Separator(' '), &elsewhere);
+    assert_eq!(
+        boundary.boundary.map(|boundary| boundary.surface),
+        Some("ㅁ".to_string())
+    );
+}

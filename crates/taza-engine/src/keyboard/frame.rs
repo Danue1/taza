@@ -32,6 +32,10 @@ pub enum KeyRole {
     Enter,
     LayerSwitch,
     LanguageSwitch,
+    /// 정해진 언어로 곧장 가는 키 (천지인의 ABC·한글)
+    LanguageSelect,
+    /// 커서를 오른쪽으로 옮기는 키 (천지인의 →)
+    CursorRight,
     /// 눌리지 않는 빈 자리 — 셸은 키를 그리지 않는다
     Blank,
 }
@@ -87,6 +91,10 @@ pub struct FrameKey {
     /// 액션 목록이 된다.
     pub alternates: Vec<String>,
 }
+
+/// 스페이스에 찍히는 기호. 어느 나라 말로 보든 같은 뜻이라 화면 언어를 타지 않고,
+/// 좁은 스페이스(천지인처럼 한 칸이 판의 5분의 1인 배열)에도 온전히 들어간다.
+const SPACE_LABEL: &str = "␣";
 
 /// 레이어 전환 키 라벨을 고르기 위한 스크립트 판별 — 렌더링 관심사이므로 언어별
 /// 합성기(feature로 빠질 수 있다)에 의존하지 않고 코드포인트 범위로만 판단한다.
@@ -227,10 +235,12 @@ impl FrameView<'_> {
             }
             .to_string(),
             KeyAction::Backspace => "⌫".to_string(),
-            KeyAction::Space => self.language.display_name.clone(),
+            KeyAction::Space => SPACE_LABEL.to_string(),
             KeyAction::Enter => "⏎".to_string(),
             KeyAction::LayerSwitch { target } => self.layer_switch_label(*target),
             KeyAction::LanguageSwitch => self.language.keycap_label.clone(),
+            KeyAction::LanguageSelect { label, .. } => label.clone(),
+            KeyAction::CursorRight => "→".to_string(),
             KeyAction::Blank => String::new(),
         }
     }
@@ -291,6 +301,8 @@ fn key_role(action: &KeyAction) -> KeyRole {
         KeyAction::Enter => KeyRole::Enter,
         KeyAction::LayerSwitch { .. } => KeyRole::LayerSwitch,
         KeyAction::LanguageSwitch => KeyRole::LanguageSwitch,
+        KeyAction::LanguageSelect { .. } => KeyRole::LanguageSelect,
+        KeyAction::CursorRight => KeyRole::CursorRight,
         KeyAction::Blank => KeyRole::Blank,
     }
 }

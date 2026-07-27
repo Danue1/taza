@@ -11,22 +11,26 @@
 //! ```text
 //! marker u8 | layout_count u8
 //! 배열마다: name_length u8 | name UTF-8 × n
-//!           | (marker=1일 때만) skeleton_length u8 | skeleton UTF-8 × n
+//!           | (marker≥1일 때만) skeleton_length u8 | skeleton UTF-8 × n
 //!           | layer_count u8
 //! 레이어마다: panel_per_mille u16 | row_count u8
 //!   행마다: height_per_mille u16 | key_count u8
-//!     키마다: kind u8 | width_per_mille u16 | base u32 | shifted u32
+//!     키마다: kind u8 | width_per_mille u16 | (marker≥2일 때만) row_span u8
+//!             | base u32 | shifted u32
 //!             | alternate_count u8 | alternate u32 × n
 //!             | (kind=8·10일 때만) text_length u8 | text UTF-8 × n
+//!             | (kind=12일 때만) tag_length u8 | tag UTF-8 × n
+//!                                | label_length u8 | label UTF-8 × n
 //! ```
 //! kind: 1=Character, 2=Shift, 3=Backspace, 4=Space, 5=Enter,
-//! 6=LayerSwitch(base=대상 레이어), 7=LanguageSwitch, 8=Text, 9=Blank, 10=Multitap.
+//! 6=LayerSwitch(base=대상 레이어), 7=LanguageSwitch, 8=Text, 9=Blank, 10=Multitap,
+//! 11=CursorRight, 12=LanguageSelect.
 //! base/shifted는 Character·LayerSwitch만 의미하고, alternate는 Character만 의미한다.
 //!
-//! 맨 앞의 marker는 그 뒤에 무엇이 오는지를 밝힌다: 0=배열 목록, 1=배열 목록 + 배열별
-//! 골격 표기. 배열이 하나뿐이던 시절의 팩은 그 자리에 layer_count가 있었으므로 레이어가
-//! 딱 하나인 옛 팩은 marker=1과 겹친다 — 표시 바이트만으로는 갈리지 않으니, 새 형식으로
-//! 읽어 보고 섹션을 정확히 채웠을 때만 새 형식으로 인정한다(`deserialize`).
+//! 맨 앞의 marker는 그 뒤에 무엇이 오는지를 밝힌다: 0=배열 목록, 1=+배열별 골격 표기,
+//! 2=+키의 세로 병합. 배열이 하나뿐이던 시절의 팩은 그 자리에 layer_count가 있었으므로
+//! 레이어가 딱 하나인 옛 팩은 marker=1과 겹친다 — 표시 바이트만으로는 갈리지 않으니,
+//! 새 형식으로 읽어 보고 섹션을 정확히 채웠을 때만 새 형식으로 인정한다(`deserialize`).
 
 /// 글자 하나의 대문자. 대문자가 두 글자 이상이 되는 글자(ß→SS)는 키 한 칸에도 변형
 /// 문자 팝업 한 칸에도 담을 수 없으므로 그대로 둔다 — 그런 글자는 배열이 시프트 표기를
@@ -60,6 +64,17 @@ pub enum KeyAction {
     },
     /// 다음 언어로 전환. 언어 목록·순서는 셸이 소유하므로 코어는 요청만 낸다.
     LanguageSwitch,
+    /// 정해진 언어로 곧장 전환 (천지인의 ABC·한글). 순환이 아니라 자리를 짚는 키라
+    /// 어느 언어인지를 배열이 태그로 밝히고, 키에 적히는 말도 함께 적는다 — 코어는
+    /// 자기가 쓰는 언어 하나만 알므로 다른 언어의 이름을 지어낼 길이 없다.
+    LanguageSelect {
+        tag: String,
+        label: String,
+    },
+    /// 커서를 오른쪽으로 한 칸 옮긴다 — 천지인처럼 같은 키를 이어 눌러 글자를 갈아
+    /// 끼우는 배열이 "여기서 끊는다"를 손으로 말하는 통로다. 옮기기 전에 조합은
+    /// 확정되므로, 시한이 다 되기를 기다리지 않고 같은 자음을 잇달아 칠 수 있다.
+    CursorRight,
     /// 자리만 차지하고 눌리지 않는 칸 — 숫자 패드 좌하단처럼 순정이 비워 두는 자리다.
     Blank,
 }
@@ -68,6 +83,10 @@ pub enum KeyAction {
 pub struct LayoutKey {
     pub action: KeyAction,
     pub width_ratio: f32,
+    /// 이 키가 아래로 잇는 행 수. 1이 보통 키이고, 2면 다음 행까지 한 칸으로 선다
+    /// (천지인의 큰 엔터). 이어진 행에서 그 자리는 `Blank`로 비워 둔다 — 행 폭이
+    /// 유지되어야 나머지 키가 제자리에 선다.
+    pub row_span: u8,
     /// 길게 눌러 고르는 변형 문자 (é, ¿ 등). 순서가 팝업 표시 순서다.
     pub alternates: Vec<char>,
 }
@@ -120,7 +139,7 @@ pub fn deserialize(bytes: &[u8]) -> Option<Vec<NamedLayoutSet>> {
     // 1이 적혀 있어 `marker=1`(골격 표기가 붙은 새 형식)과 겹친다. 그래서 새 형식으로
     // 읽어 보고 **섹션을 정확히 채웠을 때만** 새 형식으로 인정한다 — 옛 팩을 새 형식으로
     // 읽으면 길이가 남거나 모자란다.
-    if matches!(bytes.first(), Some(0 | 1))
+    if matches!(bytes.first(), Some(0..=2))
         && let Some(layouts) = deserialize_named(bytes)
     {
         return Some(layouts);
@@ -130,7 +149,7 @@ pub fn deserialize(bytes: &[u8]) -> Option<Vec<NamedLayoutSet>> {
     Some(vec![NamedLayoutSet {
         name: String::new(),
         skeleton: None,
-        layouts: deserialize_set(bytes, &mut offset)?,
+        layouts: deserialize_set(bytes, &mut offset, 0)?,
     }])
 }
 
@@ -144,23 +163,23 @@ fn deserialize_named(bytes: &[u8]) -> Option<Vec<NamedLayoutSet>> {
     for _ in 0..layout_count {
         let name = read_text(bytes, &mut offset)?.to_string();
         let skeleton = match marker {
-            1 => Some(read_text(bytes, &mut offset)?)
+            0 => None,
+            _ => Some(read_text(bytes, &mut offset)?)
                 .filter(|tag| !tag.is_empty())
                 .map(str::to_string),
-            _ => None,
         };
         layouts.push(NamedLayoutSet {
             name,
             skeleton,
-            layouts: deserialize_set(bytes, &mut offset)?,
+            layouts: deserialize_set(bytes, &mut offset, marker)?,
         });
     }
     (offset == bytes.len()).then_some(layouts)
 }
 
 /// 배열 한 벌을 읽고 `cursor`를 그 뒤로 옮긴다. 실패하면 커서는 옮기지 않는다 —
-/// 어차피 섹션 전체를 버린다.
-fn deserialize_set(bytes: &[u8], cursor: &mut usize) -> Option<KeyboardLayoutSet> {
+/// 어차피 섹션 전체를 버린다. `marker`는 키마다 무엇이 적혀 있는지를 가른다.
+fn deserialize_set(bytes: &[u8], cursor: &mut usize, marker: u8) -> Option<KeyboardLayoutSet> {
     let mut offset = *cursor;
     let read_u8 = |offset: &mut usize| -> Option<u8> {
         let value = *bytes.get(*offset)?;
@@ -186,6 +205,10 @@ fn deserialize_set(bytes: &[u8], cursor: &mut usize) -> Option<KeyboardLayoutSet
                 let width_per_mille =
                     u16::from_le_bytes(bytes.get(offset..offset + 2)?.try_into().unwrap());
                 offset += 2;
+                let row_span = match marker {
+                    0 | 1 => 1,
+                    _ => read_u8(&mut offset)?,
+                };
                 let base = u32::from_le_bytes(bytes.get(offset..offset + 4)?.try_into().unwrap());
                 offset += 4;
                 let shifted =
@@ -215,11 +238,17 @@ fn deserialize_set(bytes: &[u8], cursor: &mut usize) -> Option<KeyboardLayoutSet
                     },
                     7 => KeyAction::LanguageSwitch,
                     9 => KeyAction::Blank,
+                    11 => KeyAction::CursorRight,
+                    12 => KeyAction::LanguageSelect {
+                        tag: read_text(bytes, &mut offset)?.to_string(),
+                        label: read_text(bytes, &mut offset)?.to_string(),
+                    },
                     _ => return None,
                 };
                 keys.push(LayoutKey {
                     action,
                     width_ratio: width_per_mille as f32 / 1000.0,
+                    row_span: row_span.max(1),
                     alternates,
                 });
             }

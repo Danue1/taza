@@ -212,6 +212,8 @@ pub(crate) fn convert_frame_key(key: FrameKey) -> FfiFrameKey {
             KeyRole::Enter => FfiKeyRole::Enter,
             KeyRole::LayerSwitch => FfiKeyRole::LayerSwitch,
             KeyRole::LanguageSwitch => FfiKeyRole::LanguageSwitch,
+            KeyRole::LanguageSelect => FfiKeyRole::LanguageSelect,
+            KeyRole::CursorRight => FfiKeyRole::CursorRight,
             KeyRole::Blank => FfiKeyRole::Blank,
         },
         font_size: key.font_size,

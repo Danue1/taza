@@ -23,11 +23,11 @@ impl LatinComposer {
         LatinComposer::default()
     }
 
-    /// 커서 이동 뒤 합성 재개 — 커서 앞의 연속된 단어 문자를 현재 단어로 되가져온다.
-    fn adopt_from_context(&mut self, context: &EditorContext) {
-        if !self.current_word.is_empty() {
-            return;
-        }
+    /// 문맥이 곧 진실이다 — 커서 앞의 연속된 단어 문자가 지금 어절이고, 우리가 쥐고
+    /// 있던 것과 다르면 그쪽을 따른다. 커서가 다른 자리로 옮겨 갔을 때(셸이 알려 주지
+    /// 못한 경우까지) 남의 자리 어절을 들고 교정·학습하지 않기 위한 재동기화다.
+    /// 문맥을 못 받는 앱에서는 추적하던 값을 그대로 믿는다.
+    fn sync_with_context(&mut self, context: &EditorContext) {
         let Some(text) = &context.text_before_cursor else {
             return;
         };
@@ -48,13 +48,28 @@ impl LatinComposer {
             }
         }
     }
+
+    /// 어절이 여기서 끝났다 — 경계 문자는 Engine이 교정 결과 뒤에 붙인다.
+    fn end_word(&mut self, separator: char) -> ComposerOutput {
+        let word = std::mem::take(&mut self.current_word);
+        ComposerOutput {
+            boundary: Some(WordBoundary {
+                separator,
+                key: word.clone(),
+                surface: word,
+            }),
+            ..ComposerOutput::default()
+        }
+    }
 }
 
 impl Composer for LatinComposer {
     fn feed(&mut self, event: ComposerEvent, context: &EditorContext) -> ComposerOutput {
+        // 무엇을 하든 어절부터 문맥에 맞춘다 — 커서가 옮겨 간 뒤에도 남의 자리 어절을
+        // 들고 교정·학습하지 않기 위해서다
+        self.sync_with_context(context);
         match event {
             ComposerEvent::Key(character) if is_word_character(character) => {
-                self.adopt_from_context(context);
                 self.current_word.push(character);
                 ComposerOutput {
                     commit: Some(CommittedText::plain(character.to_string())),
@@ -62,30 +77,16 @@ impl Composer for LatinComposer {
                     ..ComposerOutput::default()
                 }
             }
-            ComposerEvent::Key(character) => {
-                self.current_word.clear();
-                ComposerOutput {
-                    commit: Some(CommittedText::plain(character.to_string())),
-                    ..ComposerOutput::default()
-                }
-            }
+            // 어절 안에 설 수 없는 글자는 그 자리에서 어절을 끝낸다 — 순정도 마침표·
+            // 쉼표에서 교정한다("teh." → "the."). 글자 자체는 경계 문자로 넘기므로
+            // 교정 결과 뒤에 Engine이 붙여 넣는다.
+            ComposerEvent::Key(character) => self.end_word(character),
             ComposerEvent::Separator(' ') if self.current_word.is_empty() => ComposerOutput {
                 commit: Some(CommittedText::plain(" ".to_string())),
                 ..ComposerOutput::default()
             },
-            ComposerEvent::Separator(character) => {
-                let word = std::mem::take(&mut self.current_word);
-                ComposerOutput {
-                    boundary: Some(WordBoundary {
-                        separator: character,
-                        key: word.clone(),
-                        surface: word,
-                    }),
-                    ..ComposerOutput::default()
-                }
-            }
+            ComposerEvent::Separator(character) => self.end_word(character),
             ComposerEvent::Backspace => {
-                self.adopt_from_context(context);
                 self.current_word.pop();
                 ComposerOutput {
                     delete_before_commit: 1,

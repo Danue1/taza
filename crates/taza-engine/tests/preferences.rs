@@ -173,7 +173,7 @@ fn typing_a_period_and_space_raises_shift_without_waiting_for_the_shell() {
 
     // 마침표 뒤에 공백을 치면 그 자리에서 다시 올라간다 — 셸이 문맥을 다시 읽어
     // 오기를 기다리지 않는다. 스페이스바 라벨은 순정처럼 현재 언어명이다.
-    let (space_x, space_y) = key_center(&frame, "English");
+    let (space_x, space_y) = key_center(&frame, "␣");
     let result = engine.press_at(space_x, space_y, &context("Hi."));
     assert!(result.layout_changed);
     assert_eq!(engine.key_at(x, y).label, "A");
@@ -219,6 +219,33 @@ fn auto_pairing_inserts_the_closing_half_and_steps_back() {
     let effects = engine.handle(key('('), &context("call"));
     assert_eq!(committed(&effects), "()");
     assert!(effects.contains(&Effect::MoveCursor(-1)));
+}
+
+/// 합성기를 건너뛰는 편집(자동 짝 넣기·줄표)도 어절을 끊는다. 남겨 두면 다음 경계에서
+/// 그 어절 길이만큼 지우는데, 커서는 이미 괄호 안이라 엉뚱한 글자가 사라진다.
+#[test]
+fn auto_pairing_does_not_carry_the_word_across() {
+    use std::collections::BTreeMap;
+    let mut engine = engine(UserPreferences {
+        auto_pairing: true,
+        ..UserPreferences::default()
+    });
+    engine.set_shortcuts(BTreeMap::from([("hix".to_string(), "HIX".to_string())]));
+    for character in "hi".chars() {
+        engine.handle(key(character), &context(""));
+    }
+    engine.handle(key('('), &context("hi"));
+    // 문맥을 못 받는 앱에서도 어절은 끊겨 있어야 한다
+    let unavailable = EditorContext::unavailable();
+    engine.handle(key('x'), &unavailable);
+    let effects = engine.handle(InputEvent::Separator(' '), &unavailable);
+    assert_eq!(committed(&effects), " ");
+    assert!(
+        !effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::DeleteBackward(_))),
+        "끊긴 어절을 되살려 괄호 너머까지 지웠다"
+    );
 }
 
 #[test]

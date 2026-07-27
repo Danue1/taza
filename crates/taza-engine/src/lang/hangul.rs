@@ -24,9 +24,10 @@ impl HangulComposer {
         HangulComposer::default()
     }
 
-    /// composing이 없을 때 커서 앞을 분해해 합성을 재개한다. composing 창에는 마지막
-    /// 1글자만 되가져오고(치환 1글자), 어절 자모는 커서 앞의 한글 연속 구간 전체를 채운다.
-    /// 반환값은 치환을 위해 지워야 할 확정 글자 수.
+    /// composing이 없을 때 커서 앞을 분해해 합성을 재개한다. 어절 자모는 커서 앞의
+    /// 한글 연속 구간 **전체**로 다시 세우고(커서가 옮겨 갔으면 그 자리의 어절이다),
+    /// composing 창에는 마지막 1글자만 되가져온다. 반환값은 치환을 위해 지워야 할
+    /// 확정 글자 수.
     fn try_adopt(&mut self, context: &EditorContext) -> usize {
         if !self.composing_jamo.is_empty() {
             return 0;
@@ -34,23 +35,22 @@ impl HangulComposer {
         let Some(text) = &context.text_before_cursor else {
             return 0;
         };
-        let Some(last_character) = text.chars().last() else {
-            return 0;
-        };
-        let Some(jamo) = decompose(last_character) else {
-            return 0;
-        };
-        self.composing_jamo = jamo;
+        // 커서 앞이 한글이 아니면 어절도 거기서 끝난 것이다 — 쥐고 있던 자모를
+        // 그대로 두면 남의 자리 어절로 제안하고 교정한다
         let word_characters: Vec<char> = text
             .chars()
             .rev()
             .take_while(|&character| decompose(character).is_some())
             .collect();
         self.word_jamo = word_characters
-            .into_iter()
+            .iter()
             .rev()
-            .flat_map(|character| decompose(character).unwrap())
+            .flat_map(|&character| decompose(character).unwrap())
             .collect();
+        let Some(&last_character) = word_characters.first() else {
+            return 0;
+        };
+        self.composing_jamo = decompose(last_character).unwrap();
         1
     }
 

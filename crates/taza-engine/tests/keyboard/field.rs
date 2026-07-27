@@ -47,13 +47,13 @@ fn email_field_puts_at_and_dot_beside_a_shorter_space() {
         layouts::qwerty(),
         LanguageDescriptor::builtin("en").unwrap(),
     );
-    let plain_space = key_width(&keyboard.frame(), "English");
+    let plain_space = key_width(&keyboard.frame(), "␣");
     keyboard.set_field(FieldTraits::of(FieldKind::Email));
     let frame = keyboard.frame();
 
     key_center(&frame, "@");
     key_center(&frame, ".");
-    assert!(key_width(&frame, "English") < plain_space);
+    assert!(key_width(&frame, "␣") < plain_space);
     assert_eq!(frame.metrics.candidate_bar_height, 0.0);
     // 스페이스가 줄어든 만큼만 나눠 가졌으므로 행 폭은 그대로다
     let bottom: f32 = frame.rows[3].iter().map(|key| key.bounds.width).sum();

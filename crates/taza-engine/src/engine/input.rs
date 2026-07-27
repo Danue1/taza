@@ -36,18 +36,22 @@ impl Engine {
         if let Some(milliseconds) = outcome.timer {
             effects.push(Effect::SetTimer(milliseconds));
         }
-        // 방금 넣은 것까지 반영한 문맥으로 다음 글자의 shift를 정한다 — 셸이 문맥을
-        // 다시 읽어 오기를 기다리면 마침표를 찍고 친 첫 글자가 소문자로 들어간다
-        let applied = EditorContext {
-            text_before_cursor: text_after(context, &effects),
-            ..context.clone()
-        };
-        let shift_changed = self.sync_auto_shift(&applied);
+        let shift_changed = self.resync_auto_shift(context, &effects);
         PressResult {
             effects,
             layout_changed: outcome.layout_changed || shift_changed,
             request: outcome.request,
         }
+    }
+
+    /// 방금 낸 Effect까지 반영한 문맥으로 다음 글자의 shift를 정한다 — 셸이 문맥을
+    /// 다시 읽어 오기를 기다리면 마침표를 찍고 친 첫 글자가 소문자로 들어간다.
+    fn resync_auto_shift(&mut self, context: &EditorContext, effects: &[Effect]) -> bool {
+        let applied = EditorContext {
+            text_before_cursor: text_after(context, effects),
+            ..context.clone()
+        };
+        self.sync_auto_shift(&applied)
     }
 
     /// 멀티탭 시한이 다 됐다고 셸이 알려 준다 — 다음에 같은 키를 눌러도 주기가 아니라
@@ -63,10 +67,18 @@ impl Engine {
     }
 
     /// 길게 눌러 연 팝업에서 고른 변형 문자 — 일반 키 입력과 같은 경로로 흐른다.
-    pub fn select_alternate(&mut self, alternate: &str, context: &EditorContext) -> Vec<Effect> {
-        match self.keyboard.select_alternate(alternate) {
+    /// 일회성 shift는 이 입력으로 풀리므로 누름과 마찬가지로 프레임 갱신 여부를 함께 낸다.
+    pub fn select_alternate(&mut self, alternate: &str, context: &EditorContext) -> PressResult {
+        let outcome = self.keyboard.select_alternate(alternate);
+        let effects = match outcome.event {
             Some(event) => self.handle(event, context),
             None => Vec::new(),
+        };
+        let shift_changed = self.resync_auto_shift(context, &effects);
+        PressResult {
+            effects,
+            layout_changed: outcome.layout_changed || shift_changed,
+            request: None,
         }
     }
 
@@ -176,6 +188,11 @@ impl Engine {
             unreachable!("글자 치환은 합성기를 거친다");
         };
         let mut effects = Vec::new();
+        // 합성기를 건너뛰는 편집이므로 합성기가 쥐고 있던 어절도 여기서 끊는다 —
+        // 남겨 두면 다음 경계에서 이 부호 너머의 글자 수만큼 지운다
+        if let Some(committed) = self.composer.finalize() {
+            effects.push(Effect::CommitText(committed.surface));
+        }
         if output.delete_before_commit > 0 {
             effects.push(Effect::DeleteBackward(output.delete_before_commit));
         }

@@ -21,9 +21,12 @@ const MULTITAP_TIMEOUT_MILLISECONDS: u32 = 700;
 
 /// 코어가 판정할 수 없는, 셸이 소유한 상태에 대한 요청. 언어 목록·순서는 셸(설정)
 /// 소관이므로 코어는 "다음 언어로" 같은 요청만 낸다.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ShellRequest {
     NextLanguage,
+    /// 태그가 가리키는 언어로 곧장. 그 언어를 쓰고 있지 않으면 셸이 흘려보낸다 —
+    /// 무엇을 쓰고 있는지는 셸만 안다.
+    Language(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -112,7 +115,16 @@ impl Keyboard {
                 request: Some(ShellRequest::NextLanguage),
                 timer: None,
             },
+            KeyAction::LanguageSelect { tag, .. } => PressOutcome {
+                event: None,
+                layout_changed: false,
+                request: Some(ShellRequest::Language(tag)),
+                timer: None,
+            },
             KeyAction::Backspace => PressOutcome::emits(InputEvent::Backspace),
+            // 커서를 옮기기 전에 조합이 확정된다(`InputEvent::CursorDrag`) — 그것이
+            // 이 키로 같은 자음을 잇달아 칠 수 있는 까닭이다
+            KeyAction::CursorRight => PressOutcome::emits(InputEvent::CursorDrag(1)),
             KeyAction::Space => PressOutcome::emits(InputEvent::Separator(' ')),
             KeyAction::Enter => PressOutcome::emits(InputEvent::Separator('\n')),
             KeyAction::Multitap(_) => unreachable!("멀티탭 키는 앞에서 처리했다"),
@@ -153,13 +165,19 @@ impl Keyboard {
     }
 
     /// 길게 눌러 고를 수 있는 변형 문자를 실제 입력 이벤트로 바꾼다. 팝업에서 고른
-    /// 결과도 일반 키 입력과 같은 경로로 흐른다.
-    pub fn select_alternate(&mut self, alternate: &str) -> Option<InputEvent> {
-        self.shift.consume();
-        alternate
-            .chars()
-            .next()
-            .map(|character| InputEvent::Key(KeySignal::certain(character)))
+    /// 결과도 일반 키 입력과 같은 경로로 흐르므로, 일회성 shift가 풀린 것까지
+    /// 누름과 같은 결과로 낸다 — 셸이 그때 판을 다시 그린다.
+    pub fn select_alternate(&mut self, alternate: &str) -> PressOutcome {
+        let layout_changed = self.shift.consume();
+        match alternate.chars().next() {
+            Some(character) => PressOutcome {
+                event: Some(InputEvent::Key(KeySignal::certain(character))),
+                layout_changed,
+                request: None,
+                timer: None,
+            },
+            None => PressOutcome::silent(layout_changed),
+        }
     }
 
     pub fn begin_cursor_drag(&mut self, x: f32) {

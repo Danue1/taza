@@ -9,7 +9,7 @@
 
 use crate::pack::layout::{KeyAction, KeyboardLayout};
 
-use super::geometry::{KeyBounds, KeyPosition, row_bounds, row_heights};
+use super::geometry::{KeyBounds, KeyPosition, panel_height_ratio, row_bounds, row_heights};
 
 /// 후보로 남길 키 수. 순정 키보드에서 한 번의 터치가 실제로 헷갈릴 만한 이웃은
 /// 좌우와 위아래 정도다.
@@ -75,13 +75,33 @@ impl PartialEq<char> for KeySignal {
 pub(crate) fn key_position_at(layout: &KeyboardLayout, x: f32, y: f32) -> KeyPosition {
     let heights = row_heights(layout);
     let mut row_index = heights.len() - 1;
-    let mut top = 0.0;
+    // 키 행은 패널(통합 검색면) 아래에서 시작한다 — 그리는 자리(`row_bounds`)와 같은
+    // 기준에서 세지 않으면 눌린 행이 패널 높이만큼 밀린다
+    let mut top = panel_height_ratio(layout);
     for (index, height) in heights.iter().enumerate() {
         if y < top + height {
             row_index = index;
             break;
         }
         top += height;
+    }
+    // 위 행에서 아래로 이어진 키(천지인의 큰 엔터)는 이 행의 자리도 자기 것이다 —
+    // 그 자리를 비워 둔 `Blank`보다 먼저 본다
+    let spanning = (0..row_index).rev().find_map(|above| {
+        let bounds = row_bounds(layout, above);
+        let index = layout.rows[above]
+            .keys
+            .iter()
+            .zip(&bounds)
+            .position(|(key, key_bounds)| {
+                above + key.row_span.max(1) as usize > row_index
+                    && x >= key_bounds.x
+                    && x < key_bounds.x + key_bounds.width
+            })?;
+        Some(KeyPosition { row: above, index })
+    });
+    if let Some(position) = spanning {
+        return position;
     }
     let bounds = row_bounds(layout, row_index);
     let mut best_index = 0;
@@ -107,7 +127,6 @@ pub(crate) fn key_position_at(layout: &KeyboardLayout, x: f32, y: f32) -> KeyPos
 /// 판정이 고른 키와 언제나 같다 — 화면에 찍히는 글자와 판정이 어긋나면 안 된다.
 pub(crate) fn key_signal_at(layout: &KeyboardLayout, x: f32, y: f32, pressed: char) -> KeySignal {
     let mut scored: Vec<(f32, char)> = Vec::new();
-    let heights = row_heights(layout);
     for (row_index, row) in layout.rows.iter().enumerate() {
         let bounds = row_bounds(layout, row_index);
         for (key_index, key) in row.keys.iter().enumerate() {
@@ -117,7 +136,7 @@ pub(crate) fn key_signal_at(layout: &KeyboardLayout, x: f32, y: f32, pressed: ch
             if !confusable(pressed, base) {
                 continue;
             }
-            let weight = gaussian_weight(&bounds[key_index], heights[row_index], x, y);
+            let weight = gaussian_weight(&bounds[key_index], x, y);
             if weight > 0.0 {
                 scored.push((weight, base));
             }
@@ -177,8 +196,8 @@ fn confusable(pressed: char, candidate: char) -> bool {
 }
 
 /// 키 중심에서의 거리를 키 크기로 정규화한 가우시안. 키가 넓으면 그만큼 너그러워진다.
-fn gaussian_weight(bounds: &KeyBounds, row_height: f32, x: f32, y: f32) -> f32 {
+fn gaussian_weight(bounds: &KeyBounds, x: f32, y: f32) -> f32 {
     let dx = (x - bounds.center_x()) / (bounds.width.max(f32::EPSILON) * SPREAD);
-    let dy = (y - (bounds.y + row_height / 2.0)) / (row_height.max(f32::EPSILON) * SPREAD);
+    let dy = (y - (bounds.y + bounds.height / 2.0)) / (bounds.height.max(f32::EPSILON) * SPREAD);
     (-0.5 * (dx * dx + dy * dy)).exp()
 }

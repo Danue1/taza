@@ -37,7 +37,7 @@ fn hit_test_maps_coordinates_to_keys() {
     let (x, y) = key_center(&frame, "q");
     assert_eq!(pressed(&mut keyboard, x, y), Some('q'));
 
-    let (x, y) = key_center(&frame, "English");
+    let (x, y) = key_center(&frame, "␣");
     assert_eq!(
         keyboard.press_at(x, y).event,
         Some(InputEvent::Separator(' '))
@@ -97,6 +97,63 @@ fn symbol_rows_span_the_full_width() {
     }
 }
 
+/// 아래로 이은 키(천지인의 큰 엔터)는 이어진 행의 높이를 함께 갖고, 그 행에 그려진
+/// 빈자리를 눌러도 이 키가 눌린다 — 그리지 않은 것이 눌리면 손이 허공을 친다.
+#[test]
+fn a_key_that_spans_rows_owns_the_row_below() {
+    let key = |action: KeyAction, row_span: u8| LayoutKey {
+        action,
+        width_ratio: 0.5,
+        row_span,
+        alternates: Vec::new(),
+    };
+    let letter = |base: char| {
+        key(
+            KeyAction::Character {
+                base,
+                shifted: base,
+            },
+            1,
+        )
+    };
+    let row = |keys: Vec<LayoutKey>| LayoutRow {
+        keys,
+        height_ratio: 1.0,
+    };
+    let mut keyboard = Keyboard::new(
+        KeyboardLayoutSet {
+            layers: vec![KeyboardLayout {
+                panel_rows: 0.0,
+                rows: vec![
+                    row(vec![letter('a'), key(KeyAction::Enter, 2)]),
+                    row(vec![letter('b'), key(KeyAction::Blank, 1)]),
+                ],
+            }],
+        },
+        LanguageDescriptor::builtin("en").unwrap(),
+    );
+
+    let frame = keyboard.frame();
+    assert!((key_width(&frame, "⏎") - 0.5).abs() < 1e-6);
+    let enter = frame
+        .rows
+        .iter()
+        .flatten()
+        .find(|key| key.label == "⏎")
+        .unwrap();
+    assert!(
+        (enter.bounds.height - 1.0).abs() < 1e-6,
+        "두 행을 잇지 않음"
+    );
+
+    // 아래 행의 덮인 자리 — 그 자리에 그려진 것은 엔터뿐이다
+    assert_eq!(
+        keyboard.press_at(0.75, 0.75).event,
+        Some(InputEvent::Separator('\n'))
+    );
+    assert_eq!(pressed(&mut keyboard, 0.25, 0.75), Some('b'));
+}
+
 /// 이웃 후보는 조회 키가 될 수 있는 같은 갈래여야 한다. 숫자 행을 켜면 숫자 키가 글자
 /// 바로 위에 서는데, 사전에 숫자 표제어가 없으므로 그것이 후보 자리와 확률 몫을
 /// 가져가면 진짜 이웃 글자의 몫만 깎인다.
@@ -147,4 +204,50 @@ fn the_number_row_does_not_take_probability_from_letters() {
             candidate.character
         );
     }
+}
+
+/// 패널이 있는 레이어에서도 그려진 자리와 눌린 자리가 같아야 한다 — 키 행은 패널
+/// 아래에서 시작하므로, 세는 기준이 다르면 판정이 패널 높이만큼 밀린다. 내장 배열의
+/// 검색면은 키 행이 하나뿐이라 밀려도 드러나지 않으므로 두 행짜리로 세워 본다.
+#[test]
+fn panel_layer_hit_test_starts_below_the_panel() {
+    let letter = |base: char| LayoutKey {
+        action: KeyAction::Character {
+            base,
+            shifted: base,
+        },
+        width_ratio: 0.5,
+        row_span: 1,
+        alternates: Vec::new(),
+    };
+    let row = |keys: Vec<LayoutKey>| LayoutRow {
+        keys,
+        height_ratio: 1.0,
+    };
+    let keyboard = Keyboard::new(
+        KeyboardLayoutSet {
+            layers: vec![KeyboardLayout {
+                // 패널 둘 + 키 행 둘 — 위 행은 0.5~0.75, 아래 행은 0.75~1.0에 그려진다
+                panel_rows: 2.0,
+                rows: vec![
+                    row(vec![letter('a'), letter('b')]),
+                    row(vec![letter('c'), letter('d')]),
+                ],
+            }],
+        },
+        LanguageDescriptor::builtin("en").unwrap(),
+    );
+
+    let frame = keyboard.frame();
+    for row in &frame.rows {
+        for key in row {
+            let (x, y) = (
+                key.bounds.x + key.bounds.width / 2.0,
+                key.bounds.y + key.bounds.height / 2.0,
+            );
+            assert_eq!(keyboard.key_at(x, y).label, key.label);
+        }
+    }
+    // 패널이 덮은 자리는 가장 가까운 키 행으로 스냅한다(가장자리와 같은 규칙)
+    assert_eq!(keyboard.key_at(0.25, 0.1).label, "a");
 }

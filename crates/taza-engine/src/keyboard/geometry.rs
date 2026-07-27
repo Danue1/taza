@@ -57,6 +57,7 @@ pub(crate) fn number_row() -> LayoutRow {
                     shifted: *digit,
                 },
                 width_ratio: NUMBER_ROW_KEY_WIDTH,
+                row_span: 1,
                 alternates: alternates.chars().collect(),
             })
             .collect(),
@@ -102,7 +103,6 @@ pub(crate) fn panel_height_ratio(layout: &KeyboardLayout) -> f32 {
 pub fn row_bounds(layout: &KeyboardLayout, row_index: usize) -> Vec<KeyBounds> {
     let heights = row_heights(layout);
     let row = &layout.rows[row_index];
-    let height = heights[row_index];
     // 패널이 있는 레이어에서는 키 행이 패널 아래에서 시작한다
     let y: f32 = panel_height_ratio(layout) + heights[..row_index].iter().sum::<f32>();
     let total_ratio: f32 = row.keys.iter().map(|key| key.width_ratio).sum();
@@ -110,11 +110,13 @@ pub fn row_bounds(layout: &KeyboardLayout, row_index: usize) -> Vec<KeyBounds> {
     let mut x = (1.0 - total_ratio.min(1.0)) / 2.0;
     let mut bounds = Vec::with_capacity(row.keys.len());
     for key in &row.keys {
+        // 아래로 잇는 키는 이어진 행들의 높이를 함께 갖는다
+        let last = (row_index + key.row_span.max(1) as usize).min(heights.len());
         bounds.push(KeyBounds {
             x,
             y,
             width: key.width_ratio,
-            height,
+            height: heights[row_index..last].iter().sum(),
         });
         x += key.width_ratio;
     }

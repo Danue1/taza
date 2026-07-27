@@ -5,8 +5,8 @@ pub use taza_engine::contract::{
 };
 pub use taza_engine::engine::Engine;
 pub use taza_engine::keyboard::{
-    FormFactor, KeyLegend, KeyRole, KeySignal, Keyboard, KeyboardFrame, KeyboardMetrics,
-    ShellRequest, layouts,
+    FormFactor, KeyAction, KeyLegend, KeyRole, KeySignal, Keyboard, KeyboardFrame, KeyboardLayout,
+    KeyboardLayoutSet, KeyboardMetrics, LayoutKey, LayoutRow, ShellRequest, layouts,
 };
 pub use taza_engine::lang::LanguageDescriptor;
 

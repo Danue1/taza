@@ -54,7 +54,7 @@ fn bottom_row_order_is_symbols_emoji_language_space_enter() {
     assert_eq!(bottom[1].label, "☺");
     assert_eq!(bottom[1].role, KeyRole::LayerSwitch);
     // 스페이스바는 순정 관례대로 현재 언어를 표기한다
-    assert_eq!(bottom[3].label, "English");
+    assert_eq!(bottom[3].label, "␣");
     assert_eq!(bottom[2].label, "A");
     assert_eq!(bottom[2].role, KeyRole::LanguageSwitch);
 }

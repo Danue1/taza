@@ -139,7 +139,7 @@ fn alternates_reach_the_shell_and_come_back_as_input() {
     assert_eq!(key.alternates.get(1).map(String::as_str), Some("è"));
 
     assert_eq!(
-        keyboard.select_alternate("é"),
+        keyboard.select_alternate("é").event,
         Some(InputEvent::Key(KeySignal::certain('é')))
     );
     // 변형이 없는 키는 빈 목록 — 셸은 롱프레스 팝업을 띄우지 않는다
@@ -255,6 +255,7 @@ fn multitap_replaces_even_when_the_cycle_wraps() {
     let multitap = |cycle: &str| LayoutKey {
         action: KeyAction::Multitap(cycle.chars().collect()),
         width_ratio: 0.5,
+        row_span: 1,
         alternates: Vec::new(),
     };
     let layout_set = KeyboardLayoutSet {
@@ -333,4 +334,46 @@ fn text_keys_commit_after_finalizing_the_composition() {
         })
         .collect();
     assert_eq!(committed.last().map(|text| text.as_str()), Some(".com"));
+}
+
+/// `→`는 커서를 오른쪽으로 한 칸 옮긴다. 옮기기 전에 조합이 확정되므로(`CursorDrag`)
+/// 같은 자음으로 시작하는 글자를 잇달아 칠 때 멀티탭 시한을 기다리지 않아도 된다.
+#[test]
+fn the_cursor_right_key_moves_one_step() {
+    let mut keyboard = Keyboard::new(
+        KeyboardLayoutSet {
+            layers: vec![KeyboardLayout {
+                panel_rows: 0.0,
+                rows: vec![LayoutRow {
+                    keys: vec![LayoutKey {
+                        action: KeyAction::CursorRight,
+                        width_ratio: 1.0,
+                        row_span: 1,
+                        alternates: Vec::new(),
+                    }],
+                    height_ratio: 1.0,
+                }],
+            }],
+        },
+        LanguageDescriptor::builtin("ko").unwrap(),
+    );
+    let outcome = keyboard.press_at(0.5, 0.5);
+    assert_eq!(outcome.event, Some(InputEvent::CursorDrag(1)));
+    assert!(!outcome.layout_changed);
+    assert_eq!(keyboard.frame().rows[0][0].role, KeyRole::CursorRight);
+}
+
+/// 조합 중에 `→`를 치면 그 글자가 먼저 확정된다 — 커서가 빠져나간 자리에 조합 중
+/// 텍스트를 남기지 않는다.
+#[test]
+fn cursor_right_finalizes_the_composition() {
+    let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap()).unwrap();
+    let context = EditorContext::unavailable();
+    engine.handle(InputEvent::Key(KeySignal::certain('ㄱ')), &context);
+    let effects = engine.handle(InputEvent::CursorDrag(1), &context);
+    assert!(
+        effects.contains(&Effect::CommitText("ㄱ".to_string())),
+        "조합을 확정하지 않음: {effects:?}"
+    );
+    assert_eq!(effects.last(), Some(&Effect::MoveCursor(1)));
 }

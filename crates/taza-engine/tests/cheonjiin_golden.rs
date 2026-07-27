@@ -183,8 +183,15 @@ fn cheonjiin_engine() -> Engine {
 /// 아무것도 치지 않은 자리에서 시작하는 것이 이 검증의 핵심이다.
 #[test]
 fn multitap_replaces_the_previous_letter_until_the_timer_ends_it() {
-    let press = |engine: &mut Engine, document: &mut Document, row: usize, index: usize| {
-        let bounds = engine.frame().rows[row][index].bounds;
+    let press = |engine: &mut Engine, document: &mut Document, label: &str| {
+        let bounds = engine
+            .frame()
+            .rows
+            .iter()
+            .flatten()
+            .find(|key| key.label == label)
+            .unwrap_or_else(|| panic!("{label} 키가 없음"))
+            .bounds;
         let result = engine.press_at(
             bounds.x + bounds.width / 2.0,
             bounds.y + bounds.height / 2.0,
@@ -201,23 +208,23 @@ fn multitap_replaces_the_previous_letter_until_the_timer_ends_it() {
     let mut engine = cheonjiin_engine();
     let mut document = Document::default();
     assert!(
-        press(&mut engine, &mut document, 1, 0).is_some(),
+        press(&mut engine, &mut document, "ㄱㅋㄲ").is_some(),
         "멀티탭은 주기를 끊을 시한을 요청한다"
     );
     assert_eq!(document.text, "ㄱ");
-    press(&mut engine, &mut document, 1, 0);
+    press(&mut engine, &mut document, "ㄱㅋㄲ");
     assert_eq!(document.text, "ㅋ", "이어 누르면 갈아 끼운다");
-    press(&mut engine, &mut document, 1, 0);
+    press(&mut engine, &mut document, "ㄱㅋㄲ");
     assert_eq!(document.text, "ㄲ");
-    press(&mut engine, &mut document, 1, 0);
+    press(&mut engine, &mut document, "ㄱㅋㄲ");
     assert_eq!(document.text, "ㄱ", "주기가 한 바퀴 돌아도 갈아 끼운다");
 
     // 시한이 다 되면 같은 키가 다시 첫 글자로 시작한다
     let mut engine = cheonjiin_engine();
     let mut document = Document::default();
-    press(&mut engine, &mut document, 1, 0);
+    press(&mut engine, &mut document, "ㄱㅋㄲ");
     engine.timer_fired();
-    press(&mut engine, &mut document, 1, 0);
+    press(&mut engine, &mut document, "ㄱㅋㄲ");
     assert_eq!(document.text, "ㄱㄱ");
 }
 

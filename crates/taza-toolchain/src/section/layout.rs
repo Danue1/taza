@@ -3,9 +3,11 @@
 //! 레이아웃 문법: 한 줄 = 한 행, `---` 줄 = 레이어 구분(0=문자, 1=심볼1, 2=심볼2,
 //! 3=통합 검색면). `panel *<수>` 줄은 그 레이어의 키 위에 놓이는 패널 높이(표준 행 대비
 //! 배수)를 선언한다 — 통합 검색면이 이 줄로 자기 자리를 잡는다.
-//! 공백 구분 토큰 `표기[:시프트표기][[변형문자들]][*폭비율]`. 대괄호 안 글자들은
-//! 길게 눌러 고르는 변형이다. 제어 키는 이름으로: `shift`, `backspace`, `space`,
-//! `enter`, `language`(다음 언어), `layer0`~`layer3`(레이어 전환), `blank`(빈 자리).
+//! 공백 구분 토큰 `표기[:시프트표기][[변형문자들]][*폭비율][^행수]`. 대괄호 안 글자들은
+//! 길게 눌러 고르는 변형이다. `^2`처럼 적으면 그 키가 다음 행까지 한 칸으로 선다 —
+//! 이어진 행에서는 그 자리를 `blank`로 비워 두어야 행 폭이 유지된다(천지인의 큰 엔터).
+//! 제어 키는 이름으로: `shift`, `backspace`, `space`, `enter`, `language`(다음 언어),
+//! `cursor-right`(커서 오른쪽), `layer0`~`layer3`(레이어 전환), `blank`(빈 자리).
 //! 시프트 표기 없이 여러 글자를 적으면 한 번에 넣는 키다 (`.com`).
 //! `ㄱ|ㅋ|ㄲ`처럼 세로줄로 이으면 이어 누를 때마다 갈리는 멀티탭 키다(천지인).
 //! 기본 폭 0.1. 행 맨 앞의 `*<수>` 토큰은 그 행의 높이(표준 행 대비 배수, 기본 1.0)다.
@@ -132,6 +134,16 @@ fn parse_set(text: &str) -> Result<KeyboardLayoutSet, String> {
             tokens.next();
         }
         for token in tokens {
+            // `^`도 기호 키라 앞쪽이 비어 있지 않을 때만 세로 병합 표기로 읽는다
+            let (token, row_span) = match token.split_once('^') {
+                Some((specification, span)) if !specification.is_empty() => {
+                    let span = span.parse::<u8>().map_err(|_| {
+                        format!("{}행: 행 수를 읽지 못했음: {token:?}", line_number + 1)
+                    })?;
+                    (specification, span.max(1))
+                }
+                _ => (token, 1),
+            };
             // `*`·`:`는 기호 키로도 쓰이므로, 양쪽이 온전할 때만 구분자로 해석한다
             let (specification, width_ratio) = match token.split_once('*') {
                 Some((specification, width)) if !specification.is_empty() => {
@@ -156,6 +168,24 @@ fn parse_set(text: &str) -> Result<KeyboardLayoutSet, String> {
                 "space" => KeyAction::Space,
                 "enter" => KeyAction::Enter,
                 "language" => KeyAction::LanguageSwitch,
+                "cursor-right" => KeyAction::CursorRight,
+                // `language:<태그>=<라벨>` — 정해진 언어로 곧장 가는 키. 코어는 다른
+                // 언어의 이름을 모르므로 키에 적히는 말까지 배열이 댄다.
+                selection if selection.starts_with("language:") => {
+                    let (tag, label) =
+                        selection["language:".len()..]
+                            .split_once('=')
+                            .ok_or_else(|| {
+                                format!(
+                                    "{}행: 언어 키에 적을 말이 없음: {selection:?}",
+                                    line_number + 1
+                                )
+                            })?;
+                    KeyAction::LanguageSelect {
+                        tag: tag.to_string(),
+                        label: label.to_string(),
+                    }
+                }
                 "layer0" => KeyAction::LayerSwitch { target: 0 },
                 "layer1" => KeyAction::LayerSwitch { target: 1 },
                 "layer2" => KeyAction::LayerSwitch { target: 2 },
@@ -203,6 +233,7 @@ fn parse_set(text: &str) -> Result<KeyboardLayoutSet, String> {
                         keys.push(LayoutKey {
                             action: KeyAction::Text(base.to_string()),
                             width_ratio,
+                            row_span,
                             alternates,
                         });
                         continue;
@@ -226,6 +257,7 @@ fn parse_set(text: &str) -> Result<KeyboardLayoutSet, String> {
             keys.push(LayoutKey {
                 action,
                 width_ratio,
+                row_span,
                 alternates,
             });
         }
@@ -241,13 +273,26 @@ fn parse_set(text: &str) -> Result<KeyboardLayoutSet, String> {
 }
 
 /// 섹션 바이트 레이아웃은 `taza_engine::pack::layout` 참조.
+///
+/// 세로로 이은 키가 하나도 없으면 그 표기를 싣지 않는다(marker=1) — 배열 대부분은
+/// 이 기능을 쓰지 않으므로, 쓰지 않는 팩까지 형식을 올릴 까닭이 없다.
 pub fn serialize(named: &[NamedLayoutSet]) -> Vec<u8> {
     assert!(named.len() <= u8::MAX as usize);
-    let mut output = vec![1u8, named.len() as u8];
+    let spans_rows = named.iter().any(|entry| {
+        entry
+            .layouts
+            .layers
+            .iter()
+            .flat_map(|layer| &layer.rows)
+            .flat_map(|row| &row.keys)
+            .any(|key| key.row_span > 1)
+    });
+    let marker = if spans_rows { 2u8 } else { 1u8 };
+    let mut output = vec![marker, named.len() as u8];
     for entry in named {
         write_text(&entry.name, &mut output);
         write_text(entry.skeleton.as_deref().unwrap_or_default(), &mut output);
-        serialize_set(&entry.layouts, &mut output);
+        serialize_set(&entry.layouts, marker, &mut output);
     }
     output
 }
@@ -258,7 +303,7 @@ fn write_text(text: &str, output: &mut Vec<u8>) {
     output.extend_from_slice(text.as_bytes());
 }
 
-fn serialize_set(layout_set: &KeyboardLayoutSet, output: &mut Vec<u8>) {
+fn serialize_set(layout_set: &KeyboardLayoutSet, marker: u8, output: &mut Vec<u8>) {
     assert!(layout_set.layers.len() <= u8::MAX as usize);
     output.push(layout_set.layers.len() as u8);
     for layer in &layout_set.layers {
@@ -283,10 +328,15 @@ fn serialize_set(layout_set: &KeyboardLayoutSet, output: &mut Vec<u8>) {
                     KeyAction::Text(_) => (8, 0, 0),
                     KeyAction::Blank => (9, 0, 0),
                     KeyAction::Multitap(_) => (10, 0, 0),
+                    KeyAction::CursorRight => (11, 0, 0),
+                    KeyAction::LanguageSelect { .. } => (12, 0, 0),
                 };
                 output.push(kind);
                 let width_per_mille = (key.width_ratio * 1000.0).round() as u16;
                 output.extend_from_slice(&width_per_mille.to_le_bytes());
+                if marker >= 2 {
+                    output.push(key.row_span.max(1));
+                }
                 output.extend_from_slice(&base.to_le_bytes());
                 output.extend_from_slice(&shifted.to_le_bytes());
                 assert!(key.alternates.len() <= u8::MAX as usize);
@@ -299,9 +349,62 @@ fn serialize_set(layout_set: &KeyboardLayoutSet, output: &mut Vec<u8>) {
                     KeyAction::Multitap(cycle) => {
                         write_text(&cycle.iter().collect::<String>(), output)
                     }
+                    KeyAction::LanguageSelect { tag, label } => {
+                        write_text(tag, output);
+                        write_text(label, output);
+                    }
                     _ => {}
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn keys(text: &str) -> Vec<LayoutKey> {
+        parse(text).unwrap()[0].layouts.layers[0].rows[0]
+            .keys
+            .clone()
+    }
+
+    /// `^`는 세로 병합 표기이면서 심볼면의 키이기도 하다 — 앞쪽이 비어 있으면 키다.
+    #[test]
+    fn reads_row_spans_without_swallowing_the_caret_key() {
+        let spanned = keys("a enter*0.2^2");
+        assert_eq!(spanned[0].row_span, 1);
+        assert_eq!(spanned[1].action, KeyAction::Enter);
+        assert_eq!(spanned[1].row_span, 2);
+        assert!((spanned[1].width_ratio - 0.2).abs() < 1e-6);
+
+        let caret = keys("^ %");
+        assert_eq!(
+            caret[0].action,
+            KeyAction::Character {
+                base: '^',
+                shifted: '^'
+            }
+        );
+        assert_eq!(caret[0].row_span, 1);
+    }
+
+    /// 언어 키는 태그와 함께 키에 적힐 말을 받는다 — 코어는 다른 언어의 이름을 모른다.
+    #[test]
+    fn reads_the_language_selection_key() {
+        assert_eq!(
+            keys("language:en=ABC")[0].action,
+            KeyAction::LanguageSelect {
+                tag: "en".to_string(),
+                label: "ABC".to_string()
+            }
+        );
+        assert!(parse("language:en").is_err(), "적을 말이 없으면 오타다");
+    }
+
+    #[test]
+    fn reads_the_cursor_right_key() {
+        assert_eq!(keys("cursor-right")[0].action, KeyAction::CursorRight);
     }
 }

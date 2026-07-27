@@ -71,6 +71,7 @@ fn character_key(base: char, shifted: char, alternates: Vec<char>) -> LayoutKey 
     LayoutKey {
         action: KeyAction::Character { base, shifted },
         width_ratio: LETTER_WIDTH,
+        row_span: 1,
         alternates,
     }
 }
@@ -79,6 +80,7 @@ fn control_key(action: KeyAction, width_ratio: f32) -> LayoutKey {
     LayoutKey {
         action,
         width_ratio,
+        row_span: 1,
         alternates: Vec::new(),
     }
 }

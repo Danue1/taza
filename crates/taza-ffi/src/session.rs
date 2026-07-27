@@ -180,6 +180,10 @@ impl KeyboardSession {
             effects: result.effects.into_iter().map(convert_effect).collect(),
             layout_changed: result.layout_changed,
             requests_next_language: result.request == Some(ShellRequest::NextLanguage),
+            requests_language: match result.request {
+                Some(ShellRequest::Language(tag)) => Some(tag),
+                _ => None,
+            },
         }
     }
 
@@ -195,14 +199,23 @@ impl KeyboardSession {
         self.engine.lock().unwrap().toggle_shift_lock()
     }
 
-    /// 길게 눌러 연 팝업에서 고른 변형 문자 — 일반 키 입력과 같은 경로로 흐른다.
-    pub fn select_alternate(&self, alternate: String, context: FfiEditorContext) -> Vec<FfiEffect> {
-        let effects = self
+    /// 길게 눌러 연 팝업에서 고른 변형 문자 — 일반 키 입력과 같은 경로로 흐르므로
+    /// 누름과 같은 결과를 낸다. 일회성 shift가 이 입력으로 풀리면 판을 다시 그려야 한다.
+    pub fn select_alternate(&self, alternate: String, context: FfiEditorContext) -> FfiPressResult {
+        let result = self
             .engine
             .lock()
             .unwrap()
             .select_alternate(&alternate, &convert_context(&context));
-        effects.into_iter().map(convert_effect).collect()
+        FfiPressResult {
+            effects: result.effects.into_iter().map(convert_effect).collect(),
+            layout_changed: result.layout_changed,
+            requests_next_language: result.request == Some(ShellRequest::NextLanguage),
+            requests_language: match result.request {
+                Some(ShellRequest::Language(tag)) => Some(tag),
+                _ => None,
+            },
+        }
     }
 
     /// 스페이스바를 길게 눌러 끄는 커서 이동. 셸은 포인터 x(정규화)만 흘려보내고

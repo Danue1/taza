@@ -235,6 +235,10 @@ pub enum FfiKeyRole {
     Enter,
     LayerSwitch,
     LanguageSwitch,
+    /// 정해진 언어로 곧장 가는 키 (천지인의 ABC·한글)
+    LanguageSelect,
+    /// 커서를 오른쪽으로 옮기는 키 (천지인의 →)
+    CursorRight,
     /// 눌리지 않는 빈 자리 — 셸은 키를 그리지 않는다
     Blank,
 }
@@ -307,6 +311,9 @@ pub struct FfiPressResult {
     pub layout_changed: bool,
     /// 코어가 셸에 낸 요청 — 언어 목록·순서는 셸이 소유하므로 전환 자체는 셸이 한다
     pub requests_next_language: bool,
+    /// 곧장 가라고 지목된 언어의 태그 (천지인의 ABC·한글). 쓰고 있지 않은 언어면
+    /// 셸이 흘려보낸다 — 무엇을 쓰고 있는지는 셸만 안다.
+    pub requests_language: Option<String>,
 }
 
 /// 빌드에 포함되지 않은 언어를 요청한 경우 — 셸은 해당 언어를 목록에서 제외한다.

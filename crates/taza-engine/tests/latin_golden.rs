@@ -102,6 +102,12 @@ impl Harness {
         }
     }
 
+    /// 커서가 다른 자리로 옮겨 갔다 — 셸이 그것을 알아채지 못한 경우까지 재현하려고
+    /// 코어에는 알리지 않고 커서 앞 텍스트만 바꾼다.
+    fn move_caret(&mut self, text_before_cursor: &str) {
+        self.committed = text_before_cursor.to_string();
+    }
+
     fn type_text(&mut self, text: &str) {
         for character in text.chars() {
             let event = if character == ' ' {
@@ -580,4 +586,40 @@ fn personalization_snapshot_persists_learning() {
     restored.engine.restore_personalization(state);
     restored.type_text("he");
     assert_eq!(restored.candidates[0], "hello");
+}
+
+/// 어절은 공백에서만 끝나지 않는다 — 순정도 마침표·쉼표에서 교정한다. 부호에서
+/// 어절을 그냥 버리면 그 자리의 오타는 영영 고쳐지지 않고 배우지도 못한다.
+#[test]
+fn punctuation_ends_the_word_and_corrects_it() {
+    let bytes = english_pack();
+    let mut harness = Harness::new(&bytes);
+    harness.type_text("Teh.");
+    assert_eq!(harness.committed, "The.");
+
+    // 부호 뒤는 새 어절이다 — 앞 어절이 남아 그 뒤 교정에 끼어들지 않는다
+    let mut harness = Harness::new(&bytes);
+    harness.type_text("teh,teh ");
+    assert_eq!(harness.committed, "the,the ");
+}
+
+/// 커서가 다른 자리로 옮겨 갔으면 지금 어절도 그 자리의 것이다. 쥐고 있던 어절로
+/// 교정하면 남의 자리에서 그 길이만큼 글자를 지운다.
+#[test]
+fn the_word_follows_the_caret() {
+    let bytes = english_pack();
+    let mut harness = Harness::new(&bytes);
+    harness.type_text("teh");
+    // 사용자가 다른 문단을 짚었다 — 커서 앞에는 이미 끝난 어절과 공백뿐이다
+    harness.move_caret("Say ");
+    harness.type_text("he");
+    // 후보도 그 자리의 어절을 따른다 — 쥐고 있던 "teh"가 앞에 붙으면 아무것도 못 찾는다
+    assert_eq!(harness.shown, vec!["he", "help", "the", "hello"]);
+    harness.type_text("llo ");
+    assert_eq!(harness.committed, "Say hello ");
+
+    // 커서가 낱말 뒤에 내려앉았으면 그 낱말을 이어 친다
+    harness.move_caret("Say te");
+    harness.type_text("h ");
+    assert_eq!(harness.committed, "Say the ");
 }

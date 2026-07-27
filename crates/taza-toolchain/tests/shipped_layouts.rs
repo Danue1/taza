@@ -105,6 +105,61 @@ fn control_rows_span_the_full_width() {
     }
 }
 
+/// 아래로 이은 키가 덮는 자리는 그 행에서 비어 있어야 한다. 진짜 키를 그대로 두면 두
+/// 키가 같은 자리를 놓고 겹치고, 아래쪽 절반을 누른 손이 어느 키에 닿을지가 데이터가
+/// 아니라 판정 순서에 달리게 된다.
+#[test]
+fn keys_spanning_rows_leave_the_covered_cell_blank() {
+    for file in ["english-layout.txt", "korean-layout.txt"] {
+        for entry in shipped(file) {
+            for (layer_index, layer) in entry.layouts.layers.iter().enumerate() {
+                for (row_index, row) in layer.rows.iter().enumerate() {
+                    let mut x = 0.0f32;
+                    for key in &row.keys {
+                        let left = x;
+                        x += key.width_ratio;
+                        if key.row_span <= 1 {
+                            continue;
+                        }
+                        for covered in row_index + 1..row_index + key.row_span as usize {
+                            let mut other = 0.0f32;
+                            for below in &layer.rows[covered].keys {
+                                let overlaps = other < x - WIDTH_EPSILON
+                                    && other + below.width_ratio > left + WIDTH_EPSILON;
+                                other += below.width_ratio;
+                                assert!(
+                                    !overlaps || below.action == KeyAction::Blank,
+                                    "{file}: {} 레이어 {layer_index} {covered}행이 이어진 키에 덮인 자리를 비워 두지 않음",
+                                    entry.name
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// 세로로 이은 키는 팩을 오갈 때도 그대로여야 한다 — 형식 표시(marker)가 그 표기를
+/// 싣는지를 가르므로, 표시와 읽는 쪽이 어긋나면 배열이 통째로 어그러진다.
+#[test]
+fn row_spans_survive_the_pack_round_trip() {
+    let shipped = shipped("korean-layout.txt");
+    let bytes = taza_toolchain::section::layout::serialize(&shipped);
+    let decoded = taza_engine::pack::layout::deserialize(&bytes).expect("팩을 읽지 못함");
+    assert_eq!(decoded, shipped);
+    assert!(
+        decoded
+            .iter()
+            .flat_map(|entry| &entry.layouts.layers)
+            .flat_map(|layer| &layer.rows)
+            .flat_map(|row| &row.keys)
+            .any(|key| key.row_span > 1),
+        "이 시험이 겨냥한 세로 병합이 배송 배열에 없음"
+    );
+}
+
 /// 배열이 달라지는 것은 글자 배치뿐이다 — 어느 배열로 치든 같은 글자에 닿을 수 있어야
 /// 하고, 그 글자를 길게 눌렀을 때 나오는 것도 같아야 한다.
 #[test]

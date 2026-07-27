@@ -7,8 +7,8 @@ use taza_engine::keyboard::KeySignal;
 use taza_engine::lang::LanguageDescriptor;
 use taza_engine::pack::{Pack, SectionKind};
 use taza_toolchain::PackWriter;
-use taza_toolchain::lexicon::LexiconBuilder;
-use taza_toolchain::ngram::NgramModelBuilder;
+use taza_toolchain::section::lexicon::LexiconBuilder;
+use taza_toolchain::section::ngram::NgramModelBuilder;
 
 /// 빈도는 실제 영어 팩에서 가져온 정규화 점수다 — 축소한 숫자로는 편집 벌점 같은
 /// 점수 공간 기준의 판단이 실팩과 다르게 동작한다.

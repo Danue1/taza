@@ -6,7 +6,7 @@
 use taza_engine::pack::SectionKind;
 use taza_ffi::{FfiEditorContext, FfiFieldKind, FfiInputEvent, KeyboardSession};
 use taza_toolchain::PackWriter;
-use taza_toolchain::lexicon::LexiconBuilder;
+use taza_toolchain::section::lexicon::LexiconBuilder;
 
 fn main() {
     let path = match std::env::args().nth(1) {

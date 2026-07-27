@@ -14,7 +14,7 @@ const WIDTH_EPSILON: f32 = 1e-4;
 fn shipped(file: &str) -> Vec<NamedLayoutSet> {
     let path = format!("{}/../../data/{file}", env!("CARGO_MANIFEST_DIR"));
     let text = std::fs::read_to_string(&path).unwrap_or_else(|error| panic!("{path}: {error}"));
-    taza_toolchain::layout::parse(&text).unwrap_or_else(|error| panic!("{path}: {error}"))
+    taza_toolchain::section::layout::parse(&text).unwrap_or_else(|error| panic!("{path}: {error}"))
 }
 
 fn letters(layout: &KeyboardLayout) -> BTreeMap<char, Vec<char>> {
@@ -49,7 +49,7 @@ fn a_single_layer_legacy_pack_is_not_mistaken_for_the_new_format() {
         layouts: one_layer.clone(),
     }];
     // marker · layout_count · name_length(0) · skeleton_length(0)
-    let legacy = taza_toolchain::layout::serialize(&named)[4..].to_vec();
+    let legacy = taza_toolchain::section::layout::serialize(&named)[4..].to_vec();
     assert_eq!(legacy.first(), Some(&1), "이 시험이 겨냥한 충돌 값이 아님");
 
     let decoded = taza_engine::pack::layout::deserialize(&legacy).expect("옛 팩을 읽지 못함");

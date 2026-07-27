@@ -1,7 +1,7 @@
 use taza_engine::pack::{Pack, PackError, SectionKind};
 use taza_engine::suggest::{Dictionary, Entry, Query};
 use taza_toolchain::PackWriter;
-use taza_toolchain::lexicon::LexiconBuilder;
+use taza_toolchain::section::lexicon::LexiconBuilder;
 
 /// 진행 중인 낱말의 완성 조회 — 뒤에 남는 글자에 비용을 물리지 않는다.
 fn completion_query(key: &str) -> Query<'_> {
@@ -97,7 +97,7 @@ fn duplicate_insert_keeps_higher_frequency() {
 
 #[test]
 fn ngram_model_roundtrip() {
-    use taza_toolchain::ngram::NgramModelBuilder;
+    use taza_toolchain::section::ngram::NgramModelBuilder;
     let mut ngram = NgramModelBuilder::new();
     ngram.insert_bigram("the", "quick", 30);
     ngram.insert_bigram("the", "best", 50);
@@ -150,7 +150,7 @@ fn rejects_invalid_input() {
 fn annotations_accompany_word_suggestions() {
     use taza_engine::contract::CandidateGroup;
     use taza_engine::suggest::{KeyEncoding, Suggester, SuggestionPolicy, SuggestionSources};
-    use taza_toolchain::annotation::AnnotationBuilder;
+    use taza_toolchain::section::annotation::AnnotationBuilder;
 
     let encoding = KeyEncoding::HangulJamoDubeolsik;
     // 조회 키는 낱말에서 뽑는다 — 손으로 적으면 자모 순서를 틀리기 쉽다

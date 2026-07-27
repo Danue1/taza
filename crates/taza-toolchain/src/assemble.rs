@@ -1,12 +1,13 @@
 //! 정규화된 점수표 + 레이아웃 + 원천 기록을 언어팩 바이너리로 조립한다.
 
-use crate::annotation::{AnnotationBuilder, AnnotationCatalogBuilder};
-use crate::lexicon::LexiconBuilder;
-use crate::metadata::MetadataBuilder;
-use crate::ngram::NgramModelBuilder;
+use crate::PackWriter;
 use crate::parse::Annotation;
 use crate::recipe::{LexiconEncoding, Recipe, Source};
-use crate::{PackWriter, layout};
+use crate::section::annotation::{AnnotationBuilder, AnnotationCatalogBuilder};
+use crate::section::layout;
+use crate::section::lexicon::LexiconBuilder;
+use crate::section::metadata::MetadataBuilder;
+use crate::section::ngram::NgramModelBuilder;
 use taza_engine::contract::{CandidateGroup, EmojiCategory};
 use taza_engine::pack::SectionKind;
 use taza_engine::pack::metadata::keys;

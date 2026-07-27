@@ -6,8 +6,8 @@ use taza_engine::lang::LanguageDescriptor;
 use taza_engine::lang::jamo::{decompose_word, encode_jamo_ascii};
 use taza_engine::pack::SectionKind;
 use taza_toolchain::PackWriter;
-use taza_toolchain::lexicon::LexiconBuilder;
-use taza_toolchain::metadata::MetadataBuilder;
+use taza_toolchain::section::lexicon::LexiconBuilder;
+use taza_toolchain::section::metadata::MetadataBuilder;
 
 fn korean_pack() -> Vec<u8> {
     let mut lexicon = LexiconBuilder::new();

@@ -10,9 +10,10 @@
 use std::process::ExitCode;
 use taza_engine::pack::SectionKind;
 use taza_engine::pack::lexicon::MAX_FREQUENCY;
-use taza_toolchain::lexicon::LexiconBuilder;
-use taza_toolchain::ngram::NgramModelBuilder;
-use taza_toolchain::{PackWriter, layout};
+use taza_toolchain::PackWriter;
+use taza_toolchain::section::layout;
+use taza_toolchain::section::lexicon::LexiconBuilder;
+use taza_toolchain::section::ngram::NgramModelBuilder;
 
 fn compile_bigrams(tsv: &str) -> Result<Vec<u8>, String> {
     let mut ngram = NgramModelBuilder::new();

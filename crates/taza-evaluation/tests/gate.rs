@@ -9,7 +9,7 @@ use taza_engine::pack::SectionKind;
 use taza_evaluation::synthesis::{TypedSequence, TypoSynthesizer, synthesize_cases};
 use taza_evaluation::{CompletionTask, EvaluationCase, evaluate_completions, evaluate_corrections};
 use taza_toolchain::PackWriter;
-use taza_toolchain::lexicon::LexiconBuilder;
+use taza_toolchain::section::lexicon::LexiconBuilder;
 
 // 빈도는 실제 영어 팩에서 그대로 가져온 값이다. 임의로 축소한 숫자를 쓰면 편집 벌점처럼
 // 점수 공간을 기준으로 잡힌 판단이 실팩과 다르게 동작해, 게이트가 실물을 대변하지 못한다.

@@ -25,9 +25,9 @@ Core (Rust, sans-io)
 
 | 크레이트 | 자리 | 내용 |
 |---|---|---|
-| `taza-engine` | 온디바이스 | `contract`(InputEvent·Effect·Composer trait) / `engine`(조립) / `keyboard` / `lang`(언어별 합성기) / `suggest`(후보·랭킹) / `policy`(언어 무관 관습) / `personalization` / `pack`(읽기 전용) |
+| `taza-engine` | 온디바이스 | `contract`(`shell`·`event`·`candidate`은 FFI를 건너고 `composer`는 건너지 않는다) / `engine`(조립) / `keyboard` / `lang`(언어별 합성기) / `suggest`(후보·랭킹) / `policy`(언어 무관 관습) / `personalization` / `pack`(읽기 전용) |
 | `taza-ffi` | 온디바이스 경계 | UniFFI 표면(`types`·`convert`·`session`), 팩 mmap 등 파일 IO |
-| `taza-toolchain` | 오프라인 | 팩 writer·섹션 빌더 + `taza-packs`(레시피 기반 조달→가공→배포 파이프라인) + `taza-packc`(점수표→팩 컴파일러) |
+| `taza-toolchain` | 오프라인 | `PackWriter`·`section`(섹션 빌더) + 단계(`recipe`·`source`·`parse`·`normalize`·`assemble`·`distribute`)와 그 순서를 쥔 `pipeline` + `taza-packs`·`taza-packc`(둘 다 인자 읽기와 출력만 맡는 실행 파일) |
 | `taza-evaluation` | 오프라인 | 오타 합성·메트릭·CI 회귀 게이트 |
 
 - 팩 포맷 상수·섹션 태그·와이어 레이아웃의 단일 출처는 `taza_engine::pack`이고,

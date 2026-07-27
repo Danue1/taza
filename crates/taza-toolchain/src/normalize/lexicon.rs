@@ -1,14 +1,12 @@
-//! 원천 신호들을 팩에 담을 하나의 점수표로 합친다.
-//!
-//! 점수는 원천 코퍼스의 절대 빈도가 아니라 [1, `MAX_FREQUENCY`]로 정규화된 값이다.
-//! 절대 빈도를 그대로 실으면 (1) 흔한 낱말의 점수가 개인화 가중치를 압도해 학습이
-//! 랭킹에 닿지 못하고, (2) 원천을 갈아치울 때마다 랭킹 스케일이 달라져 평가 결과를
-//! 비교할 수 없다. 로그 스케일로 옮겨 두 문제를 함께 없앤다.
+//! 낱말 점수표 — 어떤 낱말이 표제어가 되고 몇 점을 받는가.
+
+use std::collections::{HashMap, HashSet};
 
 use crate::lang::korean::InflectionStems;
-use crate::recipe::{LanguageModelRules, LexiconRules, Role};
-use std::collections::{HashMap, HashSet};
-use taza_engine::pack::lexicon::MAX_FREQUENCY;
+use crate::recipe::{LexiconRules, Role};
+
+use super::SourceSignal;
+use super::scale::{logarithmic, quantize};
 
 #[derive(Debug, Default)]
 struct Accumulated {
@@ -29,35 +27,6 @@ struct Candidate {
     observations: u64,
     /// 이 낱말을 본 discovery 원천의 수
     sources: usize,
-}
-
-/// 한 원천이 병합에 내놓는 것 — 역할·가중치와 추출된 신호를 함께 본다.
-pub struct SourceSignal<'call> {
-    pub role: Role,
-    pub weight: f64,
-    /// 사전이 보증한 낱말 — (낱말, 흔함 등급). 인벤토리 역할일 때만 표제어 집합에 들어간다.
-    pub attested: &'call [(String, f64)],
-    /// 코퍼스에서 관측된 낱말 — (낱말, 관측 횟수). 인벤토리 역할에서는 낱말 점수에
-    /// 더하지 않고 문맥 이득을 재는 데만 쓴다 — 사전 등재는 실사용 횟수가 아니다.
-    pub observed: &'call [(String, u64)],
-    /// (앞말 번호, 뒷말 번호, 관측 횟수) — 문맥을 아는 원천만 채운다. 번호는 `observed`의
-    /// 자리 번호다.
-    pub bigrams: &'call [(u32, u32, u64)],
-    /// 활용형이 뻗어 나오는 어간 — 형태소 사전만 채운다
-    pub stems: &'call [String],
-    /// 어절 뒤에 붙는 접사 — 형태소 사전만 채운다. 이것과 똑같은 낱말은 홀로 쓰이는
-    /// 어절이 아니므로 승격 후보에서 뺀다.
-    pub affixes: &'call [String],
-}
-
-impl SourceSignal<'_> {
-    /// 이 원천이 낸 낱말 전부 — 보증한 것과 관측한 것을 가리지 않는다.
-    fn words(&self) -> impl Iterator<Item = &str> {
-        self.attested
-            .iter()
-            .map(|(word, _)| word.as_str())
-            .chain(self.observed.iter().map(|(word, _)| word.as_str()))
-    }
 }
 
 /// 예산에 밀려 팩에서 빠진 낱말 중 남겨 둘 표본 수. 오교정률 평가의 코퍼스가 된다 —
@@ -258,134 +227,6 @@ pub fn normalize(
     )
 }
 
-/// 문맥 이득이 차지할 수 있는 점수 공간의 몫 — 낱말 빈도 공간의 1/2까지다.
-/// 문맥이 빈도를 뒤집을 수는 있어야 하지만, 결합력만 강한 희귀어("the meantime")가
-/// 흔한 낱말을 밀어내면 예측이 쓸모없어진다. 두 눈금이 같은 단위가 아니라서
-/// (한쪽은 상호정보량, 한쪽은 등급+로그 빈도의 혼합) 나오는 한계이며, 어휘 점수를
-/// 순수 로그확률로 다시 세우기 전까지의 실용적 상한이다.
-const LIFT_CEILING_DIVISOR: u32 = 2;
-
-/// 짝 하나에 대해 모은 것 — 담을 값(이득)과 자를 기준(관측 횟수)은 다른 수다.
-#[derive(Debug, Default)]
-struct PairSignal {
-    lift: f64,
-    count: u64,
-}
-
-#[derive(Debug)]
-pub struct BigramReport {
-    pub observed: usize,
-    /// 표제어에 없는 낱말이 끼어 있어 버린 짝
-    pub dropped_outside_lexicon: usize,
-    /// 문맥이 이득을 주지 않아(상호정보량 ≤ 0) 버린 짝 — 흔한 낱말끼리의 우연한 이웃
-    pub dropped_without_lift: usize,
-    pub dropped_by_budget: usize,
-}
-
-/// 코퍼스에서 관측된 이웃 짝을 언어모델 섹션에 담을 가중치로 옮긴다.
-///
-/// 담는 값은 뒷말의 절대 빈도가 아니라 **문맥이 주는 이득**(상호정보량)이다. 절대 빈도를
-/// 담으면 소비자가 "흔한 낱말"과 "이 문맥에서 흔한 낱말"을 구분할 수 없다. 이득만 담아
-/// 두면 소비자가 lexicon 빈도를 더해 문맥 확률을 복원할 수 있고, 다음 단어 예측과 현재
-/// 단어 재랭킹이 같은 식을 쓰게 된다.
-///
-/// 예산은 이득이 아니라 **관측 횟수**로 자른다. 이득 순으로 자르면 살아남는 것이 드물고
-/// 특이한 결합("carbon dioxide")뿐이라, 정작 사람이 자주 치는 흔한 문맥에는 예측이
-/// 하나도 남지 않는다.
-pub fn normalize_bigrams(
-    signals: &[SourceSignal<'_>],
-    lexicon: &[(String, u32)],
-    rules: &LanguageModelRules,
-) -> (Vec<(String, String, u32)>, BigramReport) {
-    let known: HashSet<&str> = lexicon.iter().map(|(word, _)| word.as_str()).collect();
-    let mut pairs: HashMap<(&str, &str), PairSignal> = HashMap::new();
-    let mut observed = 0usize;
-    let mut dropped_outside_lexicon = 0usize;
-    let mut dropped_without_lift = 0usize;
-
-    for signal in signals {
-        if signal.bigrams.is_empty() {
-            continue;
-        }
-        // 이득은 같은 원천 안에서 재야 한다 — 낱말 빈도와 짝 빈도가 같은 코퍼스에서
-        // 나온 수여야 상호정보량이 뜻을 갖는다.
-        let total: f64 = signal
-            .bigrams
-            .iter()
-            .map(|(_, _, count)| *count as f64)
-            .sum();
-        if total <= 0.0 {
-            continue;
-        }
-        for &(left, right, count) in signal.bigrams {
-            if count < rules.minimum_count {
-                continue;
-            }
-            observed += 1;
-            let (Some((left, left_count)), Some((right, right_count))) = (
-                signal.observed.get(left as usize),
-                signal.observed.get(right as usize),
-            ) else {
-                dropped_outside_lexicon += 1;
-                continue;
-            };
-            let (left, right) = (left.as_str(), right.as_str());
-            if !known.contains(left) || !known.contains(right) {
-                dropped_outside_lexicon += 1;
-                continue;
-            }
-            let lift = (count as f64 * total / (*left_count as f64 * *right_count as f64)).ln();
-            if lift <= 0.0 {
-                dropped_without_lift += 1;
-                continue;
-            }
-            let slot = pairs.entry((left, right)).or_default();
-            slot.lift += lift * signal.weight;
-            slot.count += count;
-        }
-    }
-
-    let mut ranked: Vec<((&str, &str), PairSignal)> = pairs.into_iter().collect();
-    ranked.sort_by(|left, right| {
-        right
-            .1
-            .count
-            .cmp(&left.1.count)
-            .then_with(|| {
-                right
-                    .1
-                    .lift
-                    .partial_cmp(&left.1.lift)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            })
-            .then_with(|| left.0.cmp(&right.0))
-    });
-    let dropped_by_budget = ranked.len().saturating_sub(rules.max_bigrams);
-    ranked.truncate(rules.max_bigrams);
-
-    let highest = ranked
-        .iter()
-        .map(|(_, signal)| signal.lift)
-        .fold(f64::MIN, f64::max)
-        .max(1.0);
-    let bigrams = ranked
-        .into_iter()
-        .map(|((left, right), signal)| {
-            let scaled = quantize(signal.lift, highest) / LIFT_CEILING_DIVISOR;
-            (left.to_string(), right.to_string(), scaled.max(1))
-        })
-        .collect();
-    (
-        bigrams,
-        BigramReport {
-            observed,
-            dropped_outside_lexicon,
-            dropped_without_lift,
-            dropped_by_budget,
-        },
-    )
-}
-
 /// 원천별로 팩에 무엇을 보탰는지 센다. "처음 데려온 낱말"은 그 원천이 없었다면 표제어가
 /// 못 되었을 것을 뜻하므로, 원천을 늘린 값어치가 여기 드러난다.
 fn contributions(
@@ -427,76 +268,12 @@ fn contributions(
         .collect()
 }
 
-/// 실사용 횟수는 로그로 눌러 담는다 — 상위 몇 낱말이 점수 공간을 독점하지 않게.
-fn logarithmic(count: f64) -> f64 {
-    if count <= 0.0 {
-        0.0
-    } else {
-        (1.0 + count).ln()
-    }
-}
-
-/// 팩에 담는 점수의 눈금. 사전은 접미사가 같은 하위 그래프를 한 노드로 합쳐 저장하는데
-/// (DAWG), 합칠 수 있는지는 끝 노드의 점수까지 같은지로 가린다. 점수를 65535단계로
-/// 실으면 끝 노드가 거의 다 달라 공유가 막힌다 — 교착어처럼 접미사를 나눠 갖는 표제어가
-/// 많을수록 손해가 크다.
-///
-/// 눈금을 이만큼 굵히면 한국어팩이 2188KB → 1542KB, 배포 아카이브가 1155KB → 715KB로
-/// 줄면서 랭킹 지표는 그대로다(top1 0.972 / top3 0.999 / MRR 0.985 / 절약률 0.484,
-/// 오교정률 0.000 모두 동일). 더 굵히면(1024, 4096) 더 줄지만 그때부터는 지표가 밀린다.
-const SCORE_STEP: u32 = 256;
-
-fn quantize(score: f64, highest: f64) -> u32 {
-    let ratio = if highest > 0.0 {
-        (score / highest).clamp(0.0, 1.0)
-    } else {
-        0.0
-    };
-    let value = 1 + (ratio * (MAX_FREQUENCY - 1) as f64).round() as u32;
-    ((value + SCORE_STEP / 2) / SCORE_STEP * SCORE_STEP).clamp(1, MAX_FREQUENCY)
-}
-
 #[cfg(test)]
 mod tests {
+    use super::super::fixture::*;
     use super::*;
-    use crate::recipe::{AdmissionRules, CharacterSet, LexiconEncoding};
-
-    fn rules(max_words: usize) -> LexiconRules {
-        LexiconRules {
-            encoding: LexiconEncoding::Utf8,
-            character_set: CharacterSet::LatinLowercase,
-            max_words,
-            minimum_word_length: 2,
-            accept_inflections: false,
-            admission: None,
-        }
-    }
-
-    /// 표제어를 보증하는 원천
-    fn inventory<'a>(attested: &'a [(String, f64)]) -> SourceSignal<'a> {
-        SourceSignal {
-            role: Role::Inventory,
-            weight: 1.0,
-            attested,
-            observed: &[],
-            bigrams: &[],
-            stems: &[],
-            affixes: &[],
-        }
-    }
-
-    /// 증거만 대는 코퍼스 원천
-    fn corpus<'a>(role: Role, observed: &'a [(String, u64)]) -> SourceSignal<'a> {
-        SourceSignal {
-            role,
-            weight: 1.0,
-            attested: &[],
-            observed,
-            bigrams: &[],
-            stems: &[],
-            affixes: &[],
-        }
-    }
+    use crate::recipe::{AdmissionRules, CharacterSet};
+    use taza_engine::pack::lexicon::MAX_FREQUENCY;
 
     #[test]
     fn frequency_source_only_boosts_inventory_words() {
@@ -515,50 +292,6 @@ mod tests {
             words
                 .iter()
                 .all(|(_, score)| (1..=MAX_FREQUENCY).contains(score))
-        );
-    }
-
-    #[test]
-    fn bigrams_keep_context_lift_not_raw_frequency() {
-        // "fox"는 "quick"보다 드물게 이어졌지만 둘 다 문맥 이득이 있다. 담기는 값은
-        // 이득이므로 순서가 관측 횟수가 아니라 이득을 따른다.
-        let observed = vec![
-            ("the".to_string(), 100),
-            ("quick".to_string(), 10),
-            ("fox".to_string(), 10),
-        ];
-        // 번호는 `observed`의 자리 번호다. 마지막 짝은 그 자리에 없는 번호를 가리킨다 —
-        // 총량에는 들어가지만 팩에는 담기지 않는다.
-        let bigrams = vec![(0, 1, 8), (0, 2, 2), (7, 8, 990)];
-        let lexicon = vec![
-            ("the".to_string(), 100u32),
-            ("quick".to_string(), 50),
-            ("fox".to_string(), 50),
-        ];
-        let (result, report) = normalize_bigrams(
-            &[SourceSignal {
-                bigrams: &bigrams,
-                ..corpus(Role::Frequency, &observed)
-            }],
-            &lexicon,
-            &LanguageModelRules {
-                max_bigrams: 10,
-                minimum_count: 2,
-            },
-        );
-        assert_eq!(report.observed, 3);
-        assert_eq!(report.dropped_outside_lexicon, 1);
-        // 이득 눈금의 상한은 낱말 빈도 공간의 1/2이다
-        assert_eq!(
-            result,
-            vec![
-                (
-                    "the".to_string(),
-                    "quick".to_string(),
-                    MAX_FREQUENCY / LIFT_CEILING_DIVISOR
-                ),
-                ("the".to_string(), "fox".to_string(), 10880),
-            ]
         );
     }
 

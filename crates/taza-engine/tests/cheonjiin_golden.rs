@@ -167,7 +167,9 @@ fn cheonjiin_engine() -> Engine {
     let mut writer = PackWriter::new("ko");
     writer.add_section(
         SectionKind::Layout,
-        taza_toolchain::layout::serialize(&taza_toolchain::layout::parse(&text).unwrap()),
+        taza_toolchain::section::layout::serialize(
+            &taza_toolchain::section::layout::parse(&text).unwrap(),
+        ),
     );
     let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap()).unwrap();
     engine

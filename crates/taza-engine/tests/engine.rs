@@ -9,7 +9,7 @@ use taza_engine::lang::LanguageDescriptor;
 use taza_engine::lang::direct::DirectComposer;
 use taza_engine::pack::SectionKind;
 use taza_toolchain::PackWriter;
-use taza_toolchain::lexicon::LexiconBuilder;
+use taza_toolchain::section::lexicon::LexiconBuilder;
 
 #[test]
 fn direct_composer_commits_every_key() {

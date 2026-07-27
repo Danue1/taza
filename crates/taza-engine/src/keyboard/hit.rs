@@ -9,7 +9,7 @@
 
 use crate::pack::layout::{KeyAction, KeyboardLayout};
 
-use super::{KeyBounds, KeyPosition, row_bounds, row_heights};
+use super::geometry::{KeyBounds, KeyPosition, row_bounds, row_heights};
 
 /// 후보로 남길 키 수. 순정 키보드에서 한 번의 터치가 실제로 헷갈릴 만한 이웃은
 /// 좌우와 위아래 정도다.

@@ -25,8 +25,8 @@ Core (Rust, sans-io)
 
 | 크레이트 | 자리 | 내용 |
 |---|---|---|
-| `taza-engine` | 온디바이스 | `contract`(InputEvent·Effect·Composer trait) / `session` / `keyboard` / `lang`(언어별 합성기) / `personalization` / `pack`(읽기 전용) |
-| `taza-ffi` | 온디바이스 경계 | UniFFI 표면, 팩 mmap 등 파일 IO |
+| `taza-engine` | 온디바이스 | `contract`(InputEvent·Effect·Composer trait) / `engine`(조립) / `keyboard` / `lang`(언어별 합성기) / `suggest`(후보·랭킹) / `policy`(언어 무관 관습) / `personalization` / `pack`(읽기 전용) |
+| `taza-ffi` | 온디바이스 경계 | UniFFI 표면(`types`·`convert`·`session`), 팩 mmap 등 파일 IO |
 | `taza-toolchain` | 오프라인 | 팩 writer·섹션 빌더 + `taza-packs`(레시피 기반 조달→가공→배포 파이프라인) + `taza-packc`(점수표→팩 컴파일러) |
 | `taza-evaluation` | 오프라인 | 오타 합성·메트릭·CI 회귀 게이트 |
 
@@ -39,6 +39,11 @@ Core (Rust, sans-io)
 - 언어 추가 = `taza-engine/src/lang/<언어>.rs` + feature + `Language` 등록. 외부 C++
   엔진 어댑터(일본어·중국어)는 이 규칙의 예외로 별도 `-sys` 크레이트를 optional
   dependency로 받는다.
+- 모듈 안쪽도 같은 축으로 가른다 — **책임 하나에 파일 하나**. `keyboard`는 표현
+  (`frame` — 상태를 읽기만 하는 순수 계산)과 판정(`hit`·`press` — 좌표가 상태를
+  움직인다)을 갈라 두므로 확률 모델을 바꿔도 렌더 코드에 손이 가지 않고, 그 반대도
+  같다. `engine`은 팩 교체(`pack`)·입력 진입점(`input`)·합성 뒤의 랭킹과 교정
+  (`compose`)·통합 검색면(`annotation`)으로 나뉜다.
 
 ### 셸 원칙 (v2 재서술)
 - 셸은 **입력 의미론**(composition·commit·삭제·후보 선택)에 분기를 갖지 않는다.

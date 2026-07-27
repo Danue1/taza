@@ -2,7 +2,7 @@ import Foundation
 
 /// 언어팩이 놓이는 자리와 그 자리에서 무엇을 읽을지의 규칙.
 ///
-/// 사전 다운로드는 컨테이너 앱이 전담하고, 익스텐션은 App Group에 놓인 파일을 mmap으로
+/// 언어팩 다운로드는 컨테이너 앱이 전담하고, 익스텐션은 App Group에 놓인 파일을 mmap으로
 /// 읽기만 한다 — 익스텐션은 네트워크를 쓰지 않는다. 기본 언어(영어)는 앱 번들에 내장돼
 /// 있으므로 아무것도 내려받지 않은 상태에서도 키보드가 동작한다.
 public struct PackStore {
@@ -41,7 +41,7 @@ public struct PackStore {
     }
 
     /// 내장 팩은 익스텐션 번들에 실린다(키보드가 읽는 것이므로). 설정 앱도 같은 팩을
-    /// 읽어야 배열 목록·사전 상태가 키보드와 어긋나지 않으므로, 자기 번들에 없으면
+    /// 읽어야 배열 목록·언어팩 상태가 키보드와 어긋나지 않으므로, 자기 번들에 없으면
     /// 앱 안에 들어 있는 익스텐션 번들까지 본다.
     public func bundledURL(for language: TazaLanguage) -> URL? {
         if let url = bundle.url(forResource: language.packName, withExtension: "tazapack") {

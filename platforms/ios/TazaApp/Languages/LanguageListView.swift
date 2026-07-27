@@ -23,7 +23,7 @@ struct LanguageListView: View {
                         openedLanguage = language
                     } label: {
                         LanguageRow(
-                            name: model.displayName(language),
+                            name: model.languageName(language),
                             showsDisclosure: !isEditing
                         )
                     }
@@ -44,7 +44,7 @@ struct LanguageListView: View {
                             model.enable(language)
                         } label: {
                             LanguageRow(
-                                name: model.displayName(language),
+                                name: model.languageName(language),
                                 accessory: Image(systemName: "plus.circle")
                             )
                         }

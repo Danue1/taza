@@ -32,7 +32,7 @@ struct CommonSettingsList: View {
                 NavigationLink("개인 정보") { PrivacySettingsList(model: model) }
             }
 
-            // 사전 출처는 사전마다 다르므로 그 언어 화면에 있다. 여기 남는 것은
+            // 언어팩 출처는 팩마다 다르므로 그 언어 화면에 있다. 여기 남는 것은
             // 빌드 하나에 하나뿐인 고지다.
             Section {
                 NavigationLink("소프트웨어 라이선스") {

@@ -13,7 +13,7 @@ extension KeyboardViewController {
             return nil
         }
         // 내려받아 설치된 팩이 있으면 그쪽을, 없으면 내장 팩을 mmap한다.
-        // 사전이 아직 없는 언어는 팩 없이도 동작한다(제안·자동교정만 비활성).
+        // 언어팩이 아직 없는 언어는 그것 없이도 동작한다(제안·자동교정만 비활성).
         let store = PackStore(bundle: Bundle(for: Self.self))
         if let packURL = store.packURL(for: language) {
             try? session.loadPack(path: packURL.path)

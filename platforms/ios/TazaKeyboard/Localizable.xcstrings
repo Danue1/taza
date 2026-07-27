@@ -6,7 +6,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Without an app group there is nowhere to install dictionaries."
+            "value": "Without an app group there is nowhere to install language packs."
           }
         }
       }
@@ -196,7 +196,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "No dictionary distribution point is configured."
+            "value": "No language pack distribution point is configured."
           }
         }
       }
@@ -266,7 +266,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "This dictionary uses a newer format (%lld). Update the app."
+            "value": "This language pack uses a newer format (%lld). Update the app."
           }
         }
       }
@@ -336,7 +336,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The catalog has no %@ dictionary."
+            "value": "The catalog has no %@ language pack."
           }
         }
       }

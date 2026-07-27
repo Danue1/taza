@@ -70,8 +70,14 @@ final class SettingsModel: ObservableObject {
     /// 마지막 한 언어는 지울 수 없다 — 지우면 키보드가 그릴 배열이 남지 않는다
     var canDisableLanguage: Bool { enabledLanguages.count > 1 }
 
-    func displayName(_ language: TazaLanguage) -> String {
-        info[language.tag]?.descriptor.displayName ?? language.tag
+    /// 화면 언어로 적은 언어 이름. 팩이 밝힌 이름(`displayName`)은 언어가 **자기를**
+    /// 부르는 말이라 스페이스바·언어 메뉴처럼 키보드 자기 표면에 쓰고, 설정 화면은
+    /// 보는 사람의 말을 따른다 — 영어 화면에 "한국어 언어팩"이라 적히지 않게 한다.
+    /// 시스템이 모르는 태그는 팩이 밝힌 이름으로 물러선다.
+    func languageName(_ language: TazaLanguage) -> String {
+        Locale.current.localizedString(forIdentifier: language.tag)
+            ?? info[language.tag]?.descriptor.displayName
+            ?? language.tag
     }
 
     func enable(_ language: TazaLanguage) {

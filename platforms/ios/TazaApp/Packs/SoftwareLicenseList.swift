@@ -1,14 +1,14 @@
 import SwiftUI
 
-/// 키보드가 쓰는 라이브러리와 그 라이선스. 사전 출처와 나란히 두지 않고 따로 둔다 —
-/// 사전 출처는 팩에 따라 달라지고 이쪽은 빌드에 따라 달라진다.
+/// 키보드가 쓰는 라이브러리와 그 라이선스. 언어팩 출처와 나란히 두지 않고 따로 둔다 —
+/// 언어팩 출처는 팩에 따라 달라지고 이쪽은 빌드에 따라 달라진다.
 struct SoftwareLicenseList: View {
     private let catalog = SoftwareLicenseCatalog.load()
 
     var body: some View {
         List {
             Section {
-                Text("키보드에 링크되는 라이브러리입니다. 빌드 도구와 사전 제작 도구는 기기에 나가지 않으므로 여기 없습니다.")
+                Text("키보드에 링크되는 라이브러리입니다. 빌드 도구와 언어팩 제작 도구는 기기에 나가지 않으므로 여기 없습니다.")
                     .font(.footnote)
                     .foregroundStyle(.tazaSecondaryLabel)
             }

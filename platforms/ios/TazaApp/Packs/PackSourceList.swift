@@ -1,9 +1,9 @@
 import SwiftUI
 
-/// 이 언어의 사전이 어떤 데이터로 만들어졌는지 — 원천마다 한 줄이다. 라이선스가
+/// 이 언어의 언어팩이 어떤 데이터로 만들어졌는지 — 원천마다 한 줄이다. 라이선스가
 /// 요구하는 표시 문구는 그 줄에 딸리므로, 이름과 문구가 위치로만 짝지어지지 않는다.
 ///
-/// 사전은 언어마다 다르므로 고지도 그 언어 화면에 있다. 루트에 모아 두면 어느 사전의
+/// 언어팩은 언어마다 다르므로 고지도 그 언어 화면에 있다. 루트에 모아 두면 어느 팩의
 /// 출처인지가 흐려지고, 설정을 고치러 온 사람에게 가장 큰 덩어리로 보인다.
 struct PackSourceList: View {
     @ObservedObject var model: SettingsModel
@@ -12,7 +12,7 @@ struct PackSourceList: View {
 
     var body: some View {
         List {
-            Section(model.displayName(language)) {
+            Section(model.languageName(language)) {
                 // 같은 이름의 원천이 두 번 실릴 수 있으므로 자리로 가른다
                 let sources = packs.sources[language] ?? []
                 ForEach(sources.indices, id: \.self) { index in
@@ -20,7 +20,7 @@ struct PackSourceList: View {
                 }
             }
         }
-        .navigationTitle("사전 출처")
+        .navigationTitle("언어팩 출처")
     }
 }
 

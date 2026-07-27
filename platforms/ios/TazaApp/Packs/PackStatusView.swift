@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 사전 상태는 순정 키보드의 언어 목록처럼 행 오른쪽에 붙는다 — 내장 언어는
+/// 언어팩 상태는 순정 키보드의 언어 목록처럼 행 오른쪽에 붙는다 — 내장 언어는
 /// 내려받을 것이 없으므로 조작이 보이지 않는다.
 struct PackStatusView: View {
     let name: String
@@ -22,7 +22,7 @@ struct PackStatusView: View {
                 Button(action: remove) {
                     Image(systemName: "trash")
                 }
-                .accessibilityLabel("\(name) 사전 삭제")
+                .accessibilityLabel("\(name) 언어팩 삭제")
             }
         case .notInstalled(let size):
             Button(action: install) {
@@ -34,7 +34,7 @@ struct PackStatusView: View {
                     }
                 }
             }
-            .accessibilityLabel("\(name) 사전 다운로드")
+            .accessibilityLabel("\(name) 언어팩 다운로드")
         case .installing:
             ProgressView()
         case .unavailable(let message):

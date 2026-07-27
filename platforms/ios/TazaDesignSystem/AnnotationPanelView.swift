@@ -1,57 +1,5 @@
 import UIKit
 
-/// 통합 검색면에 담기는 것 — 코어가 그룹 단위로 내려 준다(`annotation_panel`).
-public struct AnnotationPanelModel {
-    public struct Item {
-        public let text: String
-        public let group: CandidateModel.Group
-
-        public init(text: String, group: CandidateModel.Group) {
-            self.text = text
-            self.group = group
-        }
-    }
-
-    /// 이모지가 서는 묶음 — 코어가 정해 내려 주고, 셸은 묶음마다 표식을 고른다.
-    public enum Category {
-        case smileysAndPeople
-        case animalsAndNature
-        case foodAndDrink
-        case activities
-        case travelAndPlaces
-        case objects
-        case symbols
-        case flags
-    }
-
-    public struct Group {
-        /// 이 그룹의 갈래. 자주 쓰는 것처럼 갈래가 섞이는 그룹은 nil이다.
-        public let group: CandidateModel.Group?
-        /// 이모지 묶음이면 그 자리
-        public let category: Category?
-        public let label: String
-        public let items: [Item]
-
-        public init(
-            group: CandidateModel.Group?,
-            category: Category? = nil,
-            label: String,
-            items: [Item]
-        ) {
-            self.group = group
-            self.category = category
-            self.label = label
-            self.items = items
-        }
-    }
-
-    public let groups: [Group]
-
-    public init(groups: [Group]) {
-        self.groups = groups
-    }
-}
-
 /// 이모지·기호·얼굴 문자를 한자리에서 훑는 판. 순정 이모지 화면처럼 가로로 넘기고,
 /// 묶음 이름은 항목 위에 붙어 따라오며, 레일은 코어가 비워 둔 하단 자리에 앉아
 /// 문자 복귀·삭제 키와 한 줄을 이룬다.

@@ -92,6 +92,11 @@ targets:
   TazaTests:
     type: bundle.unit-test
     platform: iOS
+    settings:
+      base:
+        # 서명을 켜고 돌리려면(App Group을 실제로 쓰는 로컬 실행) 테스트 번들에도
+        # Info.plist가 있어야 한다 — 내용은 없어도 되므로 Xcode가 짓게 둔다.
+        GENERATE_INFOPLIST_FILE: YES
     sources:
       - TazaTests
     dependencies:

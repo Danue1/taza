@@ -29,7 +29,7 @@ struct PrivacySettingsList: View {
                 }
                 ForEach(stored, id: \.language.tag) { entry in
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(model.displayName(entry.language))
+                        Text(model.languageName(entry.language))
                         Text(detail(entry.summary))
                             .font(.footnote)
                             .foregroundStyle(.tazaSecondaryLabel)

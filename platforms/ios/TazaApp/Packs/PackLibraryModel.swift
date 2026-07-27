@@ -1,6 +1,6 @@
 import Foundation
 
-/// 언어별 사전 상태와 다운로드 진행을 들고 있는 화면 모델.
+/// 언어별 언어팩 상태와 다운로드 진행을 들고 있는 화면 모델.
 /// 다운로드·설치는 컨테이너 앱 전담이라 이 타입은 앱 타깃에만 있다.
 @MainActor
 final class PackLibraryModel: ObservableObject {
@@ -14,7 +14,7 @@ final class PackLibraryModel: ObservableObject {
     }
 
     @Published private(set) var states: [TazaLanguage: State] = [:]
-    /// 언어마다 그 사전이 밝힌 원천들 — 설치·삭제로 목록이 달라진다
+    /// 언어마다 그 언어팩이 밝힌 원천들 — 설치·삭제로 목록이 달라진다
     @Published private(set) var sources: [TazaLanguage: [FfiPackSource]] = [:]
 
     private let store: PackStore
@@ -61,7 +61,7 @@ final class PackLibraryModel: ObservableObject {
             _ = try await installer.install(entry, for: language)
             states[language] = resolveState(language, catalog: catalog)
             collectSources()
-            // 사전이 바뀌면 키보드가 팩을 다시 열어야 한다
+            // 언어팩이 바뀌면 키보드가 그것을 다시 열어야 한다
             SettingsBroadcast.post(.settings)
         } catch {
             states[language] = .unavailable(error.localizedDescription)
@@ -123,7 +123,7 @@ final class PackLibraryModel: ObservableObject {
         }
     }
 
-    /// 고지는 팩 자체에서 읽는다 — 원천이 바뀌면 표시도 함께 바뀐다. 어느 사전이
+    /// 고지는 팩 자체에서 읽는다 — 원천이 바뀌면 표시도 함께 바뀐다. 어느 언어팩이
     /// 무엇을 쓰는지가 고지의 핵심이므로 언어별로 나눠 둔다.
     private func collectSources() {
         sources = Dictionary(

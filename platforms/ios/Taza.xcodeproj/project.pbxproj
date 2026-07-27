@@ -35,9 +35,11 @@
 		4CDA141E9710769CBAC775BA /* SettingsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED40848F6BE6D88523CB3C25 /* SettingsModel.swift */; };
 		4F214DC30D753E60B9747574 /* LanguagePreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB583ACD6DB1BB697B271FC5 /* LanguagePreferences.swift */; };
 		539E3C5526B18312465996BB /* FeedbackSettingsList.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC1A64D4197556C33F14ADD0 /* FeedbackSettingsList.swift */; };
+		57E9D0A7DE891A47BDC160BE /* KeyboardModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA5E93AD146231D010A3F3AE /* KeyboardModel.swift */; };
 		59D49C2340D7FE5D2D10FABA /* TazaFfi.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 574B66EBEC60DDBFD132D9FB /* TazaFfi.xcframework */; };
 		5CA876BE457CF8ABCDC34163 /* TypingOptionLabel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDB656FE0B6EAD8B48073FC3 /* TypingOptionLabel.swift */; };
 		5E4263D489496E09E4383A59 /* PackStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEBE767DBD452E15506A5A63 /* PackStore.swift */; };
+		5EBA52953F3DA56E14340AFA /* KeyboardModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA5E93AD146231D010A3F3AE /* KeyboardModel.swift */; };
 		60286B95E6BA1ADA04D1C8ED /* LayoutSelectionList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42120CE65D4808C7B3393EBE /* LayoutSelectionList.swift */; };
 		661E6F0225A604E02D3F2A02 /* KeyboardSetupBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE5619E2DE3974851B30CDDE /* KeyboardSetupBanner.swift */; };
 		664181C8FD0A6B81B52167E3 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 1F91AB423FD83C61E9B9DD62 /* Localizable.xcstrings */; };
@@ -81,6 +83,7 @@
 		E8EFF20B9BD72F4F70F27FD8 /* CandidateBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A063705662AC7D869C6B9CA8 /* CandidateBarView.swift */; };
 		E973811921C023B99C178023 /* KeyboardGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 231812FDBF992843227998D5 /* KeyboardGridView.swift */; };
 		EB90C520995BD7F1DE680B98 /* LayoutPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11B1847A1A2B13D5E718F728 /* LayoutPreviewView.swift */; };
+		EBE5AFD1A1CF4305C38C4A2A /* AnnotationPanelModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBA688724115FDBB4E6B8FAA /* AnnotationPanelModel.swift */; };
 		EE063B6901756837FB1E0522 /* PackDistribution.swift in Sources */ = {isa = PBXBuildFile; fileRef = 884F7F9DE893001ADF7495D9 /* PackDistribution.swift */; };
 		EF91DFC274CB7EE0DE2FC447 /* LanguagePreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB583ACD6DB1BB697B271FC5 /* LanguagePreferences.swift */; };
 		F8983FBD55F08668E36BEF0B /* SettingsBroadcast.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1962F2077395F0F49315502C /* SettingsBroadcast.swift */; };
@@ -89,6 +92,7 @@
 		FA80F36305EBB2C36AD14416 /* english.tazapack in Resources */ = {isa = PBXBuildFile; fileRef = 967EC11F78904F1D768ACEFF /* english.tazapack */; };
 		FAE569B9B977DFEAF23FD1F9 /* PackSourceList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DA837A1A6867D6AE4419664 /* PackSourceList.swift */; };
 		FE4BAC95B229A8A4B80AE091 /* KeyboardFrameMapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7ACF76A88B696CCF90E13C8 /* KeyboardFrameMapping.swift */; };
+		FEA123BF9D24CE06DC6ABCCE /* AnnotationPanelModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBA688724115FDBB4E6B8FAA /* AnnotationPanelModel.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -169,11 +173,13 @@
 		AEBE767DBD452E15506A5A63 /* PackStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackStore.swift; sourceTree = "<group>"; };
 		B2D44F944B1A5EDD1842A418 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		B6019901E8C1B63347D74AA0 /* TypingSettingsList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingSettingsList.swift; sourceTree = "<group>"; };
+		BBA688724115FDBB4E6B8FAA /* AnnotationPanelModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationPanelModel.swift; sourceTree = "<group>"; };
 		BC1A64D4197556C33F14ADD0 /* FeedbackSettingsList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackSettingsList.swift; sourceTree = "<group>"; };
 		BD7F2DCB31A1034059A9104A /* AnnotationPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationPanelView.swift; sourceTree = "<group>"; };
 		C1B3C673EC53FBF00C3ECA18 /* EditorContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorContext.swift; sourceTree = "<group>"; };
 		C7ACF76A88B696CCF90E13C8 /* KeyboardFrameMapping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardFrameMapping.swift; sourceTree = "<group>"; };
 		C8365422EF081E7D29B1F1FD /* LicenseCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LicenseCatalogTests.swift; sourceTree = "<group>"; };
+		CA5E93AD146231D010A3F3AE /* KeyboardModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardModel.swift; sourceTree = "<group>"; };
 		CB3E63C25B2774A71B2BAFC2 /* SegmentedSetting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SegmentedSetting.swift; sourceTree = "<group>"; };
 		CDB656FE0B6EAD8B48073FC3 /* TypingOptionLabel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingOptionLabel.swift; sourceTree = "<group>"; };
 		D2F92E8CE1713F64464B2F31 /* TazaKeyboard.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = TazaKeyboard.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -337,9 +343,11 @@
 			isa = PBXGroup;
 			children = (
 				F4B96DBD027FDAC753ED1C22 /* AlternatesPopupView.swift */,
+				BBA688724115FDBB4E6B8FAA /* AnnotationPanelModel.swift */,
 				BD7F2DCB31A1034059A9104A /* AnnotationPanelView.swift */,
 				A063705662AC7D869C6B9CA8 /* CandidateBarView.swift */,
 				231812FDBF992843227998D5 /* KeyboardGridView.swift */,
+				CA5E93AD146231D010A3F3AE /* KeyboardModel.swift */,
 				D73EC3E65D47C2BDD32ACE91 /* KeyCapView.swift */,
 				11B1847A1A2B13D5E718F728 /* LayoutPreviewView.swift */,
 				1CF4D18278033FE3DE2C617D /* PopupMenuView.swift */,
@@ -582,6 +590,7 @@
 				B8187905C56EB7C54276ACBF /* AlternatesPopup.swift in Sources */,
 				06BA5BE0A5AA3486C935ED67 /* AlternatesPopupView.swift in Sources */,
 				06A1D948B58F3667A54C1091 /* AnnotationPanelMapping.swift in Sources */,
+				FEA123BF9D24CE06DC6ABCCE /* AnnotationPanelModel.swift in Sources */,
 				7B32B855DCE6354F7F23188E /* AnnotationPanelView.swift in Sources */,
 				AE6553F4A4D5E3D67C2BB52F /* BackspaceRepeat.swift in Sources */,
 				E8EFF20B9BD72F4F70F27FD8 /* CandidateBarView.swift in Sources */,
@@ -591,6 +600,7 @@
 				D9BC3D52CB9C0EEABAD2DD39 /* KeyCapView.swift in Sources */,
 				FE4BAC95B229A8A4B80AE091 /* KeyboardFrameMapping.swift in Sources */,
 				E973811921C023B99C178023 /* KeyboardGridView.swift in Sources */,
+				5EBA52953F3DA56E14340AFA /* KeyboardModel.swift in Sources */,
 				9032338949864FFA3D3163E8 /* KeyboardPreferences.swift in Sources */,
 				3E0BC546CC1D731D0B6A3450 /* KeyboardViewController.swift in Sources */,
 				67DF2875020268F00A60B403 /* LanguageMenu.swift in Sources */,
@@ -626,6 +636,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				1AC4ED72A4D1ABD55DBDFFF1 /* AlternatesPopupView.swift in Sources */,
+				EBE5AFD1A1CF4305C38C4A2A /* AnnotationPanelModel.swift in Sources */,
 				344E5A6FE0D3EC8B51350CF7 /* AnnotationPanelView.swift in Sources */,
 				BBE5DF3D9481195887C2E4A9 /* CandidateBarView.swift in Sources */,
 				673A06623585F5156715F929 /* CommonSettingsList.swift in Sources */,
@@ -634,6 +645,7 @@
 				985D52154ACD24EF1991EB7F /* KeyCapView.swift in Sources */,
 				34F7A6ECDAB1B3EA4D5CB30D /* KeyboardFrameMapping.swift in Sources */,
 				B8BAAABBD9299848CAA18DCB /* KeyboardGridView.swift in Sources */,
+				57E9D0A7DE891A47BDC160BE /* KeyboardModel.swift in Sources */,
 				CBA4DEC3ACEEE242F08D7FEB /* KeyboardPreferences.swift in Sources */,
 				661E6F0225A604E02D3F2A02 /* KeyboardSetupBanner.swift in Sources */,
 				A531EF39E67EC05F516D3FBE /* KeyboardTestSection.swift in Sources */,
@@ -731,6 +743,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -747,6 +760,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

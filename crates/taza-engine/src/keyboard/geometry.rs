@@ -59,6 +59,7 @@ pub(crate) fn number_row() -> LayoutRow {
                 width_ratio: NUMBER_ROW_KEY_WIDTH,
                 row_span: 1,
                 alternates: alternates.chars().collect(),
+                label: None,
             })
             .collect(),
         height_ratio: NUMBER_ROW_HEIGHT,

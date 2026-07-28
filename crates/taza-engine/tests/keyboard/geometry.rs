@@ -106,6 +106,7 @@ fn a_key_that_spans_rows_owns_the_row_below() {
         width_ratio: 0.5,
         row_span,
         alternates: Vec::new(),
+        label: None,
     };
     let letter = |base: char| {
         key(
@@ -219,6 +220,7 @@ fn panel_layer_hit_test_starts_below_the_panel() {
         width_ratio: 0.5,
         row_span: 1,
         alternates: Vec::new(),
+        label: None,
     };
     let row = |keys: Vec<LayoutKey>| LayoutRow {
         keys,

@@ -123,3 +123,66 @@ fn hangul_ships_several_layouts_including_cheonjiin() {
     // 천지인은 하늘(ㆍ)·땅(ㅡ)·사람(ㅣ)이 맨 위에 선다
     key_center(&engine.frame(), "ㆍ");
 }
+
+/// 그 배열로 키를 차례로 눌렀을 때 조합 창에 서는 글자 — 누름이 자모로 어떻게 쌓이는지를
+/// 본다. 세션을 새로 세우므로 앞선 낱말이 조합 창에 남아 섞이지 않는다.
+fn composing_after(layout: &str, labels: &[&str]) -> String {
+    let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap());
+    assert!(engine.select_layout(layout));
+    let context = EditorContext::unavailable();
+    let frame = engine.frame();
+    let mut composing = String::new();
+    for label in labels {
+        let (x, y) = key_center(&frame, label);
+        for effect in engine.press_at(x, y, &context).effects {
+            if let Effect::SetComposing(text) = effect {
+                composing = text.text;
+            }
+        }
+    }
+    composing
+}
+
+/// 단모음은 두벌식에서 야행 모음(ㅑㅕㅛㅠ) 키를 걷어낸 판이다. 걷어낸 것은 밑글자를 이어
+/// 눌러 내므로 조합 규칙은 두벌식 그대로이고, 그래서 이 판은 자기 방식을 밝히지 않는다.
+#[test]
+fn danmoeum_reaches_the_removed_letters_by_pressing_the_same_key_again() {
+    let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap());
+    assert!(engine.select_layout("단모음"));
+
+    // 키캡에는 밑글자만 선다 — 이어 눌러 나오는 짝을 적지 않는 것이 순정이다
+    let frame = engine.frame();
+    key_center(&frame, "ㅏ");
+    assert!(
+        frame
+            .rows
+            .iter()
+            .flatten()
+            .all(|key| !key.label.contains('ㅑ')),
+        "야행 모음이 키캡에 적혔다"
+    );
+
+    assert_eq!(composing_after("단모음", &["ㄱ", "ㅏ"]), "가");
+    // 이어 누르면 방금 넣은 글자를 갈아 끼운다 — 자음도 모음도 같은 규칙이다
+    assert_eq!(composing_after("단모음", &["ㄱ", "ㅏ", "ㅏ"]), "갸");
+    assert_eq!(composing_after("단모음", &["ㄱ", "ㄱ", "ㅏ"]), "까");
+    // 두벌식 오토마타가 그대로 돌므로 겹모음은 밑모음을 이어 친다
+    assert_eq!(composing_after("단모음", &["ㄱ", "ㅗ", "ㅏ"]), "과");
+}
+
+/// 단모음+는 된소리를 시프트로 낸다 — 그래서 받침과 다음 초성이 같은 낱말에서 주기가
+/// 끼어들지 않는다. 시프트에 짝이 없는 야행 모음만 이어 눌러 낸다.
+#[test]
+fn danmoeum_with_shift_puts_the_tense_consonants_back_on_shift() {
+    let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap());
+    assert!(engine.select_layout("단모음+"));
+
+    let frame = engine.frame();
+    let (x, y) = key_center(&frame, "⇧");
+    engine.press_at(x, y, &EditorContext::unavailable());
+    assert_eq!(engine.frame().rows[0][3].label, "ㄲ");
+
+    // 이어 눌러도 자음은 갈리지 않는다 — "학교"의 ㄱ 둘이 ㄲ로 붙지 않는다
+    assert_eq!(composing_after("단모음+", &["ㄱ", "ㄱ", "ㅏ"]), "ㄱ가");
+    assert_eq!(composing_after("단모음+", &["ㄱ", "ㅏ", "ㅏ"]), "갸");
+}

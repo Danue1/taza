@@ -72,6 +72,10 @@ pub struct LayoutKey {
     pub row_span: u8,
     /// 길게 눌러 고르는 변형 문자 (é, ¿ 등). 순서가 팝업 표시 순서다.
     pub alternates: Vec<char>,
+    /// 키에 적히는 말을 배열이 덮어쓴다. 대개 비어 있고(무엇을 내는 키인지가 곧 표기다),
+    /// 순정이 키가 내는 것을 다 적지 않는 자리만 밝힌다 — 단모음의 ㅂ 키는 이어 누르면
+    /// ㅃ이 나오지만 키캡에는 ㅂ만 있다.
+    pub label: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

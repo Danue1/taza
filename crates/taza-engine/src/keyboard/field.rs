@@ -23,6 +23,7 @@ fn control(action: KeyAction, width_ratio: f32) -> LayoutKey {
         width_ratio,
         row_span: 1,
         alternates: Vec::new(),
+        label: None,
     }
 }
 
@@ -35,6 +36,7 @@ fn character(base: char, width_ratio: f32) -> LayoutKey {
         width_ratio,
         row_span: 1,
         alternates: Vec::new(),
+        label: None,
     }
 }
 

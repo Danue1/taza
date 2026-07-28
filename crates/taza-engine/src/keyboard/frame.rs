@@ -132,7 +132,10 @@ impl FrameView<'_> {
                     .iter()
                     .enumerate()
                     .map(|(key_index, key)| {
-                        let label = self.key_label(&key.action);
+                        let label = match &key.label {
+                            Some(declared) => declared.clone(),
+                            None => self.key_label(&key.action),
+                        };
                         FrameKey {
                             position: KeyPosition {
                                 row: row_index,
@@ -187,6 +190,10 @@ impl FrameView<'_> {
         let form_factor = self.metrics.form_factor;
         let base = match action {
             KeyAction::Character { .. } | KeyAction::Text(_) => {
+                form_factor.letter_font_size_points()
+            }
+            // 주기를 다 적지 않는 멀티탭 키(단모음의 ㅂ)는 글자 하나로 서므로 글자 크기다
+            KeyAction::Multitap(_) if label.chars().count() == 1 => {
                 form_factor.letter_font_size_points()
             }
             _ if label.chars().count() > 1 => form_factor.word_font_size_points(),

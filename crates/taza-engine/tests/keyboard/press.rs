@@ -252,6 +252,7 @@ fn multitap_replaces_even_when_the_cycle_wraps() {
         width_ratio: 0.5,
         row_span: 1,
         alternates: Vec::new(),
+        label: None,
     };
     let layout_set = KeyboardLayoutSet {
         layers: vec![KeyboardLayout {
@@ -345,6 +346,7 @@ fn the_cursor_right_key_moves_one_step() {
                         width_ratio: 1.0,
                         row_span: 1,
                         alternates: Vec::new(),
+                        label: None,
                     }],
                     height_ratio: 1.0,
                 }],

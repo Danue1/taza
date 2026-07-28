@@ -23,6 +23,12 @@ impl LayoutKey {
         self
     }
 
+    /// 키에 적히는 말을 배열이 정한다 — 순정이 키가 내는 것을 다 적지 않는 자리에 쓴다.
+    pub(super) fn labeled(mut self, text: &str) -> Self {
+        self.label = Some(text.to_string());
+        self
+    }
+
     /// 아래 행까지 한 칸으로 세운다 — 덮인 자리는 그 행에서 `blank`로 비워 둔다.
     pub(super) fn spanning(mut self, rows: u8) -> Self {
         self.row_span = rows;
@@ -44,6 +50,7 @@ fn key(action: KeyAction) -> LayoutKey {
         width_ratio: LETTER_WIDTH,
         row_span: 1,
         alternates: Vec::new(),
+        label: None,
     }
 }
 

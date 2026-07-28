@@ -152,13 +152,16 @@ impl Keyboard {
         };
         self.multitap = Some(Multitap { key, index });
         let character = cycle.get(index).copied().unwrap_or(first);
+        // 멀티탭 키도 글자를 내는 키다 — 일회성 shift가 여기서 풀리지 않으면 시프트를
+        // 올린 손이 이 키를 지나칠 때마다 다음 글자까지 올라간다(단모음+)
+        let layout_changed = self.shift.consume();
         PressOutcome {
             event: Some(match continuing {
                 true => InputEvent::Retap(character),
                 // 주기를 여는 첫 누름은 평범한 글자 입력이므로 이웃 확률도 그대로 싣는다
                 false => InputEvent::Key(hit::key_signal_at(&self.active, x, y, character)),
             }),
-            layout_changed: false,
+            layout_changed,
             request: None,
             timer: Some(MULTITAP_TIMEOUT_MILLISECONDS),
         }

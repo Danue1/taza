@@ -13,6 +13,8 @@ mod builder;
 #[cfg(feature = "lang-hangul")]
 mod cheonjiin;
 #[cfg(feature = "lang-hangul")]
+mod danmoeum;
+#[cfg(feature = "lang-hangul")]
 pub(crate) mod hangul;
 #[cfg(feature = "lang-latin")]
 pub(crate) mod latin;

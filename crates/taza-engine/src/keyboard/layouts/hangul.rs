@@ -153,5 +153,6 @@ fn sebeolsik() -> NamedLayoutSet {
 pub(crate) fn layouts() -> Vec<NamedLayoutSet> {
     let mut layouts = vec![dubeolsik(), sebeolsik()];
     layouts.extend(super::cheonjiin::layouts());
+    layouts.extend(super::naratgeul::layouts());
     layouts
 }

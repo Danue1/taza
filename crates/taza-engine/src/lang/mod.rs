@@ -19,6 +19,8 @@ pub mod hangul;
 pub mod jamo;
 #[cfg(feature = "lang-latin")]
 pub mod latin;
+#[cfg(feature = "lang-hangul")]
+pub mod naratgeul;
 
 use crate::contract::{Composer, Pack};
 use crate::keyboard::{KeyboardLayoutSet, NamedLayoutSet};
@@ -105,6 +107,8 @@ const REGISTRY: &[&dyn InputMethod] = &[
     &hangul::HANGUL,
     #[cfg(feature = "lang-hangul")]
     &cheonjiin::CHEONJIIN,
+    #[cfg(feature = "lang-hangul")]
+    &naratgeul::NARATGEUL,
 ];
 
 /// 태그가 가리키는 입력 방식. 이 빌드에 없으면 None — 셸은 해당 언어를 비활성 처리한다.

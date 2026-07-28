@@ -107,6 +107,11 @@ impl Keyboard {
                 self.rebuild();
                 PressOutcome::silent(true)
             }
+            // 갈아 끼우는 키는 자기 글자를 내지 않으므로 이웃 확률에 뜻이 없다 — 이 자리를
+            // 노려 빗나갔더라도 들어갔을 자모가 없고, marker가 조회 키에 섞이면 안 된다
+            KeyAction::Compose { marker, .. } => {
+                PressOutcome::emits(InputEvent::Key(KeySignal::certain(marker)))
+            }
             KeyAction::Text(text) => PressOutcome::emits(InputEvent::Text(text)),
             KeyAction::Blank => PressOutcome::silent(false),
             KeyAction::LanguageSwitch => PressOutcome {

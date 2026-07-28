@@ -62,6 +62,15 @@ pub(super) fn multitap(cycle: &str) -> LayoutKey {
     key(KeyAction::Multitap(cycle.chars().collect()))
 }
 
+/// 직전 자모를 갈아 끼우는 키 (나랏글의 획 추가·쌍자음). 키에 적히는 말은 유니코드에
+/// 그 연산을 가리키는 글자가 없어 배열이 함께 댄다.
+pub(super) fn compose(marker: char, label: &str) -> LayoutKey {
+    key(KeyAction::Compose {
+        marker,
+        label: label.to_string(),
+    })
+}
+
 pub(super) fn shift() -> LayoutKey {
     key(KeyAction::Shift)
 }

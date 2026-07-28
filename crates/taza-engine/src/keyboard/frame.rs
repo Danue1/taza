@@ -229,6 +229,7 @@ impl FrameView<'_> {
                 .collect(),
             // 고정된 shift는 순정처럼 다른 기호로 알린다 — 한 번 누르면 풀린다는 뜻이
             // 라벨에서 드러나야 한다
+            KeyAction::Compose { label, .. } => label.clone(),
             KeyAction::Shift => match self.shift.state() {
                 ShiftState::Locked => "⇪",
                 _ => "⇧",
@@ -292,9 +293,11 @@ impl FrameView<'_> {
 
 fn key_role(action: &KeyAction) -> KeyRole {
     match action {
-        KeyAction::Character { .. } | KeyAction::Text(_) | KeyAction::Multitap(_) => {
-            KeyRole::Character
-        }
+        KeyAction::Character { .. }
+        | KeyAction::Text(_)
+        | KeyAction::Multitap(_)
+        // 갈아 끼우는 키도 셸에게는 글자 키다 — 손이 닿는 자리도 그리는 모양도 같다
+        | KeyAction::Compose { .. } => KeyRole::Character,
         KeyAction::Shift => KeyRole::Shift,
         KeyAction::Backspace => KeyRole::Backspace,
         KeyAction::Space => KeyRole::Space,

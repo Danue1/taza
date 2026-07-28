@@ -16,6 +16,8 @@ mod cheonjiin;
 pub(crate) mod hangul;
 #[cfg(feature = "lang-latin")]
 pub(crate) mod latin;
+#[cfg(feature = "lang-hangul")]
+mod naratgeul;
 #[cfg(any(feature = "lang-latin", feature = "lang-hangul"))]
 mod shared;
 

@@ -465,7 +465,7 @@
 				967EC11F78904F1D768ACEFF /* english.tazapack */,
 			);
 			name = packs;
-			path = ../../data/packs;
+			path = ../../out/packs;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */

@@ -48,18 +48,31 @@ fn the_engine_switches_between_code_layouts_with_no_pack() {
 /// 이 빌드에 없는 이름은 조용히 None이 되어 그 언어가 비활성 처리된다.
 #[test]
 fn input_methods_are_found_by_tag() {
-    for tag in ["direct", "latin", "hangul", "hangul-cheonjiin"] {
+    for tag in [
+        "direct",
+        "latin",
+        "hangul",
+        "hangul-cheonjiin",
+        "hangul-naratgeul",
+    ] {
         let method = lang::input_method(tag).expect("기본 빌드에 실린 방식");
         assert_eq!(method.tag(), tag);
     }
-    assert!(lang::input_method("naratgeul").is_none());
+    // 아직 싣지 않은 방식(일본어 플릭)은 조용히 None이다
+    assert!(lang::input_method("japanese-flick").is_none());
 }
 
 /// 방식 하나가 자기 배열과 자기 합성기를 함께 갖는다 — 배열만 있고 합성기가 없거나
 /// 배열이 이 빌드에 없는 방식을 가리키는 상태가 생기지 않아야 한다.
 #[test]
 fn every_method_carries_its_own_layouts() {
-    for tag in ["direct", "latin", "hangul", "hangul-cheonjiin"] {
+    for tag in [
+        "direct",
+        "latin",
+        "hangul",
+        "hangul-cheonjiin",
+        "hangul-naratgeul",
+    ] {
         let method = lang::input_method(tag).unwrap();
         let layouts = method.layouts();
         assert!(!layouts.is_empty(), "{tag}: 배열이 없다");
@@ -91,6 +104,7 @@ fn methods_of_one_script_share_the_layout_list() {
             .collect()
     };
     assert_eq!(names("hangul"), names("hangul-cheonjiin"));
+    assert_eq!(names("hangul"), names("hangul-naratgeul"));
 }
 
 /// 천지인은 조합 규칙이 두벌식과 달라 자기 방식을 밝힌다 — 배열을 고르면 합성기가 함께

@@ -129,7 +129,7 @@ pub fn assemble(inputs: PackInputs<'_>) -> Result<AssembledPack, String> {
     );
     metadata.set(keys::DISPLAY_NAME, &recipe.pack.display_name);
     metadata.set(keys::KEYCAP_LABEL, &recipe.pack.keycap_label);
-    metadata.set(keys::COMPOSER_SKELETON, &recipe.pack.composer_skeleton);
+    metadata.set(keys::INPUT_METHOD, &recipe.pack.composer_skeleton);
     metadata.set(
         keys::WORD_SEPARATED,
         recipe.pack.script.word_separated.to_string(),

@@ -9,7 +9,7 @@ use taza_engine::lang::hangul::HangulComposer;
 /// 이벤트 문자열: 자모/문자는 Key, '<'는 Backspace, '_'는 Separator(' '), '|'는 CursorMoved.
 /// 문서 상태(committed + composing)를 유지하며 매 이벤트마다 커서 앞 문맥으로 전달한다.
 fn run(events: &str) -> (String, Option<String>) {
-    let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap()).unwrap();
+    let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap());
     let mut committed = String::new();
     let mut composing: Option<String> = None;
     for character in events.chars() {
@@ -195,7 +195,7 @@ fn double_space_inserts_period() {
 /// 설정을 끄면 한글에서도 공백 두 개가 그대로 남는다.
 #[test]
 fn double_space_period_setting_reaches_hangul() {
-    let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap()).unwrap();
+    let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap());
     engine.set_preferences(UserPreferences {
         double_space_period: false,
         ..UserPreferences::default()
@@ -253,14 +253,14 @@ fn decomposes_compound_vowel_when_resuming() {
 
 #[test]
 fn resume_skips_when_context_unavailable() {
-    let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap()).unwrap();
+    let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap());
     let effects = engine.handle(InputEvent::Backspace, &EditorContext::unavailable());
     assert_eq!(effects, vec![Effect::DeleteBackward(1)]);
 }
 
 #[test]
 fn cursor_move_finalizes_composing() {
-    let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap()).unwrap();
+    let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap());
     let context = EditorContext::unavailable();
     engine.handle(InputEvent::Key(KeySignal::certain('ㄱ')), &context);
     engine.handle(InputEvent::Key(KeySignal::certain('ㅏ')), &context);

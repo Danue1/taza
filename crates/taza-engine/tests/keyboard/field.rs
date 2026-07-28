@@ -7,7 +7,7 @@ use crate::support::*;
 #[test]
 fn number_fields_open_a_number_pad() {
     let mut keyboard = Keyboard::new(
-        layouts::default_for(ComposerSkeleton::Latin),
+        lang::latin::LATIN.default_layouts(),
         LanguageDescriptor::builtin("en").unwrap(),
     );
     keyboard.set_field(FieldTraits::of(FieldKind::Number));
@@ -29,7 +29,7 @@ fn number_fields_open_a_number_pad() {
 #[test]
 fn decimal_and_phone_fields_differ_only_in_the_corner_key() {
     let mut keyboard = Keyboard::new(
-        layouts::default_for(ComposerSkeleton::Latin),
+        lang::latin::LATIN.default_layouts(),
         LanguageDescriptor::builtin("en").unwrap(),
     );
     keyboard.set_field(FieldTraits::of(FieldKind::Decimal));
@@ -44,7 +44,7 @@ fn decimal_and_phone_fields_differ_only_in_the_corner_key() {
 #[test]
 fn email_field_puts_at_and_dot_beside_a_shorter_space() {
     let mut keyboard = Keyboard::new(
-        layouts::default_for(ComposerSkeleton::Latin),
+        lang::latin::LATIN.default_layouts(),
         LanguageDescriptor::builtin("en").unwrap(),
     );
     let plain_space = key_width(&keyboard.frame(), "␣");
@@ -63,7 +63,7 @@ fn email_field_puts_at_and_dot_beside_a_shorter_space() {
 #[test]
 fn url_field_replaces_space_with_dot_slash_and_domain() {
     let mut keyboard = Keyboard::new(
-        layouts::default_for(ComposerSkeleton::Latin),
+        lang::latin::LATIN.default_layouts(),
         LanguageDescriptor::builtin("en").unwrap(),
     );
     keyboard.set_field(FieldTraits::of(FieldKind::Url));
@@ -81,7 +81,7 @@ fn url_field_replaces_space_with_dot_slash_and_domain() {
 #[test]
 fn search_field_only_changes_the_return_key() {
     let mut keyboard = Keyboard::new(
-        layouts::default_for(ComposerSkeleton::Latin),
+        lang::latin::LATIN.default_layouts(),
         LanguageDescriptor::builtin("en").unwrap(),
     );
     let plain = keyboard.frame();
@@ -100,7 +100,7 @@ fn search_field_only_changes_the_return_key() {
 #[test]
 fn password_field_strips_emoji_and_language_keys() {
     let mut keyboard = Keyboard::new(
-        layouts::default_for(ComposerSkeleton::Latin),
+        lang::latin::LATIN.default_layouts(),
         LanguageDescriptor::builtin("en").unwrap(),
     );
     keyboard.set_field(FieldTraits::of(FieldKind::Password));

@@ -5,6 +5,27 @@ use crate::contract::{
 };
 
 use super::jamo::decompose;
+use crate::keyboard::{NamedLayoutSet, layouts};
+use crate::lang::InputMethod;
+
+/// 두벌식·세벌식 입력 방식 — 자모 오토마타에 marked text를 붙인다.
+pub struct HangulMethod;
+
+pub static HANGUL: HangulMethod = HangulMethod;
+
+impl InputMethod for HangulMethod {
+    fn tag(&self) -> &'static str {
+        "hangul"
+    }
+
+    fn layouts(&self) -> Vec<NamedLayoutSet> {
+        layouts::hangul::layouts()
+    }
+
+    fn composer(&self) -> Box<dyn Composer> {
+        Box::new(HangulComposer::new())
+    }
+}
 
 /// 스냅샷에서 composing 창과 어절 자모를 가르는 글자
 const STATE_SEPARATOR: char = '\t';

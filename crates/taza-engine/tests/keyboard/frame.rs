@@ -5,7 +5,7 @@ use crate::support::*;
 #[test]
 fn control_keys_carry_a_role_the_shell_can_name() {
     let keyboard = Keyboard::new(
-        layouts::default_for(ComposerSkeleton::Latin),
+        lang::latin::LATIN.default_layouts(),
         LanguageDescriptor::builtin("en").unwrap(),
     );
     let frame = keyboard.frame();
@@ -20,7 +20,7 @@ fn control_keys_carry_a_role_the_shell_can_name() {
 #[test]
 fn korean_layer_switch_label_is_hangul() {
     let mut keyboard = Keyboard::new(
-        layouts::default_for(ComposerSkeleton::Hangul),
+        lang::hangul::HANGUL.default_layouts(),
         LanguageDescriptor::builtin("ko").unwrap(),
     );
     let frame = keyboard.frame();
@@ -33,7 +33,7 @@ fn korean_layer_switch_label_is_hangul() {
 #[test]
 fn bottom_row_order_is_symbols_emoji_language_space_enter() {
     let keyboard = Keyboard::new(
-        layouts::default_for(ComposerSkeleton::Latin),
+        lang::latin::LATIN.default_layouts(),
         LanguageDescriptor::builtin("en").unwrap(),
     );
     let frame = keyboard.frame();
@@ -64,7 +64,7 @@ fn bottom_row_order_is_symbols_emoji_language_space_enter() {
 #[test]
 fn the_annotation_panel_layer_keeps_the_keyboard_height() {
     let mut keyboard = Keyboard::new(
-        layouts::default_for(ComposerSkeleton::Latin),
+        lang::latin::LATIN.default_layouts(),
         LanguageDescriptor::builtin("en").unwrap(),
     );
     let letters = keyboard.frame();
@@ -95,7 +95,7 @@ fn the_annotation_panel_layer_keeps_the_keyboard_height() {
 #[test]
 fn form_factor_drives_measured_sizes() {
     let mut keyboard = Keyboard::new(
-        layouts::default_for(ComposerSkeleton::Latin),
+        lang::latin::LATIN.default_layouts(),
         LanguageDescriptor::builtin("en").unwrap(),
     );
     let portrait = keyboard.frame().metrics;
@@ -129,7 +129,7 @@ fn form_factor_drives_measured_sizes() {
 /// 내고, 키캡에는 사람이 읽는 호환 자모가 찍힌다.
 #[test]
 fn sebeolsik_keys_carry_their_place_and_show_compatibility_jamo() {
-    let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap()).unwrap();
+    let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap());
     assert!(engine.select_layout("세벌식 최종"));
 
     let frame = engine.frame();

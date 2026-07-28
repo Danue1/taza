@@ -5,7 +5,7 @@
 //! 레이어 관례: 0 = 문자(언어별), 1 = 심볼 1면(숫자·기본 기호), 2 = 심볼 2면,
 //! 3 = 통합 검색면(이모지·기호·얼굴 문자 — 키 대신 패널이 자리를 갖는다).
 
-use crate::lang::ComposerSkeleton;
+use crate::lang::InputMethod;
 
 /// 글자 하나의 대문자. 대문자가 두 글자 이상이 되는 글자(ß→SS)는 키 한 칸에도 변형
 /// 문자 팝업 한 칸에도 담을 수 없으므로 그대로 둔다 — 그런 글자는 배열이 시프트 표기를
@@ -94,8 +94,8 @@ pub struct KeyboardLayoutSet {
 #[derive(Debug, Clone, PartialEq)]
 pub struct NamedLayoutSet {
     pub name: &'static str,
-    /// 이 배열이 요구하는 조합 골격. 대개 비어 있고(언어가 밝힌 골격을 쓴다), 같은
-    /// 언어 안에서 조합 규칙이 다른 배열(천지인)만 자기 골격을 밝힌다.
-    pub skeleton: Option<ComposerSkeleton>,
+    /// 이 배열이 요구하는 입력 방식. 대개 비어 있고(언어가 밝힌 방식을 쓴다), 같은
+    /// 언어 안에서 조합 규칙이 다른 배열(천지인)만 자기 방식을 밝힌다.
+    pub method: Option<&'static dyn InputMethod>,
     pub layouts: KeyboardLayoutSet,
 }

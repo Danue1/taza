@@ -28,7 +28,7 @@ fn main() {
         }
     };
     let bytes = std::fs::read(pack_path).unwrap();
-    let mut engine = Engine::new(language).unwrap();
+    let mut engine = Engine::new(language);
     engine.load_pack(Arc::new(bytes)).unwrap();
 
     let mut committed = String::new();

@@ -1,5 +1,5 @@
 //! 천지인 계열 네 벌. 조합 규칙이 두벌식과 다르므로(두벌식의 ㅏ 다음 ㅣ는 새 글자지만
-//! 천지인에서는 ㅐ다) 이 판들만 자기 골격을 밝힌다.
+//! 천지인에서는 ㅐ다) 이 판들만 자기 입력 방식을 밝힌다.
 //!
 //! 네 벌이 다른 것은 자음을 어떻게 나눠 담는가와 기능 열을 두는가뿐이다 — 어느 판으로
 //! 치든 같은 자모에 닿고, 하늘·땅·사람의 조합 규칙은 하나다.
@@ -9,10 +9,10 @@
 //! 다른 배열과 저절로 맞는다.
 
 use crate::keyboard::layout::{LayoutRow, NamedLayoutSet};
-use crate::lang::ComposerSkeleton;
+use crate::lang::cheonjiin::CHEONJIIN;
 
 use super::builder::*;
-use super::named_with_skeleton;
+use super::named_with_method;
 use super::shared::set_of;
 
 /// 기능 열을 좌우에 두는 판의 격자 — 다섯 칸 균등
@@ -25,7 +25,7 @@ const WIDE_COLUMN: f32 = 0.25;
 const SPLIT_TRIPLE: f32 = SPLIT_COLUMN * 3.0;
 
 fn cheonjiin(name: &'static str, letters: Vec<LayoutRow>) -> NamedLayoutSet {
-    named_with_skeleton(name, ComposerSkeleton::HangulCheonjiin, set_of(letters))
+    named_with_method(name, &CHEONJIIN, set_of(letters))
 }
 
 /// 표준 천지인 — 글자 세 열을 기능 키가 좌우에서 감싸는 네 줄 다섯 칸. 자음은 같은 키를

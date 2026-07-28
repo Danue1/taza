@@ -26,8 +26,10 @@ pub mod keys {
     pub const DISPLAY_NAME: &str = "display_name";
     /// 언어 키에 찍히는 짧은 표기
     pub const KEYCAP_LABEL: &str = "keycap_label";
-    /// 조합 골격 — `direct` / `latin` / `hangul`
-    pub const COMPOSER_SKELETON: &str = "composer_skeleton";
+    /// 입력 방식 — `direct` / `latin` / `hangul` / `hangul-cheonjiin`. 와이어 이름은
+    /// 이 개념을 골격이라 부르던 때 그대로다 — 이미 내려간 팩이 읽히지 않게 되므로
+    /// 바꾸지 않는다.
+    pub const INPUT_METHOD: &str = "composer_skeleton";
     /// 어절 뒤에 붙어 활용형을 만드는 접사 — 줄바꿈으로 나눈 표시 형태 목록.
     /// 학습한 어휘에 이것을 붙여 사전에도 스토어에도 없는 결합형을 제안한다.
     /// 교착어가 아닌 언어의 팩에는 없다.

@@ -25,7 +25,7 @@ const LANGUAGE_MODEL_POOL: usize = 32;
 /// 재료가 없다.
 const DICTIONARY_POOL_FACTOR: usize = 4;
 
-/// 언어별로 달라지는 랭킹 정책. 합성기가 자기 골격에 맞는 값을 선언한다.
+/// 언어별로 달라지는 랭킹 정책. 입력 방식이 자기에 맞는 값을 선언한다.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SuggestionPolicy {
     pub encoding: KeyEncoding,
@@ -95,7 +95,7 @@ impl Suggester {
     }
 
     /// 진행 중인 단어의 완성·교정. 사전에 없는 개인화 어휘와, 자동교정을 쓰는
-    /// 골격에서는 원문 그대로의 후보까지 합쳐 낸다.
+    /// 방식에서는 원문 그대로의 후보까지 합쳐 낸다.
     pub fn suggest(&self, key: &str, sources: &SuggestionSources<'_>) -> Vec<Suggestion> {
         if key.is_empty() {
             return Vec::new();

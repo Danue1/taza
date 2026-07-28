@@ -34,7 +34,7 @@ struct Harness {
 
 impl Harness {
     fn new(pack_bytes: &[u8]) -> Self {
-        let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap()).unwrap();
+        let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap());
         engine.load_pack(Arc::new(pack_bytes.to_vec())).unwrap();
         Harness {
             engine,
@@ -166,7 +166,7 @@ fn personalized_word_absent_from_lexicon_is_completed() {
 
 #[test]
 fn works_without_pack() {
-    let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap()).unwrap();
+    let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap());
     let context = EditorContext::unavailable();
     let effects = engine.handle(InputEvent::Key(KeySignal::certain('ㄱ')), &context);
     assert!(effects.iter().any(|effect| matches!(

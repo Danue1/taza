@@ -34,7 +34,7 @@ fn letter_row(text: &str) -> LayoutRow {
     row(letter_keys(text))
 }
 
-pub(super) fn layouts() -> Vec<NamedLayoutSet> {
+pub(crate) fn layouts() -> Vec<NamedLayoutSet> {
     vec![
         named(
             "QWERTY",

@@ -1,6 +1,6 @@
-//! 한글 배열 — 두벌식과 세벌식 최종. 조합 규칙은 둘 다 `Hangul` 골격 하나가 맡는다:
+//! 한글 배열 — 두벌식과 세벌식 최종. 조합 규칙은 둘 다 `hangul` 방식 하나가 맡는다:
 //! 세벌식은 자리를 밝힌 조합용 자모를 내므로 합성기가 초성인지 종성인지를 추론할 일이
-//! 없고, 그래서 새 골격이 아니라 배열 하나로 끝난다.
+//! 없고, 그래서 새 방식이 아니라 배열 하나로 끝난다.
 
 use crate::keyboard::layout::{LayoutKey, LayoutRow, NamedLayoutSet};
 
@@ -150,7 +150,7 @@ fn sebeolsik() -> NamedLayoutSet {
     )
 }
 
-pub(super) fn layouts() -> Vec<NamedLayoutSet> {
+pub(crate) fn layouts() -> Vec<NamedLayoutSet> {
     let mut layouts = vec![dubeolsik(), sebeolsik()];
     layouts.extend(super::cheonjiin::layouts());
     layouts

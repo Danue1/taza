@@ -38,9 +38,8 @@ impl KeyboardSession {
     pub fn new(language_tag: String) -> Result<Self, FfiLanguageError> {
         let language =
             LanguageDescriptor::builtin(&language_tag).ok_or(FfiLanguageError::Unsupported)?;
-        let engine = Engine::new(language).ok_or(FfiLanguageError::Unsupported)?;
         Ok(KeyboardSession {
-            engine: Mutex::new(engine),
+            engine: Mutex::new(Engine::new(language)),
         })
     }
 

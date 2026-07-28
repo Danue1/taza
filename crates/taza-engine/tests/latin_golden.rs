@@ -55,7 +55,7 @@ struct Harness {
 
 impl Harness {
     fn new(pack_bytes: &[u8]) -> Self {
-        let mut engine = Engine::new(LanguageDescriptor::builtin("en").unwrap()).unwrap();
+        let mut engine = Engine::new(LanguageDescriptor::builtin("en").unwrap());
         engine.load_pack(Arc::new(pack_bytes.to_vec())).unwrap();
         Harness {
             engine,
@@ -96,7 +96,7 @@ impl Harness {
                 // 라틴 배열에는 멀티탭 키가 없다
                 Effect::SetTimer(_) => {}
                 Effect::SetComposing(_) | Effect::ClearComposing => {
-                    panic!("라틴 골격은 composing을 쓰지 않는다")
+                    panic!("라틴 방식은 composing을 쓰지 않는다")
                 }
             }
         }
@@ -493,7 +493,7 @@ fn password_field_disables_learning() {
 
 #[test]
 fn works_without_lexicon() {
-    let mut engine = Engine::new(LanguageDescriptor::builtin("en").unwrap()).unwrap();
+    let mut engine = Engine::new(LanguageDescriptor::builtin("en").unwrap());
     let context = EditorContext::unavailable();
     let effects = engine.handle(InputEvent::Key(KeySignal::certain('h')), &context);
     assert_eq!(effects, vec![Effect::CommitText("h".to_string())]);

@@ -68,7 +68,7 @@ struct Typist {
 impl Typist {
     /// 평가는 항상 빈 상태에서 시작한다 — 과제마다 엔진을 새로 만든다.
     fn new(language: &LanguageDescriptor, pack: &Arc<dyn PackBytes>) -> Self {
-        let mut engine = Engine::new(language.clone()).expect("이 빌드에 없는 골격");
+        let mut engine = Engine::new(language.clone());
         engine.load_pack(Arc::clone(pack)).expect("팩 열기 실패");
         Typist {
             engine,

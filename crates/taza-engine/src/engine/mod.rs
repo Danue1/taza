@@ -18,9 +18,9 @@ use std::sync::Arc;
 use crate::contract::{Composer, EditorContext, Effect, FieldKind, FieldTraits, UserPreferences};
 use crate::keyboard::{
     FrameKey, FrameMetrics, KeySignal, Keyboard, KeyboardFrame, KeyboardMetrics, NamedLayoutSet,
-    ShellRequest, layouts,
+    ShellRequest,
 };
-use crate::lang::{ComposerSkeleton, LanguageDescriptor};
+use crate::lang::{InputMethod, LanguageDescriptor};
 use crate::personalization::{PersonalizationState, PersonalizationStore};
 use crate::suggest::{Suggester, Suggestion};
 
@@ -53,13 +53,13 @@ pub struct Engine {
     composer: Box<dyn Composer>,
     suggester: Suggester,
     keyboard: Keyboard,
-    /// 이 골격으로 칠 수 있는 배열들 — 코드가 싣고 있는 목록이라 팩이 없어도 다 고를
+    /// 이 방식으로 칠 수 있는 배열들 — 코드가 싣고 있는 목록이라 팩이 없어도 다 고를
     /// 수 있다. 어느 것으로 칠지는 설정이 정한다.
     layouts: Vec<NamedLayoutSet>,
     selected_layout: usize,
-    /// 지금 꽂혀 있는 합성기의 골격 — 배열이 자기 골격을 밝히면 갈아 끼우므로,
+    /// 지금 꽂혀 있는 합성기의 입력 방식 — 배열이 자기 방식을 밝히면 갈아 끼우므로,
     /// 무엇이 꽂혀 있는지를 알아야 헛되이 다시 만들지 않는다
-    active_skeleton: ComposerSkeleton,
+    active_method: &'static dyn InputMethod,
     personalization: PersonalizationStore,
     /// 팩 교체로 키보드를 다시 만들어도 셸이 주입한 표시 환경은 이어져야 한다
     metrics: KeyboardMetrics,
@@ -82,19 +82,20 @@ pub struct Engine {
 }
 
 impl Engine {
-    /// 이 빌드에 골격이 포함되지 않았으면 None — 셸은 해당 언어를 비활성 처리한다.
-    pub fn new(language: LanguageDescriptor) -> Option<Self> {
-        let composer = language.skeleton.composer()?;
-        Some(Engine::with_composer(language, composer))
+    /// 언어가 밝힌 입력 방식으로 연다. 이 빌드에 없는 방식은 선언을 만드는 자리에서
+    /// 이미 걸러지므로(`LanguageDescriptor`), 여기까지 온 언어는 반드시 열린다.
+    pub fn new(language: LanguageDescriptor) -> Self {
+        let composer = language.method.composer();
+        Engine::with_composer(language, composer)
     }
 
     /// 언어의 기본 합성기 대신 다른 합성기를 꽂는다. 한 언어에 복수 배열·합성기를
     /// 두는 경우(인도계 음역↔네이티브 등)와 테스트가 쓰는 통로다.
     pub fn with_composer(language: LanguageDescriptor, composer: Box<dyn Composer>) -> Self {
-        let layouts = layouts::for_skeleton(language.skeleton);
+        let layouts = language.method.layouts();
         let first = layouts
             .first()
-            .expect("골격마다 배열이 최소 한 벌")
+            .expect("입력 방식마다 배열이 최소 한 벌")
             .layouts
             .clone();
         Engine {
@@ -103,7 +104,7 @@ impl Engine {
             keyboard: Keyboard::new(first, language.clone()),
             layouts,
             selected_layout: 0,
-            active_skeleton: language.skeleton,
+            active_method: language.method,
             language,
             personalization: PersonalizationStore::new(),
             metrics: KeyboardMetrics::default(),
@@ -130,7 +131,7 @@ impl Engine {
         self.refresh_suggester();
     }
 
-    /// 후보 바 구성은 언어(골격)가 정한 정책 위에 사용자 설정을 덮은 결과다 — 설정이
+    /// 후보 바 구성은 언어(입력 방식)가 정한 정책 위에 사용자 설정을 덮은 결과다 — 설정이
     /// 바뀌거나 팩이 바뀌면 둘을 다시 합친다.
     fn refresh_suggester(&mut self) {
         let mut policy = self.language.suggestion_policy();

@@ -6,13 +6,37 @@
 //! 이미 갈아 끼운 결과가 평범한 키 입력으로 들어온다.
 //!
 //! 모음 표를 두벌식과 나눠 갖지 않는 까닭: 두벌식에서 ㅏ 뒤의 ㅣ는 새 글자지만
-//! 천지인에서는 ㅐ다. 한 표로 둘을 겸하면 둘 중 하나가 틀린다. 배열이 자기 골격을
-//! 밝히는 통로(`NamedLayoutSet::skeleton`)가 이 때문에 생겼다.
+//! 천지인에서는 ㅐ다. 한 표로 둘을 겸하면 둘 중 하나가 틀린다. 배열이 자기 입력 방식을
+//! 밝히는 통로(`NamedLayoutSet::method`)가 이 때문에 생겼다.
 
 use super::hangul::HangulComposer;
 use crate::contract::{
     CommittedText, Composer, ComposerEvent, ComposerOutput, ComposerState, EditorContext,
 };
+use crate::keyboard::{NamedLayoutSet, layouts};
+use crate::lang::InputMethod;
+
+/// 천지인 입력 방식 — 자모 오토마타 위에 하늘·땅·사람 모음 조합을 얹는다. 자음 멀티탭은
+/// 배열이 데이터로 적는 것이라 방식이 따로 맡지 않는다.
+pub struct CheonjiinMethod;
+
+pub static CHEONJIIN: CheonjiinMethod = CheonjiinMethod;
+
+impl InputMethod for CheonjiinMethod {
+    fn tag(&self) -> &'static str {
+        "hangul-cheonjiin"
+    }
+
+    /// 두벌식과 같은 목록을 낸다 — 천지인으로 들어온 사람이 두벌식으로 갈아탈 길이
+    /// 막히면 안 되고, 한국어로 칠 수 있는 배열은 어느 방식으로 들어오든 하나다.
+    fn layouts(&self) -> Vec<NamedLayoutSet> {
+        layouts::hangul::layouts()
+    }
+
+    fn composer(&self) -> Box<dyn Composer> {
+        Box::new(CheonjiinComposer::new())
+    }
+}
 
 /// 하늘·땅·사람 — 이 셋을 이어 친 것이 모음이 된다.
 const SKY: char = 'ㆍ';

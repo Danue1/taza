@@ -49,7 +49,7 @@ pub struct PackIdentity {
     pub display_name: String,
     /// 언어 키에 찍히는 짧은 표기
     pub keycap_label: String,
-    /// 조합 골격 — 이 언어를 어느 합성기로 칠 것인가
+    /// 입력 방식 — 이 언어를 어느 방식으로 칠 것인가
     pub composer_skeleton: String,
     /// 데이터 판 번호 — 같은 언어의 갱신 배포를 구분한다. 원천·규칙을 바꾸면 올린다.
     pub pack_version: u32,

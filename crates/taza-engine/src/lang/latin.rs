@@ -2,6 +2,31 @@ use crate::contract::{
     CommittedText, Composer, ComposerEvent, ComposerOutput, ComposerState, EditorContext,
     SuggestionRequest, WordBoundary,
 };
+use crate::keyboard::{NamedLayoutSet, layouts};
+use crate::lang::InputMethod;
+
+/// 라틴 입력 방식 — 친 그대로 확정하되 어절을 추적해 제안·자동교정을 붙인다.
+pub struct LatinMethod;
+
+pub static LATIN: LatinMethod = LatinMethod;
+
+impl InputMethod for LatinMethod {
+    fn tag(&self) -> &'static str {
+        "latin"
+    }
+
+    fn layouts(&self) -> Vec<NamedLayoutSet> {
+        layouts::latin::layouts()
+    }
+
+    fn composer(&self) -> Box<dyn Composer> {
+        Box::new(LatinComposer::new())
+    }
+
+    fn autocorrects(&self) -> bool {
+        true
+    }
+}
 
 /// 짝맞춤 아포스트로피는 곧은 것과 똑같이 어절 안에 선다 — 순정도 축약형에 이 글자를
 /// 넣고 그 낱말을 계속 예측한다. 어절 글자로 보지 않으면 `don't`가 `don`과 `t`로 갈려
@@ -10,7 +35,7 @@ fn is_word_character(character: char) -> bool {
     character.is_alphabetic() || character == '\'' || character == '\u{2019}'
 }
 
-/// 라틴 골격: composing 없이 글자를 즉시 확정하고(플랫폼 관습 — 영어는 marked text를
+/// 라틴 합성기: composing 없이 글자를 즉시 확정하고(플랫폼 관습 — 영어는 marked text를
 /// 쓰지 않는다), 현재 단어만 내부에서 추적한다. 무엇을 제안할지·교정할지는 Engine이
 /// 정하므로 여기서는 조회 키와 어절 경계만 낸다.
 #[derive(Debug, Default)]

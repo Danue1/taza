@@ -6,7 +6,7 @@ use crate::support::*;
 #[test]
 fn shift_is_one_shot() {
     let mut keyboard = Keyboard::new(
-        layouts::default_for(ComposerSkeleton::Latin),
+        lang::latin::LATIN.default_layouts(),
         LanguageDescriptor::builtin("en").unwrap(),
     );
     let frame = keyboard.frame();
@@ -32,7 +32,7 @@ fn shift_is_one_shot() {
 #[test]
 fn shift_toggles_off_when_pressed_twice() {
     let mut keyboard = Keyboard::new(
-        layouts::default_for(ComposerSkeleton::Latin),
+        lang::latin::LATIN.default_layouts(),
         LanguageDescriptor::builtin("en").unwrap(),
     );
     let frame = keyboard.frame();
@@ -46,7 +46,7 @@ fn shift_toggles_off_when_pressed_twice() {
 #[test]
 fn shift_lock_survives_typing_and_only_applies_to_cased_layouts() {
     let mut keyboard = Keyboard::new(
-        layouts::default_for(ComposerSkeleton::Latin),
+        lang::latin::LATIN.default_layouts(),
         LanguageDescriptor::builtin("en").unwrap(),
     );
     assert!(keyboard.toggle_shift_lock());
@@ -61,7 +61,7 @@ fn shift_lock_survives_typing_and_only_applies_to_cased_layouts() {
 
     // 한글은 shift가 대문자가 아니라 다른 자모라 고정할 것이 없다
     let mut hangul = Keyboard::new(
-        layouts::default_for(ComposerSkeleton::Hangul),
+        lang::hangul::HANGUL.default_layouts(),
         LanguageDescriptor::builtin("ko").unwrap(),
     );
     assert!(!hangul.toggle_shift_lock());
@@ -71,7 +71,7 @@ fn shift_lock_survives_typing_and_only_applies_to_cased_layouts() {
 #[test]
 fn dubeolsik_shift_produces_tense_consonants() {
     let mut keyboard = Keyboard::new(
-        layouts::default_for(ComposerSkeleton::Hangul),
+        lang::hangul::HANGUL.default_layouts(),
         LanguageDescriptor::builtin("ko").unwrap(),
     );
     let frame = keyboard.frame();
@@ -85,7 +85,7 @@ fn dubeolsik_shift_produces_tense_consonants() {
 #[test]
 fn layer_switch_cycles_symbol_layers() {
     let mut keyboard = Keyboard::new(
-        layouts::default_for(ComposerSkeleton::Latin),
+        lang::latin::LATIN.default_layouts(),
         LanguageDescriptor::builtin("en").unwrap(),
     );
     let frame = keyboard.frame();
@@ -113,7 +113,7 @@ fn layer_switch_cycles_symbol_layers() {
 #[test]
 fn language_key_asks_shell_to_switch() {
     let mut keyboard = Keyboard::new(
-        layouts::default_for(ComposerSkeleton::Hangul),
+        lang::hangul::HANGUL.default_layouts(),
         LanguageDescriptor::builtin("ko").unwrap(),
     );
     let frame = keyboard.frame();
@@ -127,7 +127,7 @@ fn language_key_asks_shell_to_switch() {
 #[test]
 fn alternates_reach_the_shell_and_come_back_as_input() {
     let mut keyboard = Keyboard::new(
-        layouts::default_for(ComposerSkeleton::Latin),
+        lang::latin::LATIN.default_layouts(),
         LanguageDescriptor::builtin("en").unwrap(),
     );
     let frame = keyboard.frame();
@@ -152,7 +152,7 @@ fn alternates_reach_the_shell_and_come_back_as_input() {
 #[test]
 fn alternates_follow_shift_into_uppercase() {
     let mut keyboard = Keyboard::new(
-        layouts::default_for(ComposerSkeleton::Latin),
+        lang::latin::LATIN.default_layouts(),
         LanguageDescriptor::builtin("en").unwrap(),
     );
     assert!(keyboard.toggle_shift_lock());
@@ -178,7 +178,7 @@ fn alternates_follow_shift_into_uppercase() {
 #[test]
 fn hangul_letters_offer_their_shifted_pair_as_alternate() {
     let keyboard = Keyboard::new(
-        layouts::default_for(ComposerSkeleton::Hangul),
+        lang::hangul::HANGUL.default_layouts(),
         LanguageDescriptor::builtin("ko").unwrap(),
     );
     let letters = &keyboard.frame().rows[0];
@@ -198,7 +198,7 @@ fn hangul_letters_offer_their_shifted_pair_as_alternate() {
 #[test]
 fn cursor_drag_emits_steps_once_per_threshold() {
     let mut keyboard = Keyboard::new(
-        layouts::default_for(ComposerSkeleton::Latin),
+        lang::latin::LATIN.default_layouts(),
         LanguageDescriptor::builtin("en").unwrap(),
     );
     keyboard.begin_cursor_drag(0.5);
@@ -217,7 +217,7 @@ fn cursor_drag_emits_steps_once_per_threshold() {
 #[test]
 fn cursor_drag_sensitivity_is_physical() {
     let mut narrow = Keyboard::new(
-        layouts::default_for(ComposerSkeleton::Latin),
+        lang::latin::LATIN.default_layouts(),
         LanguageDescriptor::builtin("en").unwrap(),
     );
     narrow.set_metrics(KeyboardMetrics {
@@ -226,7 +226,7 @@ fn cursor_drag_sensitivity_is_physical() {
         text_scale: 1.0,
     });
     let mut wide = Keyboard::new(
-        layouts::default_for(ComposerSkeleton::Latin),
+        lang::latin::LATIN.default_layouts(),
         LanguageDescriptor::builtin("en").unwrap(),
     );
     wide.set_metrics(KeyboardMetrics {
@@ -290,10 +290,10 @@ fn multitap_replaces_even_when_the_cycle_wraps() {
 #[test]
 fn touch_sequence_types_hangul_through_session() {
     let mut keyboard = Keyboard::new(
-        layouts::default_for(ComposerSkeleton::Hangul),
+        lang::hangul::HANGUL.default_layouts(),
         LanguageDescriptor::builtin("ko").unwrap(),
     );
-    let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap()).unwrap();
+    let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap());
     let frame = keyboard.frame();
     let context = EditorContext::unavailable();
 
@@ -312,7 +312,7 @@ fn touch_sequence_types_hangul_through_session() {
 
 #[test]
 fn text_keys_commit_after_finalizing_the_composition() {
-    let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap()).unwrap();
+    let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap());
     let context = EditorContext::unavailable();
     engine.set_field(FieldTraits::of(FieldKind::Url));
     let frame = engine.frame();
@@ -362,7 +362,7 @@ fn the_cursor_right_key_moves_one_step() {
 /// 텍스트를 남기지 않는다.
 #[test]
 fn cursor_right_finalizes_the_composition() {
-    let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap()).unwrap();
+    let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap());
     let context = EditorContext::unavailable();
     engine.handle(InputEvent::Key(KeySignal::certain('ㄱ')), &context);
     let effects = engine.handle(InputEvent::CursorDrag(1), &context);

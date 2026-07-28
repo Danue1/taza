@@ -9,7 +9,7 @@ use taza_engine::keyboard::{FormFactor, KeySignal, KeyboardFrame, KeyboardMetric
 use taza_engine::lang::LanguageDescriptor;
 
 fn engine(preferences: UserPreferences) -> Engine {
-    let mut engine = Engine::new(LanguageDescriptor::builtin("en").unwrap()).unwrap();
+    let mut engine = Engine::new(LanguageDescriptor::builtin("en").unwrap());
     engine.set_metrics(KeyboardMetrics {
         form_factor: FormFactor::PhonePortrait,
         width_points: 390.0,

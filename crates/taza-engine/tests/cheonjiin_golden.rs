@@ -157,7 +157,7 @@ impl Document {
 }
 
 fn cheonjiin_engine(layout: &str) -> Engine {
-    let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap()).unwrap();
+    let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap());
     assert!(engine.select_layout(layout), "{layout} 배열이 없음");
     engine
 }
@@ -246,7 +246,7 @@ fn snapshot_keeps_the_taps() {
 /// 셸이 만들지 않는 이벤트다 — Engine이 멀티탭 판정에서 스스로 낸다.
 #[test]
 fn retap_deletes_before_inserting() {
-    let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap()).unwrap();
+    let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap());
     let context = EditorContext::unavailable();
     engine.handle(InputEvent::Key(KeySignal::certain('ㄱ')), &context);
     let effects = engine.handle(InputEvent::Retap('ㅋ'), &context);

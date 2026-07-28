@@ -115,7 +115,7 @@ fn candidate_replacement_translates_to_delete_then_commit() {
 
 #[test]
 fn cursor_drag_finalizes_composing_then_moves() {
-    let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap()).unwrap();
+    let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap());
     let context = EditorContext::unavailable();
     engine.handle(InputEvent::Key(KeySignal::certain('ㄱ')), &context);
     engine.handle(InputEvent::Key(KeySignal::certain('ㅏ')), &context);

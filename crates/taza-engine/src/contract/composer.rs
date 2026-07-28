@@ -55,7 +55,7 @@ pub struct WordBoundary {
     pub separator: char,
     /// 끝난 어휘의 사전 조회 키
     pub key: String,
-    /// 그 어휘의 표시 형태. 자동교정을 쓰는 골격에서는 이만큼을 지우고 치환한다.
+    /// 그 어휘의 표시 형태. 자동교정을 쓰는 방식에서는 이만큼을 지우고 치환한다.
     pub surface: String,
 }
 
@@ -70,7 +70,7 @@ pub struct ComposerOutput {
 }
 
 /// 익스텐션 프로세스 kill 대비 직렬화 대상. 무엇을 담을지는 각 합성기가 정하고 코어는
-/// 바이트로만 다룬다 — 골격이 늘어도 이 계약은 그대로다.
+/// 바이트로만 다룬다 — 방식이 늘어도 이 계약은 그대로다.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ComposerState(pub Vec<u8>);
 

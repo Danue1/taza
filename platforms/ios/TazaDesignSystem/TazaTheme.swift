@@ -127,13 +127,23 @@ public enum TazaTheme {
 
         /// 후보 바 글꼴 — 낱말은 순정 예측 바와 같은 17pt이고, 곁들이는 것은 갈래마다
         /// 눈에 잡히는 크기가 달라 따로 잡는다(이모지는 크게, 글자로 그린 얼굴은 작게).
-        public static func candidate(group: CandidateModel.Group) -> UIFont {
-            switch group {
-            case .word: UIFont.systemFont(ofSize: 17)
-            case .emoji: UIFont.systemFont(ofSize: 24)
-            case .symbol: UIFont.systemFont(ofSize: 21)
-            case .emoticon: UIFont.systemFont(ofSize: 15)
+        ///
+        /// 사전이 고친 후보는 굵게 선다(순정 관례) — 어절을 끝내면 친 것이 갈아치워진다는
+        /// 예고이고, 그 예고가 없으면 사용자는 확정된 뒤에야 교정을 알게 된다.
+        public static func candidate(
+            group: CandidateModel.Group,
+            kind: CandidateModel.Kind = .prediction
+        ) -> UIFont {
+            let size: CGFloat = switch group {
+            case .word: 17
+            case .emoji: 24
+            case .symbol: 21
+            case .emoticon: 15
             }
+            return UIFont.systemFont(
+                ofSize: size,
+                weight: kind == .correction ? .semibold : .regular
+            )
         }
 
         /// 통합 검색면 글꼴 — 훑어보는 자리라 후보 바보다 크게 잡는다.

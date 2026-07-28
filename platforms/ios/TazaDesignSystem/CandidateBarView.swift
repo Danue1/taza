@@ -1,7 +1,7 @@
 import UIKit
 
-/// 후보 바에 서는 항목 하나. 갈래는 코어가 정해 내려 주고(FfiCandidateGroup) 셸은 그
-/// 갈래대로 묶어 보이기만 한다.
+/// 후보 바에 서는 항목 하나. 갈래도 어떻게 얻은 후보인지도 코어가 정해 내려 주고
+/// (FfiCandidateGroup·FfiCandidateKind) 셸은 그대로 묶어 보이기만 한다.
 public struct CandidateModel {
     /// 후보 바의 배치 단위. 낱말은 자리를 나눠 갖고, 곁들이는 것은 제 폭만 차지한다.
     public enum Group: Hashable {
@@ -11,11 +11,21 @@ public struct CandidateModel {
         case emoticon
     }
 
+    /// 어떻게 얻은 후보인가 — 원문을 지키는 자리와 사전이 고친 자리를 눈으로 가른다.
+    public enum Kind: Hashable {
+        case typed
+        case prediction
+        case conversion
+        case correction
+    }
+
     public let text: String
+    public let kind: Kind
     public let group: Group
 
-    public init(text: String, group: Group) {
+    public init(text: String, kind: Kind, group: Group) {
         self.text = text
+        self.kind = kind
         self.group = group
     }
 }
@@ -141,9 +151,12 @@ public final class CandidateBarView: UIView {
     private func makeButton(_ candidate: CandidateModel, index: Int) -> UIButton {
         var configuration = UIButton.Configuration.plain()
         configuration.attributedTitle = AttributedString(
-            candidate.text,
+            displayText(candidate),
             attributes: AttributeContainer([
-                .font: TazaTheme.Typography.candidate(group: candidate.group),
+                .font: TazaTheme.Typography.candidate(
+                    group: candidate.group,
+                    kind: candidate.kind
+                ),
                 .foregroundColor: TazaTheme.Color.label,
             ])
         )
@@ -164,9 +177,25 @@ public final class CandidateBarView: UIView {
             // 바 전체가 넘칠 땐 낱말이 먼저 줄어든다 — 곁들이는 것은 제 폭을 지킨다
             button.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         }
+        // 읽어 주는 것은 실제로 들어갈 글자다 — 따옴표는 눈으로 가르려고 두른 것이라
+        // 소리로 옮기면 없는 부호를 읽는다
         button.accessibilityLabel = candidate.text
-        button.accessibilityHint = hint(for: candidate.group)
+        button.accessibilityHint = hint(for: candidate)
         return button
+    }
+
+    /// 화면에 나갈 꼴. 원문 후보는 따옴표로 감싼다 — 순정도 사전이 아는 낱말과 친 그대로를
+    /// 이렇게 가른다. 감싸는 것은 보이는 꼴일 뿐이고, 고르면 코어가 쥔 원문이 그대로 들어간다.
+    private func displayText(_ candidate: CandidateModel) -> String {
+        guard candidate.kind == .typed else { return candidate.text }
+        return "\u{201C}\(candidate.text)\u{201D}"
+    }
+
+    private func hint(for candidate: CandidateModel) -> String {
+        if candidate.kind == .typed {
+            return NSLocalizedString("친 대로 두기", comment: "후보 바 접근성 힌트")
+        }
+        return hint(for: candidate.group)
     }
 
     private func hint(for group: CandidateModel.Group) -> String {

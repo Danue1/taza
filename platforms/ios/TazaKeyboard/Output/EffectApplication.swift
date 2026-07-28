@@ -24,6 +24,10 @@ extension KeyboardViewController {
         }
     }
 
+    /// 코어가 세는 단위는 코드포인트인데 `deleteBackward()`가 지우는 단위는 그래핌이다.
+    /// 지금 어긋나지 않는 것은 코어가 내는 어절에 그래핌을 늘리는 글자가 들어오지 않기
+    /// 때문이며(`ComposerOutput.delete_before_commit`), 데바나가리·타이처럼 모음 기호가
+    /// 어절 안에 서는 스크립트를 실으면 여기부터 코드포인트 단위로 고쳐야 한다.
     private func deleteCharacters(_ count: Int) {
         for _ in 0..<count {
             textDocumentProxy.deleteBackward()

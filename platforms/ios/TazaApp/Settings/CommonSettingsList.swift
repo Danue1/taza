@@ -42,6 +42,7 @@ struct CommonSettingsList: View {
 
             KeyboardTestSection()
         }
+        .scrollDismissesKeyboard(.interactively)
         .navigationTitle("설정")
     }
 }

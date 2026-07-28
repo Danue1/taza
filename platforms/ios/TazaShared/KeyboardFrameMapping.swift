@@ -11,7 +11,7 @@ public func keyboardFrameModel(
 ) -> KeyboardFrameModel {
     KeyboardFrameModel(
         rows: frame.rows.map { row in
-            row.map { key in
+            row.enumerated().map { index, key in
                 KeyModel(
                     label: legend(for: key),
                     appearance: appearance(for: key),
@@ -27,12 +27,27 @@ public func keyboardFrameModel(
                     accessibilityHint: hint(for: key),
                     alternates: key.alternates,
                     isActive: key.shiftActive,
-                    leadingExtraGap: key.role == .backspace ? TazaTheme.Key.edgeExtraGap : 0,
-                    trailingExtraGap: key.role == .shift ? TazaTheme.Key.edgeExtraGap : 0
+                    leadingExtraGap: key.role == .backspace
+                        && splitsFromNeighbour(key, index > 0 ? row[index - 1] : nil)
+                        ? TazaTheme.Key.edgeExtraGap : 0,
+                    trailingExtraGap: key.role == .shift
+                        && splitsFromNeighbour(key, index + 1 < row.count ? row[index + 1] : nil)
+                        ? TazaTheme.Key.edgeExtraGap : 0
                 )
             }
         }
     )
+}
+
+/// 가장자리 여백을 더할 자리인지 — 이웃한 글자 키보다 **넓을 때만**이다. 두벌식 아랫줄의
+/// shift·backspace는 좁은 글자 열보다 넓어 갈라져 보여야 하지만, 천지인처럼 모든 키가
+/// 한 칸씩인 판에서 여백을 더하면 그 키만 칸 밖으로 밀려 윗줄과 어긋난다.
+///
+/// 좁은 쪽에는 더하지 않는다: 천지인+의 backspace는 한 칸(0.125)이고 왼쪽 이웃 ㅡ는 세
+/// 칸이라 폭이 다르지만, 여백을 주면 같은 한 칸인 아래 엔터보다 좁아진다.
+private func splitsFromNeighbour(_ key: FfiFrameKey, _ neighbour: FfiFrameKey?) -> Bool {
+    guard let neighbour else { return false }
+    return key.bounds.width - neighbour.bounds.width > 0.001
 }
 
 /// 키에 적히는 글자. 낱말로 적히는 키(리턴키)는 코어가 갈래만 알려 주므로 화면

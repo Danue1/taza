@@ -142,7 +142,7 @@ final class SettingsModel: ObservableObject {
         return made
     }
 
-    /// 고른 배열 — 고른 적이 없거나 팩 갱신으로 사라졌으면 팩이 밝힌 기본 배열이다
+    /// 고른 배열 — 고른 적이 없거나 판올림으로 사라졌으면 그 언어의 기본 배열이다
     func layoutName(_ language: TazaLanguage) -> String {
         let layouts = availableLayouts(language)
         if let chosen = languagePreferences.layoutName(for: language),

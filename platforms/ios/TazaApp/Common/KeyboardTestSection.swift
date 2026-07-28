@@ -1,6 +1,10 @@
 import SwiftUI
 
 /// 설정을 바꾼 자리에서 바로 쳐 볼 수 있게 하는 칸 — 여러 줄까지 받는다.
+///
+/// 키보드는 순정 설정 앱처럼 목록을 쓸어내려 닫는다 — 이 칸을 싣는 목록은
+/// `scrollDismissesKeyboard(.interactively)`를 건다(수정자가 스크롤 뷰에 걸려야 해
+/// 칸 안에서는 걸 수 없다).
 struct KeyboardTestSection: View {
     /// 칸에 들어가는 순간 할 일 — 언어 화면은 이때 키보드의 언어를 맞춰 둔다
     var onFocus: (() -> Void)?
@@ -15,14 +19,6 @@ struct KeyboardTestSection: View {
                 .focused($isFocused)
                 .onChange(of: isFocused) { focused in
                     if focused { onFocus?() }
-                }
-                // 여러 줄을 받는 칸이라 리턴키가 줄바꿈이고, 목록도 짧아 끌어 내려
-                // 닫을 여백이 없다 — 나가는 길을 키보드 위에 둔다.
-                .toolbar {
-                    ToolbarItemGroup(placement: .keyboard) {
-                        Spacer()
-                        Button("완료") { isFocused = false }
-                    }
                 }
         }
     }

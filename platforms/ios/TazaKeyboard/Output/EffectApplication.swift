@@ -75,9 +75,14 @@ extension KeyboardViewController {
     /// 않고, 우리가 마지막으로 남긴 문서 끝과 견준다.
     override func textDidChange(_ textInput: UITextInput?) {
         super.textDidChange(textInput)
+        // 우리 편집에 딸려 온 알림이면 아무것도 다시 보지 않는다. 이 시점의 프록시 문맥은
+        // 방금 넣은 글자를 아직 담고 있지 않아 한 박자 늦고, 그 낡은 문맥으로 자동
+        // 대문자화를 다시 보면 코어가 press에서 이미 내린 shift를 도로 올려 둘째 글자까지
+        // 대문자가 된다. 초점도 우리 편집으로는 옮겨 가지 않는다.
+        if applyingEffects { return }
         // 다른 필드로 초점이 옮겨 갔을 수 있다 — 화면부터 그 필드에 맞춘다
         updateField()
-        guard !applyingEffects, let session = activeSession else { return }
+        guard let session = activeSession else { return }
         let tail = textDocumentProxy.documentContextBeforeInput ?? ""
         let unchanged = composingOnScreen.isEmpty
             ? lastAppliedTail.map { $0 == tail } ?? true

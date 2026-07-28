@@ -42,6 +42,7 @@ struct FeedbackSettingsList: View {
 
             KeyboardTestSection()
         }
+        .scrollDismissesKeyboard(.interactively)
         .navigationTitle("입력감·제스처")
     }
 }

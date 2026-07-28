@@ -45,6 +45,7 @@ struct ShortcutSettingsList: View {
 
             KeyboardTestSection()
         }
+        .scrollDismissesKeyboard(.interactively)
         .navigationTitle("텍스트 대치")
     }
 }

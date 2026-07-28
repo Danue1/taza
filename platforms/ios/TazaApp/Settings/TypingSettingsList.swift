@@ -19,6 +19,7 @@ struct TypingSettingsList: View {
 
             KeyboardTestSection()
         }
+        .scrollDismissesKeyboard(.interactively)
         .navigationTitle("입력 보조")
     }
 }

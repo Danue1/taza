@@ -37,6 +37,7 @@ struct DisplaySettingsList: View {
 
             KeyboardTestSection()
         }
+        .scrollDismissesKeyboard(.interactively)
         .navigationTitle("표시")
     }
 }

@@ -102,6 +102,7 @@ struct LanguageSettingsList: View {
 
             KeyboardTestSection { model.prepareKeyboard(for: language) }
         }
+        .scrollDismissesKeyboard(.interactively)
         .navigationTitle(model.languageName(language))
     }
 }

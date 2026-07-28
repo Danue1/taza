@@ -594,7 +594,8 @@ public protocol KeyboardSessionProtocol: AnyObject, Sendable {
     func keyboardFrame()  -> FfiKeyboardFrame
     
     /**
-     * 지금 쓰고 있는 언어 선언 — 팩을 실으면 팩이 밝힌 값으로 바뀐다.
+     * 지금 쓰고 있는 언어 선언 — 팩을 실으면 팩이 밝힌 값으로 바뀐다. 배열 이름은
+     * 언어가 아니라 지금 고른 배열의 것이다(배열은 팩이 아니라 코드에 있다).
      */
     func language()  -> FfiLanguageDescriptor
     
@@ -854,7 +855,8 @@ open func keyboardFrame() -> FfiKeyboardFrame  {
 }
     
     /**
-     * 지금 쓰고 있는 언어 선언 — 팩을 실으면 팩이 밝힌 값으로 바뀐다.
+     * 지금 쓰고 있는 언어 선언 — 팩을 실으면 팩이 밝힌 값으로 바뀐다. 배열 이름은
+     * 언어가 아니라 지금 고른 배열의 것이다(배열은 팩이 아니라 코드에 있다).
      */
 open func language() -> FfiLanguageDescriptor  {
     return try!  FfiConverterTypeFfiLanguageDescriptor_lift(try! rustCall() {
@@ -4780,7 +4782,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_taza_ffi_checksum_method_keyboardsession_keyboard_frame() != 38766) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_taza_ffi_checksum_method_keyboardsession_language() != 52953) {
+    if (uniffi_taza_ffi_checksum_method_keyboardsession_language() != 2718) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_taza_ffi_checksum_method_keyboardsession_load_pack() != 39525) {

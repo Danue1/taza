@@ -13,6 +13,20 @@ use std::path::{Path, PathBuf};
 /// 스트리밍 다운로드에서 한 번에 읽는 크기
 const CHUNK: usize = 64 * 1024;
 
+/// TLS는 운영체제 것을 빌려 쓴다 — 인증서 검증기를 따로 짊어지면 이 워크스페이스에서
+/// 제일 긴 컴파일 사슬이 된다. ureq는 기능과 무관하게 rustls를 기본으로 삼으므로
+/// 여기서 명시하지 않으면 첫 https 요청에서 터진다.
+fn agent() -> ureq::Agent {
+    ureq::Agent::config_builder()
+        .tls_config(
+            ureq::tls::TlsConfig::builder()
+                .provider(ureq::tls::TlsProvider::NativeTls)
+                .build(),
+        )
+        .build()
+        .into()
+}
+
 pub fn hex_digest(bytes: &[u8]) -> String {
     let digest = Sha256::digest(bytes);
     digest.iter().map(|byte| format!("{byte:02x}")).collect()
@@ -108,7 +122,8 @@ pub fn fetch(url: &str, expected_sha256: &str, cache_directory: &Path) -> Result
     }
 
     println!("  내려받기 {url}");
-    let mut response = ureq::get(url)
+    let mut response = agent()
+        .get(url)
         .call()
         .map_err(|error| format!("{url} 요청 실패: {error}"))?;
     let mut body = Vec::new();

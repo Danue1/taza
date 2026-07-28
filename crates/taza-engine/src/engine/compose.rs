@@ -8,6 +8,7 @@ use crate::contract::{
     Candidate, ComposerEvent, ComposerOutput, EditorContext, Effect, Pack, SuggestionRequest,
     WordBoundary,
 };
+use crate::keyboard::KeySignal;
 use crate::policy::Assistance;
 use crate::suggest::{Suggestion, SuggestionSources};
 
@@ -20,8 +21,13 @@ pub(super) struct Correction {
     original: String,
     /// 그 형태의 조회 키 — 되돌릴 때 이것을 배운다
     original_key: String,
+    /// 갈아치우며 배운 쪽의 조회 키 — 되돌릴 때 그 배움을 되무른다
+    corrected_key: String,
     /// 그 자리에 들어간 교정 결과와 경계 문자를 합친 확정 텍스트
     committed: String,
+    /// 교정 전 어절에 눌렸던 터치 신호. 되살린 어절은 다시 치던 중인 어절이므로
+    /// 공간 모델이 읽을 신호도 함께 돌아와야 한다.
+    touches: Vec<KeySignal>,
 }
 
 /// 어절이 끝난 자리에 실제로 들어가는 것 — 사용자가 친 그대로일 수도, 대치 표나
@@ -137,10 +143,13 @@ impl Engine {
             };
         };
         let committed = format!("{}{}", text, boundary.separator);
+        // 터치 신호는 어절이 끝나는 자리(`finish_word`)에서 비워지므로 여기서 챙겨 둔다
         self.reverted_correction = Some(Correction {
             original: boundary.surface.clone(),
             original_key: boundary.key,
+            corrected_key: key.clone(),
             committed: committed.clone(),
+            touches: self.touches.clone(),
         });
         Confirmed {
             key,
@@ -193,22 +202,45 @@ impl Engine {
     /// 물린 원문은 배운다. 교정을 물리는 것이 곧 "이 말은 내가 쓰는 말이다"라는 신호이며
     /// (순정 키보드도 이것을 학습 경로로 쓴다), 배우지 않으면 같은 교정이 영원히
     /// 되풀이된다 — 원문은 사전에 없으므로 스스로 학습될 다른 길이 없다.
+    ///
+    /// 갈아치우며 배운 쪽은 되무른다. 확정은 `finish_word`가 교정 결과를 배우고 지나갔는데
+    /// 사용자가 곧바로 그것을 물렸으므로, 그대로 두면 사용자가 거부한 낱말이 도리어
+    /// 가중치를 얻어 다음 교정을 밀어 준다.
     pub(super) fn revert(
         &mut self,
         correction: Correction,
         context: &EditorContext,
     ) -> Vec<Effect> {
+        let holder = self.pack.clone();
+        let pack = holder
+            .as_ref()
+            .and_then(|holder| Pack::open(holder.bytes()).ok());
         let assistance =
             crate::policy::assistance(&self.preferences, self.keyboard.traits(), context);
-        if assistance.personalizing && !context.incognito && !correction.original_key.is_empty() {
-            self.personalization.record(&correction.original_key);
+        if assistance.personalizing && !context.incognito {
+            self.personalization.forget(&correction.corrected_key);
+            if !correction.original_key.is_empty() {
+                self.personalization.record(&correction.original_key);
+            }
         }
         self.previous_word = None;
+        // 되살린 어절은 다시 치고 있는 어절이다 — 터치 신호를 돌려 놓아야 이어지는
+        // 조회가 공간 모델을 그대로 쓴다
+        self.touches = correction.touches;
         let mut effects = vec![
             Effect::DeleteBackward(correction.committed.chars().count()),
             Effect::CommitText(correction.original),
         ];
-        self.replace_suggestions(Vec::new(), &mut effects);
+        // 후보 바도 그 어절을 다시 비춘다 — 비워 두면 물린 자리에서 고를 것이 사라져
+        // 원문을 지키는 길(원문 슬롯)까지 함께 닫힌다
+        let suggestions = match assistance.predicting && !correction.original_key.is_empty() {
+            true => self.suggester.suggest(
+                &correction.original_key,
+                &self.sources(pack.as_ref(), assistance),
+            ),
+            false => Vec::new(),
+        };
+        self.replace_suggestions(suggestions, &mut effects);
         effects
     }
 

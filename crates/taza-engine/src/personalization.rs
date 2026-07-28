@@ -79,6 +79,21 @@ impl PersonalizationStore {
         }
     }
 
+    /// 확정 한 번을 되무른다 — 자동교정을 물렸을 때 그 교정어가 배운 채로 남지 않게 한다.
+    /// 남은 횟수가 없으면 항목째 지운다.
+    ///
+    /// 논리 시계는 되감지 않는다. 시계는 항목 사이의 최근 순서를 재는 눈금이라, 되무른다고
+    /// 뒤로 돌리면 그 뒤에 기록된 다른 항목들의 최근 사용이 함께 흐트러진다.
+    pub fn forget(&mut self, word: &str) {
+        let Some(entry) = self.entries.get_mut(word) else {
+            return;
+        };
+        entry.count = entry.count.saturating_sub(1);
+        if entry.count == 0 {
+            self.entries.remove(word);
+        }
+    }
+
     /// 통합 검색면에서 고른 것을 최근순 맨 앞에 남긴다.
     pub fn record_annotation(&mut self, group: CandidateGroup, text: &str) {
         if text.is_empty() {

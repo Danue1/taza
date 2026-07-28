@@ -237,6 +237,9 @@ impl Engine {
         // 어절이 여기서 끝났으므로 직전 어휘는 더 이상 문맥이 아니다
         self.previous_word = None;
         self.touches.clear();
+        // 되돌릴 교정도 그 어절과 함께 끝난다 — 남겨 두면 커서가 옮겨 간 자리에서 친
+        // Backspace가 그곳의 글자를 지우고 남의 자리에 옛 원문을 넣는다
+        self.reverted_correction = None;
         self.replace_suggestions(Vec::new(), &mut effects);
         effects
     }

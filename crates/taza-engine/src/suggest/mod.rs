@@ -378,18 +378,28 @@ impl Suggester {
             encoding: self.policy.encoding,
             extending: false,
         };
+        // 사전 탐색은 빈도와 편집 비용만 보고 자르는데 갈아치울지는 개인화·문맥까지
+        // 더해 정한다. 하나만 끌어오면 그 하나가 곧 결론이 되어, 빈도는 낮아도 사용자가
+        // 쓰는 말이거나 문맥이 부르는 말이 교정 후보가 될 길이 없다 — 진행 중인 어절의
+        // 재랭킹(`suggest`)이 같은 이유로 pool을 넓혀 두었고, 확정하는 자리가 그보다
+        // 좁은 재료로 판단할 이유는 없다.
+        let context = ContextWeights::gather(sources);
+        let scored = |entry: &Entry| {
+            score::combine(
+                entry.frequency,
+                sources.learned_weight(&entry.key),
+                context.weight(&entry.key),
+                entry.cost,
+            )
+        };
         let best = lexicon
-            .search(&query, 1)
+            .search(&query, self.policy.limit * DICTIONARY_POOL_FACTOR)
             .into_iter()
-            .find(|entry| entry.cost > 0)?;
+            .filter(|entry| entry.cost > 0)
+            .max_by_key(&scored)?;
         // 원문을 갈아치울 만큼 앞서는가. 원문은 사전에 없으므로(위에서 걸렀다) 그 점수는
         // 개인화 가중치뿐이며, 교정 후보는 편집 비용을 치르고도 그만큼을 넘어야 한다.
-        let corrected = score::combine(
-            best.frequency,
-            sources.learned_weight(&best.key),
-            ContextWeights::gather(sources).weight(&best.key),
-            best.cost,
-        );
+        let corrected = scored(&best);
         let typed = score::combine(0, sources.learned_weight(key), 0, 0);
         if corrected - typed <= score::AUTOCORRECT_MARGIN {
             return None;

@@ -257,6 +257,51 @@ fn revert_expires_after_the_next_input() {
     assert_eq!(harness.committed, "the ");
 }
 
+/// 되돌리기는 그 어절 자리에 매여 있다. 커서가 옮겨 간 뒤의 Backspace는 그 자리의
+/// 글자를 지울 뿐이다 — 남겨 두면 남의 자리 글자를 지우고 옛 원문을 거기 넣는다.
+#[test]
+fn revert_does_not_reach_across_a_cursor_move() {
+    let bytes = english_pack();
+    let mut harness = Harness::new(&bytes);
+    harness.type_text("teh ");
+    assert_eq!(harness.committed, "the ");
+
+    harness.send(InputEvent::CursorMoved);
+    harness.move_caret("somewhere else");
+    harness.send(InputEvent::Backspace);
+    assert_eq!(harness.committed, "somewhere els");
+}
+
+/// 확정은 교정 결과를 배우고 지나가는데 사용자가 곧바로 그것을 물렸다 — 그 배움도
+/// 함께 되물러야 한다. 그러지 않으면 사용자가 거부한 낱말이 도리어 가중치를 얻는다.
+#[test]
+fn reverting_forgets_what_the_correction_taught() {
+    let bytes = english_pack();
+    let mut harness = Harness::new(&bytes);
+    harness.type_text("teh ");
+    harness.send(InputEvent::Backspace);
+
+    let learned: Vec<String> = harness
+        .engine
+        .personalization_snapshot()
+        .entries
+        .into_iter()
+        .map(|(word, _, _)| word)
+        .collect();
+    assert_eq!(learned, vec!["teh".to_string()]);
+}
+
+/// 되돌린 자리는 다시 치고 있는 어절이다 — 후보 바가 비면 원문을 지키는 길까지
+/// 함께 닫히므로 그 어절의 후보를 다시 비춘다.
+#[test]
+fn reverting_puts_the_word_back_in_the_candidate_bar() {
+    let bytes = english_pack();
+    let mut harness = Harness::new(&bytes);
+    harness.type_text("teh ");
+    harness.send(InputEvent::Backspace);
+    assert_eq!(harness.shown.first().map(String::as_str), Some("teh"));
+}
+
 /// 교정 후보가 원문을 앞서지 못하면 원문을 그대로 둔다 — 교정은 사용자가 친 것을
 /// 지우는 일이라 점수로 판단한다.
 #[test]

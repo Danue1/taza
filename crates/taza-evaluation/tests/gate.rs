@@ -6,7 +6,10 @@ use taza_engine::lang::jamo::{decompose_word, encode_jamo_ascii};
 use taza_engine::lang::{self, InputMethod, LanguageDescriptor};
 use taza_engine::pack::SectionKind;
 use taza_evaluation::synthesis::{TypedSequence, TypoSynthesizer, synthesize_cases};
-use taza_evaluation::{CompletionTask, EvaluationCase, evaluate_completions, evaluate_corrections};
+use taza_evaluation::{
+    CompletionTask, EvaluationCase, evaluate_completions, evaluate_corrections,
+    evaluate_false_corrections,
+};
 use taza_pack::PackWriter;
 use taza_pack::section::lexicon::LexiconBuilder;
 
@@ -119,6 +122,57 @@ fn completion_quality_gate() {
         report.keystroke_savings >= 0.55,
         "keystroke savings 회귀: {report:?}"
     );
+}
+
+/// 사전에 없지만 올바른 낱말 — 사전의 표제어에서 **편집 하나 거리**에 있다.
+/// 12낱말 픽스처에서 이 낱말들은 전부 교정된다. 실팩에서는 이런 낱말이 대개 표제어로
+/// 들어가 있으므로 이것은 제품의 오교정률이 아니라 마진이 걸린 자리를 비추는 눈금이다.
+const ABSENT_NEAR_WORDS: [&str; 6] = ["them", "than", "helps", "worlds", "themes", "languages"];
+
+/// 사전의 어느 표제어와도 편집거리가 멀어, 예산이 온전한 한 교정 후보가 아예 닿지 못하는
+/// 낱말. 사용자의 고유명사·신조어가 서는 자리이며 여기가 무너지면 친 말이 망가진다.
+const ABSENT_DISTANT_WORDS: [&str; 6] = [
+    "banana", "computer", "morning", "silver", "garden", "window",
+];
+
+fn false_correction_rate(words: &[&str]) -> f64 {
+    let pack: Arc<dyn PackBytes> = Arc::new(english_pack_bytes());
+    let synthesizer = TypoSynthesizer::new(&lang::latin::LATIN.default_layouts(), 42);
+    let cases: Vec<EvaluationCase> = words
+        .iter()
+        .map(|word| EvaluationCase {
+            typed: TypedSequence {
+                text: word.to_string(),
+                touches: synthesizer.touches_for(word).unwrap(),
+            },
+            intended: word.to_string(),
+        })
+        .collect();
+    let report =
+        evaluate_false_corrections(&pack, &LanguageDescriptor::builtin("en").unwrap(), &cases);
+    println!("[gate] english false correction {report:?}");
+    report.false_correction_rate
+}
+
+/// 오교정 게이트 — 제대로 친 미등재 낱말을 자동교정이 건드리는가. 교정 정확도만 재면
+/// "무엇이든 교정할수록 좋다"는 방향으로 튜닝하게 되므로 마진(`AUTOCORRECT_MARGIN`)과
+/// 편집 예산을 만지는 변경은 반드시 이 값과 함께 봐야 한다.
+///
+/// **이 게이트가 잡는 것**: 편집 예산이 넓어져 이웃 없는 낱말까지 교정 사정권에 드는 회귀.
+/// **잡지 못하는 것**: 마진을 조금 푸는 변화 — 가까운 쪽은 12낱말 픽스처에서 이미 다
+/// 교정되고 있어 더 나빠질 자리가 없다. 제품의 오교정률은 실팩을 읽는 `pack_report`
+/// 예제가 재고(실측 0.074), 그 표본이 CI에 들어올 수 없어(팩은 빌드 산출물이다)
+/// 여기서는 방향이 분명한 쪽만 못 박는다.
+#[test]
+fn distant_words_are_never_false_corrected() {
+    assert_eq!(false_correction_rate(&ABSENT_DISTANT_WORDS), 0.0);
+}
+
+/// 편집 하나 거리의 미등재 낱말이 어떻게 되는지를 기준선으로 남긴다 — 실측 1.0.
+/// 값이 내려가면 마진·예산이 조여진 것이고 올라갈 자리는 없다.
+#[test]
+fn near_words_baseline_is_recorded() {
+    assert_eq!(false_correction_rate(&ABSENT_NEAR_WORDS), 1.0);
 }
 
 // 실제 한국어 팩의 값 — 팩에 없는 어절은 이웃한 표제어 수준으로 맞춰 두었다.

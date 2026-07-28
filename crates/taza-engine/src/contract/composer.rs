@@ -61,7 +61,15 @@ pub struct WordBoundary {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ComposerOutput {
-    /// commit 적용 전에 삭제할 확정 텍스트의 그래핌 수 (제안 치환·확정 취소용)
+    /// commit 적용 전에 삭제할 확정 텍스트의 **코드포인트 수** (제안 치환·확정 취소용).
+    /// 그대로 `Effect::DeleteBackward`가 되므로 단위가 그것과 같아야 한다.
+    ///
+    /// 셸은 이 수를 플랫폼의 한 글자 삭제(iOS `deleteBackward()`)로 옮기는데 그쪽 단위는
+    /// **그래핌**이다. 지금 어긋나지 않는 것은 합성기가 내는 어절에 그래핌을 늘리는 글자가
+    /// 들어오지 않기 때문이다 — 라틴은 결합 부호(U+0301)가 `is_alphabetic`이 아니라 거기서
+    /// 어절이 끊기고, 한글 음절은 코드포인트 하나다. 데바나가리 모음 기호(U+093E)나 타이
+    /// 사라 암(U+0E33)은 `is_alphabetic`이라 어절 안에 서므로, 그 스크립트를 실을 때
+    /// 셸의 삭제를 코드포인트 단위로 바꾸지 않으면 한 번에 한 글자씩 더 지운다.
     pub delete_before_commit: usize,
     pub commit: Option<CommittedText>,
     pub composing: Option<ComposingText>,

@@ -207,3 +207,26 @@ fn unlearned_word_does_not_combine() {
         harness.candidates
     );
 }
+
+/// 두벌식 ASCII는 대문자 자리에 된소리·이중모음을 싣는다 — 'R'은 ㄲ이고 'r'은 ㄱ이다.
+/// 라틴을 위한 대소문자 접기를 이 키 공간에까지 적용하면 글자가 바뀌어, "까치"를 치는
+/// 사람이 "가치"를 받는다.
+#[test]
+fn tense_consonants_are_not_folded_into_plain_ones() {
+    let mut lexicon = LexiconBuilder::new();
+    for word in ["까치", "가치"] {
+        let encoded = encode_jamo_ascii(&decompose_word(word).unwrap()).unwrap();
+        lexicon.insert(&encoded, 30000);
+    }
+    let mut writer = PackWriter::new("ko");
+    writer.add_section(SectionKind::Lexicon, lexicon.build());
+    let bytes = writer.finish();
+
+    let mut harness = Harness::new(&bytes);
+    harness.type_jamo("ㄲㅏ");
+    assert_eq!(harness.candidates, vec!["까치"]);
+
+    let mut harness = Harness::new(&bytes);
+    harness.type_jamo("ㄱㅏ");
+    assert_eq!(harness.candidates, vec!["가치"]);
+}

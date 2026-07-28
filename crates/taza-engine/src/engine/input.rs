@@ -1,7 +1,7 @@
 //! 셸이 두드리는 문. 터치·타이머·제스처가 여기로 들어와 `InputEvent`로 갈리고,
 //! 그 뒤에 붙는 랭킹·교정·학습은 `compose`가 맡는다.
 
-use crate::contract::{ComposerEvent, EditorContext, Effect, InputEvent};
+use crate::contract::{CandidateGroup, ComposerEvent, EditorContext, Effect, InputEvent};
 use crate::keyboard::KeySignal;
 use crate::policy::PunctuationOutcome;
 
@@ -156,7 +156,7 @@ impl Engine {
             }
             InputEvent::Backspace => {
                 if let Some(correction) = self.reverted_correction.take() {
-                    return self.revert(correction);
+                    return self.revert(correction, context);
                 }
                 self.touches.pop();
                 self.feed(ComposerEvent::Backspace, context, None)
@@ -168,6 +168,20 @@ impl Engine {
                 let Some(selected) = self.suggestions.get(index).cloned() else {
                     return Vec::new();
                 };
+                // 곁들이는 것을 후보 바에서 골랐어도 검색면에서 고른 것과 같은 자취를
+                // 남긴다 — 같은 이모지가 어디서 골랐느냐에 따라 "자주 쓰는"에 들기도
+                // 하고 들지 않기도 하면 그 목록이 사용자의 쓰임을 대변하지 못한다
+                if selected.group != CandidateGroup::Word {
+                    let assistance = crate::policy::assistance(
+                        &self.preferences,
+                        self.keyboard.traits(),
+                        context,
+                    );
+                    if assistance.personalizing && !context.incognito {
+                        self.personalization
+                            .record_annotation(selected.group, &selected.text);
+                    }
+                }
                 self.feed(
                     ComposerEvent::CandidateSelected(selected.text.clone()),
                     context,

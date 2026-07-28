@@ -204,6 +204,7 @@ mod tests {
                         key: "dkss",
                         max_cost: 0,
                         touches: &[],
+                        encoding: taza_engine::suggest::KeyEncoding::HangulJamoDubeolsik,
                         extending: true,
                     },
                     10

@@ -11,6 +11,7 @@
 use crate::keyboard::KeySignal;
 use crate::pack::lexicon::{Lexicon, Node};
 use crate::suggest::dictionary::{Entry, Query};
+use crate::suggest::encoding::KeyEncoding;
 use crate::suggest::score;
 
 /// 한 번의 조회에서 방문할 노드 수의 상한. 가지치기가 듣지 않는 병적인 입력에서도
@@ -52,7 +53,7 @@ pub(crate) fn search(lexicon: &Lexicon<'_>, query: &Query<'_>, limit: usize) -> 
         lexicon,
         query: query.key.as_bytes(),
         touch_at_byte: touch_at_byte(query.key, query.touches.len()),
-        touches: query.touches,
+        touch_keys: touch_keys(query.touches, query.encoding),
         max_cost: query.max_cost,
         extending: query.extending,
         limit,
@@ -85,6 +86,12 @@ fn frequency_score(entry: &Entry) -> i64 {
 /// 이어지는 바이트와 터치가 모자라는 앞자리는 None이며, 그 자리에서는 이웃 확률을 쓰지
 /// 않고 평범한 치환 비용으로 돌아간다.
 fn touch_at_byte(key: &str, touch_count: usize) -> Vec<Option<usize>> {
+    // 타건이 키 글자보다 많으면 둘을 자리로 맞출 수 없다 — 천지인처럼 타건 여럿이 모여
+    // 자모 하나가 되는 방식이 그렇다(ㅏ는 ㅣ와 ㆍ 두 번이다). 억지로 맞추면 엉뚱한
+    // 타건의 이웃 확률로 교정 비용을 매기므로, 그때는 이웃을 아예 셈하지 않는다.
+    if touch_count > key.chars().count() {
+        return vec![None; key.len()];
+    }
     // 터치는 키의 끝에서부터 맞춘다 — 커서를 옮겨 이어 친 어절은 앞부분의 터치가 없다
     let offset = key.chars().count().saturating_sub(touch_count);
     let mut map = vec![None; key.len()];
@@ -94,12 +101,39 @@ fn touch_at_byte(key: &str, touch_count: usize) -> Vec<Option<usize>> {
     map
 }
 
+/// 터치 신호가 낸 글자들을 조회 키 공간의 바이트로 옮긴다 — (키 바이트, 확률).
+///
+/// 신호에는 배열이 내는 **표시 글자**가 담기고(한글 배열은 ㄱ을 낸다) trie에는 **조회
+/// 키**가 담긴다(두벌식 ASCII로 'r'이다). 여기서 한 번 옮겨 두지 않으면 두 공간이 만날
+/// 일이 없어, 어느 이웃도 이웃으로 보이지 않고 모든 치환이 같은 값이 된다.
+///
+/// 키 공간에서 한 바이트가 되지 않는 글자는 목록에서 빠진다 — 길게 눌러 고른 변형
+/// 문자가 그런 것들이라 애초에 이웃이 없다.
+fn touch_keys(touches: &[KeySignal], encoding: KeyEncoding) -> Vec<Vec<(u8, f32)>> {
+    touches
+        .iter()
+        .map(|signal| {
+            signal
+                .candidates()
+                .iter()
+                .filter_map(|candidate| {
+                    Some((
+                        encoding.key_byte(candidate.character)?,
+                        candidate.probability,
+                    ))
+                })
+                .collect()
+        })
+        .collect()
+}
+
 struct Search<'call, 'bytes> {
     lexicon: &'call Lexicon<'bytes>,
     query: &'call [u8],
     /// 바이트 자리 → 그 자리를 친 터치 번호 (`touch_at_byte`)
     touch_at_byte: Vec<Option<usize>>,
-    touches: &'call [KeySignal],
+    /// 터치 번호 → 그 터치가 노렸을 법한 키 바이트들 (`touch_keys`)
+    touch_keys: Vec<Vec<(u8, f32)>>,
     max_cost: u32,
     extending: bool,
     limit: usize,
@@ -150,26 +184,22 @@ impl Search<'_, '_> {
         if self.query[position] == byte {
             return 0;
         }
-        // 이웃 확률은 키 하나가 글자 하나인 자리에서만 뜻이 있다. 여러 바이트로 적히는
-        // 글자는 그 자리에서 바이트 하나를 글자로 되읽을 수 없으므로(0xC3은 글자가
-        // 아니다) 평범한 치환으로 둔다 — 그런 글자는 길게 눌러 고른 것이라 애초에
-        // 이웃이 없기도 하다.
-        if !byte.is_ascii() || !self.query[position].is_ascii() {
-            return SUBSTITUTION;
-        }
-        let Some(signal) = self
+        // 이웃 확률은 키 하나가 바이트 하나인 자리에서만 뜻이 있다. 여러 바이트로 적히는
+        // 글자는 어느 터치도 그 바이트를 내지 못하므로(0xC3은 키가 아니다) 아래에서
+        // 저절로 평범한 치환으로 떨어진다.
+        let Some(keys) = self
             .touch_at_byte
             .get(position)
             .copied()
             .flatten()
-            .and_then(|index| self.touches.get(index))
+            .and_then(|index| self.touch_keys.get(index))
         else {
             return SUBSTITUTION;
         };
-        let Some(character) = char::from_u32(u32::from(byte)) else {
-            return SUBSTITUTION;
-        };
-        let probability = signal.probability_of(character);
+        let probability = keys
+            .iter()
+            .find(|&&(candidate, _)| candidate == byte)
+            .map_or(0.0, |&(_, probability)| probability);
         if probability < PLAUSIBLE_TOUCH {
             return SUBSTITUTION;
         }
@@ -272,5 +302,39 @@ impl Search<'_, '_> {
 
         self.children[depth] = children;
         self.rows[depth] = next_row;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 타건과 조회 키 글자를 자리로 맞추는 규칙. 끝에서부터 맞추되, 타건이 더 많으면
+    /// 맞출 방법이 없으므로 이웃을 아예 셈하지 않는다.
+    #[test]
+    fn touches_align_from_the_end_and_give_up_when_they_outnumber_the_key() {
+        // 갓 친 어절 — 자리마다 타건이 하나씩 있다
+        assert_eq!(touch_at_byte("rk", 2), vec![Some(0), Some(1)]);
+        // 커서를 옮겨 이어 친 어절 — 앞부분에는 타건이 없다
+        assert_eq!(touch_at_byte("rk", 1), vec![None, Some(0)]);
+        // 천지인처럼 타건 여럿이 모여 자모 하나가 되는 방식 — 자리를 맞출 수 없다
+        assert_eq!(touch_at_byte("rk", 4), vec![None, None]);
+    }
+
+    /// 이웃 확률은 조회 키 공간에서 견줘야 뜻이 있다 — 배열이 내는 것은 ㄱ이고
+    /// trie가 담은 것은 'r'이다.
+    #[test]
+    fn touch_keys_move_signals_into_the_key_space() {
+        let signal = KeySignal::certain('ㄱ');
+        let keys = touch_keys(
+            std::slice::from_ref(&signal),
+            KeyEncoding::HangulJamoDubeolsik,
+        );
+        assert_eq!(keys, vec![vec![(b'r', 1.0)]]);
+
+        // 라틴은 접힌 공간에서 견준다 — 문장 첫 글자가 매번 대문자로 들어오기 때문이다
+        let signal = KeySignal::certain('T');
+        let keys = touch_keys(std::slice::from_ref(&signal), KeyEncoding::Utf8);
+        assert_eq!(keys, vec![vec![(b't', 1.0)]]);
     }
 }

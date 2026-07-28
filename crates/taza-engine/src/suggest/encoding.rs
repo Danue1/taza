@@ -44,6 +44,36 @@ impl KeyEncoding {
             KeyEncoding::HangulJamoDubeolsik => decode_hangul(key),
         }
     }
+
+    /// 친 어절을 조회 키로 접는다 — 접기가 성립하는 키 공간에서만. 접을 것이 없거나
+    /// 접기가 안전하지 않으면 None이며, 그때는 어절을 그대로 조회한다.
+    ///
+    /// 접기는 인코딩의 성질이지 보편 규칙이 아니다. 두벌식 ASCII는 **대문자 자리에
+    /// 된소리·이중모음을 싣는다** — 'R'은 ㄲ이고 'r'은 ㄱ이다. 그런 키를 접으면 글자가
+    /// 바뀌어 "까치"를 치는 사람이 "가치"를 받는다.
+    pub(crate) fn fold(self, key: &str) -> Option<(String, super::lookup::Restore)> {
+        match self {
+            KeyEncoding::Utf8 => super::lookup::fold(key),
+            KeyEncoding::HangulJamoDubeolsik => None,
+        }
+    }
+
+    /// 이 키 공간에서 표시 글자 하나에 대응하는 키 바이트. 한 바이트가 되지 않는 글자는
+    /// None이다 — 공간 모델이 자리마다 바이트 하나를 견주므로 그런 글자는 셈할 수 없다.
+    ///
+    /// 대문자는 접어서 본다. 조회 키가 접힌 공간에 있으면 터치도 같은 공간에서 견줘야
+    /// 하고(문장 첫 글자가 매번 대문자로 들어온다), 접기가 없는 공간에서는 대소문자가
+    /// 서로 다른 글자라 애초에 접을 것이 없다.
+    pub(crate) fn key_byte(self, character: char) -> Option<u8> {
+        let folded = match self.fold(&character.to_string()) {
+            Some((folded, _)) => folded,
+            None => character.to_string(),
+        };
+        match self.encode(&folded)?.as_bytes() {
+            [byte] => Some(*byte),
+            _ => None,
+        }
+    }
 }
 
 #[cfg(feature = "lang-hangul")]

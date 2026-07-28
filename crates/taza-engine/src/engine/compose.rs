@@ -18,6 +18,8 @@ use super::Engine;
 pub(super) struct Correction {
     /// 사용자가 실제로 친 형태
     original: String,
+    /// 그 형태의 조회 키 — 되돌릴 때 이것을 배운다
+    original_key: String,
     /// 그 자리에 들어간 교정 결과와 경계 문자를 합친 확정 텍스트
     committed: String,
 }
@@ -137,6 +139,7 @@ impl Engine {
         let committed = format!("{}{}", text, boundary.separator);
         self.reverted_correction = Some(Correction {
             original: boundary.surface.clone(),
+            original_key: boundary.key,
             committed: committed.clone(),
         });
         Confirmed {
@@ -161,7 +164,10 @@ impl Engine {
         if assistance.personalizing && !context.incognito && !key.is_empty() {
             self.personalization.record(&key);
         }
-        self.previous_word = (!key.is_empty()).then_some(key);
+        // 스토어에는 확정한 꼴 그대로 담고(고유명사에서는 대문자가 곧 뜻이다) 언어모델
+        // 문맥으로는 접어서 세운다 — 팩의 bigram 토큰이 접힌 공간에 있기 때문이다
+        let context_key = self.suggester.context_key(&key);
+        self.previous_word = (!key.is_empty()).then_some(context_key);
         if !assistance.predicting {
             return Vec::new();
         }
@@ -183,7 +189,20 @@ impl Engine {
 
     /// 자동교정 직후의 Backspace — 교정 결과를 지우고 사용자가 친 원문을 되살린다.
     /// 이어지는 타이핑은 문맥 채택(adopt)이 알아서 그 어절을 잇는다.
-    pub(super) fn revert(&mut self, correction: Correction) -> Vec<Effect> {
+    ///
+    /// 물린 원문은 배운다. 교정을 물리는 것이 곧 "이 말은 내가 쓰는 말이다"라는 신호이며
+    /// (순정 키보드도 이것을 학습 경로로 쓴다), 배우지 않으면 같은 교정이 영원히
+    /// 되풀이된다 — 원문은 사전에 없으므로 스스로 학습될 다른 길이 없다.
+    pub(super) fn revert(
+        &mut self,
+        correction: Correction,
+        context: &EditorContext,
+    ) -> Vec<Effect> {
+        let assistance =
+            crate::policy::assistance(&self.preferences, self.keyboard.traits(), context);
+        if assistance.personalizing && !context.incognito && !correction.original_key.is_empty() {
+            self.personalization.record(&correction.original_key);
+        }
         self.previous_word = None;
         let mut effects = vec![
             Effect::DeleteBackward(correction.committed.chars().count()),

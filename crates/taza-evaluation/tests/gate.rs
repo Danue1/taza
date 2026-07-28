@@ -113,7 +113,7 @@ fn completion_quality_gate() {
         .collect();
     let report = evaluate_completions(&pack, &LanguageDescriptor::builtin("en").unwrap(), &tasks);
     println!("[gate] english completion {report:?}");
-    // 기준선 실측: 0.622
+    // 기준선 실측: 0.636
     assert_eq!(report.word_count, 12);
     assert!(
         report.keystroke_savings >= 0.55,
@@ -211,5 +211,42 @@ fn korean_completion_quality_gate() {
     assert!(
         report.keystroke_savings >= 0.65,
         "한국어 keystroke savings 회귀: {report:?}"
+    );
+}
+
+/// 공간 모델이 한국어에서도 일하는가.
+///
+/// 터치 신호에는 배열이 내는 자모(ㄱ)가 담기고 trie에는 조회 키(두벌식 ASCII로 'r')가
+/// 담긴다. 둘을 같은 공간에서 견주지 않으면 어떤 이웃도 이웃으로 보이지 않아, 인접 키
+/// 오타와 판 반대편 오타가 같은 값이 된다 — 게이트의 작은 사전으로는 편집거리만으로도
+/// 만점이 나와 드러나지 않으므로 여기서 따로 못 박는다.
+///
+/// 빈도를 같게 두고 사전순 tiebreak가 **먼 키** 쪽을 앞세우도록 골랐다. 그래야 이웃이
+/// 앞에 선 것이 공간 모델이 실제로 일한 증거가 된다.
+#[test]
+fn spatial_model_reaches_the_hangul_key_space() {
+    let mut lexicon = LexiconBuilder::new();
+    // ㅁ(a)의 이웃은 ㄴ(s)이고 ㄱ(r)은 판 반대편이다
+    for word in ["나", "가"] {
+        let encoded = encode_jamo_ascii(&decompose_word(word).unwrap()).unwrap();
+        lexicon.insert(&encoded, 30000);
+    }
+    let mut writer = PackWriter::new("ko");
+    writer.add_section(SectionKind::Lexicon, lexicon.build());
+    let pack: Arc<dyn PackBytes> = Arc::new(writer.finish());
+
+    let layout = lang::hangul::HANGUL.default_layouts();
+    let synthesizer = TypoSynthesizer::new(&layout, 42);
+    let cases = [EvaluationCase {
+        typed: TypedSequence {
+            text: "ㅁㅏ".to_string(),
+            touches: synthesizer.touches_for("ㅁㅏ").unwrap(),
+        },
+        intended: "나".to_string(),
+    }];
+    let report = evaluate_corrections(&pack, &LanguageDescriptor::builtin("ko").unwrap(), &cases);
+    assert_eq!(
+        report.top1_accuracy, 1.0,
+        "이웃 키 오타가 먼 키 오타에 밀림 — 공간 모델이 키 공간에 닿지 못한다"
     );
 }

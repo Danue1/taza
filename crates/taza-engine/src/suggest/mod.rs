@@ -11,6 +11,8 @@ mod search;
 pub use dictionary::{Dictionary, Entry, Query};
 pub use encoding::KeyEncoding;
 
+use std::collections::HashMap;
+
 use crate::contract::{CandidateGroup, CandidateKind, Pack};
 use crate::keyboard::KeySignal;
 use crate::personalization::PersonalizationStore;
@@ -81,6 +83,33 @@ impl SuggestionSources<'_> {
     }
 }
 
+/// 직전 어휘가 뒷말마다 주는 문맥 이득. 후보를 하나 볼 때마다 언어모델을 새로 뒤지면
+/// 타건 한 번에 같은 조회가 후보 수만큼 되풀이되므로, 한 번 걷어 두고 꺼내 쓴다.
+#[derive(Debug, Default)]
+struct ContextWeights(HashMap<String, u32>);
+
+impl ContextWeights {
+    fn gather(sources: &SuggestionSources<'_>) -> Self {
+        let (Some(previous_word), Some(language_model)) = (
+            sources.previous_word,
+            sources.pack.and_then(|pack| pack.language_model()),
+        ) else {
+            return ContextWeights::default();
+        };
+        ContextWeights(
+            language_model
+                .predict_next(previous_word, LANGUAGE_MODEL_POOL)
+                .into_iter()
+                .map(|prediction| (prediction.word, prediction.weight))
+                .collect(),
+        )
+    }
+
+    fn weight(&self, key: &str) -> u32 {
+        self.0.get(key).copied().unwrap_or(0)
+    }
+}
+
 pub struct Suggester {
     policy: SuggestionPolicy,
 }
@@ -94,6 +123,18 @@ impl Suggester {
         self.policy
     }
 
+    /// 확정된 어휘를 언어모델 문맥으로 쓸 꼴로 옮긴다.
+    ///
+    /// 팩의 bigram 토큰은 사전 표제어와 같은 **접힌** 키 공간에 있는데 합성기가 내는 키는
+    /// 친 꼴 그대로다. 접지 않으면 자동 대문자화가 shift를 올리는 문장 첫 낱말마다 문맥이
+    /// 끊겨, 문장의 두 번째 낱말이 매번 예측도 재랭킹도 받지 못한다.
+    pub fn context_key(&self, key: &str) -> String {
+        self.policy
+            .encoding
+            .fold(key)
+            .map_or_else(|| key.to_string(), |(folded, _)| folded)
+    }
+
     /// 진행 중인 단어의 완성·교정. 사전에 없는 개인화 어휘와, 자동교정을 쓰는
     /// 방식에서는 원문 그대로의 후보까지 합쳐 낸다.
     pub fn suggest(&self, key: &str, sources: &SuggestionSources<'_>) -> Vec<Suggestion> {
@@ -102,8 +143,9 @@ impl Suggester {
         }
         let lexicon = sources.pack.and_then(|pack| pack.lexicon());
         // 사전은 소문자 표제어만 담으므로 대문자가 섞인 키는 접어서 찾고, 찾아낸 표제어에
-        // 원문의 꼴을 되씌운다
-        let folded = lookup::fold(key);
+        // 원문의 꼴을 되씌운다. 접기가 성립하는지는 키 공간이 정한다 — 두벌식 ASCII처럼
+        // 대문자가 다른 자모인 공간에서는 접지 않는다.
+        let folded = self.policy.encoding.fold(key);
         let lookup_key = folded.as_ref().map_or(key, |(folded, _)| folded.as_str());
         let restore = folded
             .as_ref()
@@ -112,8 +154,10 @@ impl Suggester {
             key: lookup_key,
             max_cost: search::edit_budget(key.chars().count()),
             touches: sources.touches,
+            encoding: self.policy.encoding,
             extending: true,
         };
+        let context = ContextWeights::gather(sources);
         let mut ranked: Vec<(i64, Suggestion)> = Vec::new();
 
         // 원문은 순정 관습대로 언제나 첫 자리 — 사전이 무엇을 내놓든 친 대로 두는 길이
@@ -137,7 +181,7 @@ impl Suggester {
                 let score = score::combine(
                     entry.frequency,
                     sources.learned_weight(&entry.key),
-                    self.language_model_weight(&entry.key, sources),
+                    context.weight(&entry.key),
                     entry.cost,
                 );
                 let kind = if entry.cost == 0 {
@@ -148,18 +192,20 @@ impl Suggester {
                 self.push_ranked(&mut ranked, score, entry.key, kind, restore);
             }
         }
-        // 사전에 없는 사용자 어휘(이름 등) — 개인화 스토어만이 아는 표제어
+        // 개인화 스토어가 아는 표제어. 사전에 없는 사용자 어휘(이름 등)가 여기서 들어오고,
+        // 사전에 **있는** 표제어도 여기를 한 번 더 지난다 — 사전 탐색은 빈도만 보고 가지를
+        // 치므로, 빈도가 낮은 표제어는 학습이 아무리 쌓여도 그 pool에 들지 못한다.
+        // 사전 빈도까지 더해 넣으면 위에서 나온 같은 후보보다 점수가 높아 앞자리를 잡고,
+        // 뒤따르는 중복은 표시 형태로 걸러진다.
         for (entry, restore) in self.learned_lookup(key, restore, &query, sources) {
-            if lexicon
+            let dictionary_frequency = lexicon
                 .as_ref()
-                .is_some_and(|lexicon| lexicon.contains(&entry.key))
-            {
-                continue;
-            }
+                .and_then(|lexicon| lexicon.frequency(&entry.key))
+                .unwrap_or(0);
             let score = score::combine(
                 entry.frequency,
-                0,
-                self.language_model_weight(&entry.key, sources),
+                dictionary_frequency,
+                context.weight(&entry.key),
                 entry.cost,
             );
             self.push_ranked(
@@ -316,7 +362,7 @@ impl Suggester {
         let lexicon = sources.pack.and_then(|pack| pack.lexicon())?;
         // 조회는 접은 키로 — 접지 않으면 문장 첫 낱말("The")이 사전에 없는 말로 보여
         // 교정 대상이 된다
-        let folded = lookup::fold(key);
+        let folded = self.policy.encoding.fold(key);
         let lookup_key = folded.as_ref().map_or(key, |(folded, _)| folded.as_str());
         let restore = folded
             .as_ref()
@@ -329,6 +375,7 @@ impl Suggester {
             key: lookup_key,
             max_cost: search::edit_budget(key.chars().count()),
             touches: sources.touches,
+            encoding: self.policy.encoding,
             extending: false,
         };
         let best = lexicon
@@ -340,7 +387,7 @@ impl Suggester {
         let corrected = score::combine(
             best.frequency,
             sources.learned_weight(&best.key),
-            self.language_model_weight(&best.key, sources),
+            ContextWeights::gather(sources).weight(&best.key),
             best.cost,
         );
         let typed = score::combine(0, sources.learned_weight(key), 0, 0);
@@ -394,21 +441,6 @@ impl Suggester {
             }
         }
         combined
-    }
-
-    fn language_model_weight(&self, key: &str, sources: &SuggestionSources<'_>) -> u32 {
-        let (Some(previous_word), Some(language_model)) = (
-            sources.previous_word,
-            sources.pack.and_then(|pack| pack.language_model()),
-        ) else {
-            return 0;
-        };
-        language_model
-            .predict_next(previous_word, LANGUAGE_MODEL_POOL)
-            .into_iter()
-            .find(|prediction| prediction.word == key)
-            .map(|prediction| prediction.weight)
-            .unwrap_or(0)
     }
 
     fn push_ranked(

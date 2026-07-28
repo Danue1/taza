@@ -1,5 +1,5 @@
 use taza_engine::pack::{Pack, PackError, SectionKind};
-use taza_engine::suggest::{Dictionary, Entry, Query};
+use taza_engine::suggest::{Dictionary, Entry, KeyEncoding, Query};
 use taza_pack::PackWriter;
 use taza_pack::section::lexicon::LexiconBuilder;
 
@@ -9,6 +9,7 @@ fn completion_query(key: &str) -> Query<'_> {
         key,
         max_cost: 0,
         touches: &[],
+        encoding: KeyEncoding::Utf8,
         extending: true,
     }
 }

@@ -623,3 +623,117 @@ fn the_word_follows_the_caret() {
     harness.type_text("h ");
     assert_eq!(harness.committed, "Say the ");
 }
+
+/// 문장 첫 낱말은 자동 대문자화 때문에 늘 대문자로 확정된다. 그것을 접지 않고 언어모델
+/// 문맥으로 세우면 팩의 bigram 토큰(접힌 공간)과 만나지 못해, **모든 문장의 두 번째
+/// 낱말**이 예측도 재랭킹도 받지 못한다.
+#[test]
+fn a_capitalized_word_still_serves_as_language_model_context() {
+    let bytes = english_pack();
+
+    // 다음 낱말 예측 — "the "로 끝냈을 때와 같아야 한다
+    let mut harness = Harness::new(&bytes);
+    harness.type_text("The ");
+    assert_eq!(harness.candidates, vec!["quick", "best"]);
+
+    // 진행 중인 낱말의 재랭킹 — 문맥이 없으면 빈도대로 help가 앞선다
+    let mut harness = Harness::new(&bytes);
+    harness.type_text("Say hel");
+    assert_eq!(harness.candidates[0], "hello");
+}
+
+/// 자동교정을 물리는 것은 "이 말은 내가 쓰는 말"이라는 신호다. 물린 원문을 배우지 않으면
+/// 그 말은 사전에 없으므로 스스로 학습될 길이 없어 같은 교정이 영원히 되풀이된다.
+#[test]
+fn reverting_a_correction_teaches_the_typed_word() {
+    let bytes = english_pack();
+    let mut harness = Harness::new(&bytes);
+
+    // 두 번 물린다 — 학습 문턱을 넘는 순간부터 그 말은 교정 대상이 아니다
+    for _ in 0..2 {
+        harness.committed.clear();
+        harness.type_text("teh ");
+        assert_eq!(harness.committed, "the ");
+        harness.send(InputEvent::Backspace);
+        assert_eq!(harness.committed, "teh");
+    }
+
+    harness.committed.clear();
+    harness.type_text("teh ");
+    assert_eq!(harness.committed, "teh ");
+}
+
+/// 사전 탐색은 빈도만 보고 가지를 치므로, 빈도가 낮은 표제어는 학습이 아무리 쌓여도
+/// 재랭킹이 볼 pool에 들지 못한다 — 개인화가 사전에 **없는** 말만 구제하게 된다.
+#[test]
+fn personalization_lifts_a_rare_dictionary_word() {
+    let mut lexicon = LexiconBuilder::new();
+    // 접두를 나눠 갖는 흔한 표제어들이 pool(limit × 4)을 채운다
+    for (suffix, frequency) in [
+        ('a', 60000u32),
+        ('b', 59000),
+        ('c', 58000),
+        ('d', 57000),
+        ('e', 56000),
+        ('f', 55000),
+        ('g', 54000),
+        ('h', 53000),
+        ('i', 52000),
+        ('j', 51000),
+        ('k', 50000),
+        ('l', 49000),
+        ('m', 48000),
+        ('n', 47000),
+        ('o', 46000),
+    ] {
+        lexicon.insert(&format!("the{suffix}"), frequency);
+    }
+    lexicon.insert("thezz", 30);
+    let mut writer = PackWriter::new("en");
+    writer.add_section(SectionKind::Lexicon, lexicon.build());
+    let bytes = writer.finish();
+
+    let mut harness = Harness::new(&bytes);
+    for _ in 0..10 {
+        harness.committed.clear();
+        harness.type_text("thezz ");
+    }
+    harness.committed.clear();
+    harness.type_text("the");
+    assert_eq!(harness.candidates[0], "thezz");
+}
+
+/// 곁들이는 것을 후보 바에서 골랐어도 검색면에서 고른 것과 같은 자취를 남긴다 —
+/// 같은 이모지가 어디서 골랐느냐에 따라 "자주 쓰는"에 들기도 하고 들지 않기도 하면
+/// 그 목록이 사용자의 쓰임을 대변하지 못한다.
+#[test]
+fn choosing_an_emoji_from_the_candidate_bar_leaves_the_same_trace() {
+    use taza_engine::contract::CandidateGroup;
+    use taza_pack::section::annotation::AnnotationBuilder;
+
+    let mut lexicon = LexiconBuilder::new();
+    lexicon.insert("smile", 30000);
+    let mut annotations = AnnotationBuilder::new();
+    annotations.insert("smile", CandidateGroup::Emoji, "😀");
+    let mut writer = PackWriter::new("en");
+    writer.add_section(SectionKind::Lexicon, lexicon.build());
+    writer.add_section(SectionKind::Annotation, annotations.build());
+    let bytes = writer.finish();
+
+    let mut harness = Harness::new(&bytes);
+    harness.type_text("smile");
+    let index = harness.shown.iter().position(|text| text == "😀").unwrap();
+    harness.send(InputEvent::CandidateSelected(index));
+
+    // 검색어가 없는 검색면의 첫 그룹이 "최근에 고른 것들"이다
+    let panel = harness.engine.annotation_panel("");
+    let recent = panel
+        .groups
+        .first()
+        .filter(|group| group.group.is_none() && group.category.is_none())
+        .expect("최근에 고른 것들이 없음");
+    assert_eq!(
+        recent.items.first().map(|item| item.text.as_str()),
+        Some("😀")
+    );
+}

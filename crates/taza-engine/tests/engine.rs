@@ -8,8 +8,8 @@ use taza_engine::keyboard::KeySignal;
 use taza_engine::lang::LanguageDescriptor;
 use taza_engine::lang::direct::DirectComposer;
 use taza_engine::pack::SectionKind;
-use taza_toolchain::PackWriter;
-use taza_toolchain::section::lexicon::LexiconBuilder;
+use taza_pack::PackWriter;
+use taza_pack::section::lexicon::LexiconBuilder;
 
 #[test]
 fn direct_composer_commits_every_key() {

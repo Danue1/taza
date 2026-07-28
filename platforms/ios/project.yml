@@ -65,7 +65,7 @@ targets:
       - Generated
       # 기본 언어만 내장한다 — 나머지 언어는 컨테이너 앱이 내려받아 App Group에 놓고,
       # 익스텐션은 설치된 팩을 우선해서 mmap한다 (PackStore).
-      - path: ../../data/packs/english.tazapack
+      - path: ../../out/packs/english.tazapack
         buildPhase: resources
     entitlements:
       path: TazaKeyboard/TazaKeyboard.entitlements

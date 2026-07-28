@@ -1,0 +1,12 @@
+[package]
+name = "taza-licenses"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+# 이 도구는 워크스페이스의 어느 크레이트도 의존하지 않는다 — `cargo metadata`가 내는
+# 그래프만 읽기 때문이다. 팩 파이프라인에 얹어 두면 고지 하나를 만들려고 압축·HTTP
+# 라이브러리를 통째로 컴파일하게 되고, 그 비용을 iOS 빌드가 매번 문다.
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true

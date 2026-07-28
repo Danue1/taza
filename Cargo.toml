@@ -2,9 +2,13 @@
 resolver = "3"
 members = [
     "crates/taza-engine",
-    "crates/taza-toolchain",
+    "crates/taza-pack",
+    "crates/taza-corpus",
+    "crates/taza-packbuild",
     "crates/taza-evaluation",
     "crates/taza-ffi",
+    "crates/taza-licenses",
+    "crates/taza-cli",
 ]
 
 [workspace.package]
@@ -15,7 +19,9 @@ license = "MIT"
 # 갈리고, 기기에 나가는 것이 무엇인지 세는 일(`taza-licenses`)도 흐려진다.
 [workspace.dependencies]
 taza-engine = { path = "crates/taza-engine", default-features = false }
-taza-toolchain = { path = "crates/taza-toolchain" }
+taza-corpus = { path = "crates/taza-corpus" }
+taza-pack = { path = "crates/taza-pack" }
+taza-packbuild = { path = "crates/taza-packbuild" }
 
 bzip2 = "0.6.1"
 flate2 = "1.1.9"

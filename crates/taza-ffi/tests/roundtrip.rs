@@ -53,8 +53,8 @@ fn frame_and_press_over_ffi() {
 #[test]
 fn pack_loading_and_suggestions_over_ffi() {
     use taza_engine::pack::SectionKind;
-    use taza_toolchain::PackWriter;
-    use taza_toolchain::section::lexicon::LexiconBuilder;
+    use taza_pack::PackWriter;
+    use taza_pack::section::lexicon::LexiconBuilder;
 
     let mut lexicon = LexiconBuilder::new();
     lexicon.insert("hello", 80);
@@ -172,10 +172,10 @@ fn metrics_injection_changes_measured_sizes() {
 fn pack_archive_installs_after_verification() {
     use taza_engine::pack::SectionKind;
     use taza_ffi::{install_pack_archive, read_installed_pack};
-    use taza_toolchain::PackWriter;
-    use taza_toolchain::distribute;
-    use taza_toolchain::section::lexicon::LexiconBuilder;
-    use taza_toolchain::section::metadata::MetadataBuilder;
+    use taza_pack::PackWriter;
+    use taza_pack::section::lexicon::LexiconBuilder;
+    use taza_pack::section::metadata::MetadataBuilder;
+    use taza_packbuild::distribute;
 
     let mut lexicon = LexiconBuilder::new();
     lexicon.insert("hello", 80);

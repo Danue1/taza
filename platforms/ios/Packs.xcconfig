@@ -6,14 +6,14 @@
 TAZA_SLASH = /
 
 // 언어팩을 아직 어디에도 올리지 않았으므로 기본 배포처는 저장소 안의 카탈로그다 —
-// `taza-packs`가 만든 `data/packs`를 그대로 가리키면 받아 설치하는 길 전체가
+// `taza build`가 만든 `out/packs`를 그대로 가리키면 받아 설치하는 길 전체가
 // 아무 준비 없이 돈다. 배포처가 생기면 아래 릴리스 URL로 이 줄을 바꾼다.
 //
 //   TAZA_PACK_CATALOG_URL = https:$(TAZA_SLASH)$(TAZA_SLASH)github.com/Danue1/taza/releases/download/packs/catalog.json
 //
 // `$(SRCROOT)`는 `platforms/ios`이므로 두 단 올라가 저장소 뿌리로 간다. 경로가
 // 절대이므로 `file:` 뒤의 슬래시는 둘이면 된다(셋째는 경로가 들고 있다).
-TAZA_PACK_CATALOG_URL = file:$(TAZA_SLASH)$(TAZA_SLASH)$(SRCROOT)/../../data/packs/catalog.json
+TAZA_PACK_CATALOG_URL = file:$(TAZA_SLASH)$(TAZA_SLASH)$(SRCROOT)/../../out/packs/catalog.json
 
 // 개발용 덮어쓰기. `Packs.local.xcconfig`를 만들어 두면 Xcode에서 실행하든
 // xcodebuild로 빌드하든 그 값이 쓰인다 (이 파일보다 뒤에 오므로 이긴다).

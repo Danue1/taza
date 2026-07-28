@@ -1,0 +1,24 @@
+# 우리말샘 — 개방형 한국어 대사전. 회원 가입 후 손으로 내려받는 원천이라 URL로 조달할 수
+# 없고, 자리에 없으면 건너뛴다(data/sources/local/README.md 참고).
+#
+# mecab-ko-dic은 2018년판이라 그 뒤의 외래어·신어가 통째로 빠져 있다. 지금은 그 구멍을
+# 코퍼스 승격이 문턱을 넘겨 가며 메우는데, 사전이 보증하는 낱말은 그 문턱을 거칠 이유가
+# 없다 — 승격은 사전에도 없는 말만 상대하면 된다.
+#
+# 110만 표제어 가운데 방언·북한어·옛말이 상당수다. 사전이 그것을 스스로 구분해 두었으므로
+# 갈래로 고른다. 속담·관용구는 문장이라 어절 사전에 들어갈 자리가 없다.
+
+[[sources]]
+name = "우리말샘"
+version = "20260702"
+license = "CC BY-SA 2.0 KR"
+attribution = "Headwords from 우리말샘 (https://opendict.korean.go.kr), 국립국어원, licensed CC BY-SA 2.0 KR."
+file = "../local/urimalsam-20260702.zip"
+role = "inventory"
+weight = 0.6
+format = "urimalsam"
+sense_types = ["일반어"]
+word_units = ["어휘", "구"]
+# 사전에는 빈도가 없다. 등급을 바닥에 두어 "이것이 낱말이다"라는 보증만 남기고,
+# 예산 안에 들어갈 순위는 코퍼스가 정하게 한다.
+rank = 0.05

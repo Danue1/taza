@@ -1,0 +1,13 @@
+[[sources]]
+name = "Tatoeba sentences (eng)"
+version = "2026-07-25"
+license = "CC-BY 2.0 FR"
+attribution = "Word frequencies derived from the Tatoeba Project English sentence export (https://tatoeba.org), licensed CC-BY 2.0 FR."
+url = "https://downloads.tatoeba.org/exports/per_language/eng/eng_sentences.tsv.bz2"
+sha256 = "82247a6399d2bf0c384e834e799a6ed48ad5292ea723b86075d01dfad457d287"
+role = "frequency"
+# 인벤토리 등급(0~1)보다 크게 잡아 실사용 빈도가 랭킹을 주도하게 한다 — 등급은
+# 코퍼스에 안 나온 낱말의 순서를 정하는 바닥 역할이다.
+weight = 0.35
+format = "tatoeba"
+minimum_count = 2

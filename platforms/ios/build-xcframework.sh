@@ -11,7 +11,7 @@ profile=release
 library_name=libtaza_ffi.a
 
 # 의존성이 바뀌면 고지도 함께 바뀌어야 한다 — 목록을 손으로 맞추지 않는다
-cargo run --release -q -p taza-toolchain --bin taza-licenses
+cargo run --release -q -p taza-licenses
 
 cargo build --release -p taza-ffi --target aarch64-apple-ios
 cargo build --release -p taza-ffi --target aarch64-apple-ios-sim

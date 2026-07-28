@@ -5,9 +5,9 @@ use taza_engine::keyboard::KeySignal;
 use taza_engine::lang::LanguageDescriptor;
 use taza_engine::lang::jamo::{decompose_word, encode_jamo_ascii};
 use taza_engine::pack::SectionKind;
-use taza_toolchain::PackWriter;
-use taza_toolchain::section::lexicon::LexiconBuilder;
-use taza_toolchain::section::metadata::MetadataBuilder;
+use taza_pack::PackWriter;
+use taza_pack::section::lexicon::LexiconBuilder;
+use taza_pack::section::metadata::MetadataBuilder;
 
 fn korean_pack() -> Vec<u8> {
     let mut lexicon = LexiconBuilder::new();

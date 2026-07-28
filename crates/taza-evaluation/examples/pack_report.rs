@@ -4,7 +4,7 @@
 //!
 //! ```text
 //! cargo run --release -p taza-evaluation --example pack_report -- \
-//!     data/packs/english.tazapack data/build/english-words.tsv en [표본수]
+//!     out/packs/english.tazapack out/build/english-words.tsv en [표본수]
 //! ```
 //! 같은 자리에 `<이름>-absent.tsv`가 있으면 오교정률도 함께 잰다 — 예산에 밀려 팩에서
 //! 빠진 실제 낱말들을 제대로 쳤을 때 자동교정이 건드리는 비율이다.

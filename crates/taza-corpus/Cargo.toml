@@ -1,0 +1,19 @@
+[package]
+name = "taza-corpus"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+# 압축·HTTP는 원천을 손에 넣는 일에만 든다. 그것들이 이 크레이트 밖으로 새지 않아야
+# 예산 상수 하나를 고칠 때 덤프 해제 라이브러리를 다시 컴파일하지 않는다.
+[dependencies]
+bzip2.workspace = true
+flate2.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tar.workspace = true
+taza-engine = { workspace = true, features = ["lang-hangul"] }
+ureq.workspace = true
+zip.workspace = true
+zstd.workspace = true

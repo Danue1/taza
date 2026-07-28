@@ -771,10 +771,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "taza-cli"
+version = "0.1.0"
+dependencies = [
+ "taza-engine",
+ "taza-pack",
+ "taza-packbuild",
+]
+
+[[package]]
+name = "taza-corpus"
+version = "0.1.0"
+dependencies = [
+ "bzip2",
+ "flate2",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tar",
+ "taza-engine",
+ "ureq",
+ "zip",
+ "zstd",
+]
+
+[[package]]
 name = "taza-engine"
 version = "0.1.0"
 dependencies = [
- "taza-toolchain",
+ "taza-pack",
 ]
 
 [[package]]
@@ -782,7 +807,7 @@ name = "taza-evaluation"
 version = "0.1.0"
 dependencies = [
  "taza-engine",
- "taza-toolchain",
+ "taza-pack",
 ]
 
 [[package]]
@@ -793,25 +818,37 @@ dependencies = [
  "ruzstd",
  "sha2",
  "taza-engine",
- "taza-toolchain",
+ "taza-pack",
+ "taza-packbuild",
  "thiserror",
  "uniffi",
 ]
 
 [[package]]
-name = "taza-toolchain"
+name = "taza-licenses"
 version = "0.1.0"
 dependencies = [
- "bzip2",
- "flate2",
  "serde",
  "serde_json",
- "sha2",
- "tar",
+]
+
+[[package]]
+name = "taza-pack"
+version = "0.1.0"
+dependencies = [
  "taza-engine",
+]
+
+[[package]]
+name = "taza-packbuild"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "taza-corpus",
+ "taza-engine",
+ "taza-pack",
  "toml 1.1.3+spec-1.1.0",
- "ureq",
- "zip",
  "zstd",
 ]
 

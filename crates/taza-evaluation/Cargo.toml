@@ -8,4 +8,4 @@ license.workspace = true
 taza-engine = { workspace = true, features = ["lang-latin", "lang-hangul"] }
 
 [dev-dependencies]
-taza-toolchain.workspace = true
+taza-pack.workspace = true

@@ -27,12 +27,19 @@ Core (Rust, sans-io)
 |---|---|---|
 | `taza-engine` | 온디바이스 | `contract`(`shell`·`event`·`candidate`은 FFI를 건너고 `composer`는 건너지 않는다) / `engine`(조립) / `keyboard` / `lang`(언어별 합성기) / `suggest`(후보·랭킹) / `policy`(언어 무관 관습) / `personalization` / `pack`(읽기 전용) |
 | `taza-ffi` | 온디바이스 경계 | UniFFI 표면(`types`·`convert`·`session`), 팩 mmap 등 파일 IO |
-| `taza-toolchain` | 오프라인 | `PackWriter`·`section`(섹션 빌더) + 단계(`recipe`·`source`·`parse`·`normalize`·`assemble`·`distribute`)와 그 순서를 쥔 `pipeline` + `taza-packs`·`taza-packc`(둘 다 인자 읽기와 출력만 맡는 실행 파일) |
+| `taza-pack` | 오프라인 | 팩 바이너리 **쓰기** — `PackWriter`와 섹션 빌더. `taza_engine::pack`(읽기)의 짝 |
+| `taza-corpus` | 오프라인 | 원천 하나를 신호로 — `declaration`(원천 선언) / `source`(조달·캐시·압축 해제) / `parse`(형식별 파서) / `lang`(언어별 표기 지식). 압축·HTTP 의존성이 여기서 끝난다 |
+| `taza-packbuild` | 오프라인 | 신호를 팩으로 — `recipe`(`[pack]`·`[build]`) / `normalize` / `assemble` / `distribute`와 그 순서를 쥔 `pipeline` |
+| `taza-cli` | 오프라인 | 실행 파일 `taza` — `build`·`compile`. 인자 읽기와 출력만 맡는다 |
+| `taza-licenses` | 오프라인 | 실행 파일. `cargo metadata`만 읽으므로 워크스페이스의 어느 크레이트도 의존하지 않는다 |
 | `taza-evaluation` | 오프라인 | 오타 합성·메트릭·CI 회귀 게이트 |
 
 - 팩 포맷 상수·섹션 태그·와이어 레이아웃의 단일 출처는 `taza_engine::pack`이고,
-  `taza-toolchain`은 그 위에 쓰기 경로만 얹는다. 읽기 코드가 익스텐션에 링크되고
+  `taza-pack`은 그 위에 쓰기 경로만 얹는다. 읽기 코드가 익스텐션에 링크되고
   쓰기 코드는 링크되지 않는다.
+- 오프라인 크레이트가 나뉜 축은 **무엇이 바뀌면 무엇을 다시 컴파일해야 하는가**다.
+  파서를 고치는 일은 예산 상수를 만지는 일과 무관하고, 라이브러리 고지를 만드는 일은
+  둘 모두와 무관하다 — 한 크레이트에 두면 그 무관함이 빌드 시간으로 청구된다.
 - 언어는 feature로 켠다(`lang-latin`, `lang-hangul`). 셸은
   `--no-default-features --features lang-<언어>`로 미지원 언어 코드를 링크에서 제외하고,
   `Language::composer()`가 None이면 FFI 생성자가 `Unsupported`를 돌려준다.
@@ -219,8 +226,9 @@ struct Candidate { text, kind /* 예측|변환|교정 */, commit_policy /* 후�
   데이터 소스를 꽂는 작업이 되도록.
 - 원천별 라이선스·출처·버전을 팩 메타데이터에 기록 (라이선스 지뢰 대비 감사 추적).
 
-- **구현됨 (taza-toolchain, `taza-packs`)**: 레시피 하나로 조달부터 배포 산출물까지 돈다 —
-  `data/recipes/<언어>.toml`(크기 예산·승격 문턱) + `<언어>.sources.d/*.toml`(원천 선언) →
+- **구현됨 (`taza build`)**: 레시피 하나로 조달부터 배포 산출물까지 돈다 —
+  `data/languages/<언어>/recipe.toml`(`[pack]` 정체성 + `[build]` 예산·문턱) +
+  `sources/*.toml`(원천 선언) →
   `source`(조달·해시 검증·추출 결과 캐시·압축 해제) → `parse`(형식별 파서) →
   `normalize`(병합·승격·점수 정규화) → `assemble`(팩 조립) →
   zstd 아카이브 + `catalog.json` + `NOTICE.md` 자동 생성.
@@ -248,7 +256,7 @@ struct Candidate { text, kind /* 예측|변환|교정 */, commit_policy /* 후�
   그치지 않고, `[lexicon.admission]` 문턱(최소 관측 횟수·최소 원천 수·상한)을 넘은 낱말을
   인벤토리 없이 표제어로 올린다. 승격 판정은 가중치를 먹이지 않은 관측 횟수로 하므로
   weight를 낮게 준 원천도 새 낱말을 대는 몫은 그대로 한다. 무엇이 들어왔는지는
-  `data/build/<이름>-promoted.tsv`가 남긴다 — 문턱을 조일지 풀지는 이 목록을 보고 정한다.
+  `out/build/<이름>-promoted.tsv`가 남긴다 — 문턱을 조일지 풀지는 이 목록을 보고 정한다.
 - **이모지는 사전 곁에 붙는다 (emoji 섹션, 태그 5)**: CLDR 주석에서 (낱말 → 이모지)를
   뽑아 lexicon과 **같은 조회 키 공간**에 담는다. 그래야 치고 있는 어절을 그대로 들고
   물어볼 수 있다. 어절 하나로 치는 낱말만 받고("활짝 웃는 얼굴" 같은 대표 이름은 후보 바의
@@ -270,7 +278,7 @@ struct Candidate { text, kind /* 예측|변환|교정 */, commit_policy /* 후�
   (1) 흔한 낱말이 개인화 가중치를 압도해 학습이 랭킹에 닿지 못하고, (2) 원천을 갈면
   스케일이 달라져 평가 비교가 깨진다.
 
-### 언어팩 바이너리 포맷 (공용, mmap 조회 전용) — 컨테이너·lexicon 섹션 구현됨 (taza-engine::pack, taza-toolchain)
+### 언어팩 바이너리 포맷 (공용, mmap 조회 전용) — 컨테이너·lexicon 섹션 구현됨 (taza-engine::pack, taza-pack)
 - 헤더(포맷 버전·언어·서명) + 섹션 테이블. 섹션 타입은 확장 예약:
   lexicon(FST/DAWG) / n-gram LM(양자화 trie) / **emoji(CLDR 주석) — 구현됨** /
   오타 confusion 데이터 / 언어별 부가 섹션(가나-한자 매핑, 병음 테이블 등).
@@ -518,7 +526,7 @@ U+1161·종성 U+11A8)를 내면 자리가 코드포인트에 이미 실려 있�
   (시크릿 필드에서는 남기지 않는다). 최근 사용은 개인화 스토어가 갖고 스냅샷에 함께 실린다.
 - **원천**: 이모지·기호는 CLDR 주석 한 파일에서 오고 갈래는 코드포인트로 가른다(변이 선택자·
   ZWJ·이모지 표현 구역이면 이모지, 그 밖은 기호). 얼굴 문자는 표준 원천이 없어
-  `data/sources/curated/emoticons.ko.tsv`로 갖춰 두고 `annotation-list` 형식으로 읽는다.
+  `data/languages/korean/sources/emoticons.ko.tsv`로 갖춰 두고 `annotation-list` 형식으로 읽는다.
 - 아직 없는 것: 검색면의 **검색 입력**. 익스텐션 안의 텍스트 필드는 스스로 입력을 받지
   못하므로, 문자 레이어의 키 입력을 앱이 아니라 검색어로 돌리는 라우팅(전용 세션)이 필요하다.
   지금 검색면은 자주 쓰는 것과 갈래별 목록을 훑는 자리이고, 낱말로 찾는 길은 후보 바다.

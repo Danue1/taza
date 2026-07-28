@@ -39,7 +39,7 @@ jobs:
       - run: brew install xcodegen
       # 바인딩·라이선스 목록은 생성물이다 — 저장소에 있는 것이 최신인지 여기서 확인한다
       - run: ./platforms/ios/build-xcframework.sh
-      - run: git diff --exit-code platforms/ios/Generated data/licenses.json
+      - run: git diff --exit-code platforms/ios/Generated data/licenses.json data/notices/SOFTWARE-NOTICE.md
       - run: xcodegen generate
         working-directory: platforms/ios
       - run: |

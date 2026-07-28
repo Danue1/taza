@@ -1,0 +1,13 @@
+# CLDR 이모지 주석 — 이모지마다 그것을 부르는 낱말이 달려 있다("😀": smile, happy, face).
+# 낱말을 치면 그 낱말에 달린 이모지가 후보 바에 곁들여진다. 표제어를 늘리지는 않는다 —
+# 사전에 이미 있는 낱말에만 이모지를 단다.
+[[sources]]
+name = "CLDR emoji annotations (en)"
+version = "48.2"
+license = "Unicode-3.0"
+attribution = "Emoji annotations from Unicode CLDR 48.2 (https://cldr.unicode.org), Copyright © 1991-2025 Unicode, Inc., licensed under the Unicode License v3."
+url = "https://raw.githubusercontent.com/unicode-org/cldr/release-48-2/common/annotations/en.xml"
+sha256 = "8511aadd046fdba2f0ffe590266ced8bbf48175ad139b2675d85d7141057b235"
+role = "inventory"
+weight = 1.0
+format = "cldr-annotations"

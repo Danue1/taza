@@ -10,4 +10,4 @@ lang-latin = []
 lang-hangul = []
 
 [dev-dependencies]
-taza-toolchain.workspace = true
+taza-pack.workspace = true

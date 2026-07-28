@@ -14,8 +14,8 @@ use std::sync::Arc;
 use taza_engine::contract::Pack;
 use taza_engine::engine::PackBytes;
 use taza_engine::keyboard::layouts;
-use taza_engine::lang::LanguageDescriptor;
 use taza_engine::lang::jamo::decompose_word;
+use taza_engine::lang::{ComposerSkeleton, LanguageDescriptor};
 use taza_evaluation::synthesis::{TypedSequence, TypoSynthesizer};
 use taza_evaluation::{
     CompletionTask, EvaluationCase, evaluate_completions, evaluate_corrections,
@@ -51,9 +51,9 @@ fn main() {
 
     let korean = language == "ko";
     let layout = if korean {
-        layouts::dubeolsik()
+        layouts::default_for(ComposerSkeleton::Hangul)
     } else {
-        layouts::qwerty()
+        layouts::default_for(ComposerSkeleton::Latin)
     };
     // 한국어는 화면 표기가 아니라 자모 시퀀스가 입력이다
     let typed_form = |word: &str| -> Option<String> {

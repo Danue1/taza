@@ -13,7 +13,6 @@
 //! 모든 정수는 little-endian이며 offset은 파일 시작 기준.
 
 pub mod annotation;
-pub mod layout;
 pub mod lexicon;
 pub mod metadata;
 pub mod ngram;
@@ -25,11 +24,12 @@ pub const FORMAT_VERSION: u16 = 5;
 
 pub const MAGIC: &[u8; 4] = b"TAZA";
 
+/// 태그 3은 배열이 팩에 실리던 시절의 레이아웃 섹션 자리다. 배열은 코드로 옮겼으므로
+/// 그 태그는 다시 쓰지 않는다 — 옛 팩에 남아 있어도 미지 태그로 무시된다.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SectionKind {
     Lexicon,
     NgramModel,
-    Layout,
     Metadata,
     /// 낱말에 곁들이는 이모지·기호·얼굴 문자 표.
     Annotation,
@@ -42,7 +42,6 @@ impl SectionKind {
         match self {
             SectionKind::Lexicon => 1,
             SectionKind::NgramModel => 2,
-            SectionKind::Layout => 3,
             SectionKind::Metadata => 4,
             SectionKind::Annotation => 5,
             SectionKind::AnnotationCatalog => 6,
@@ -53,7 +52,6 @@ impl SectionKind {
         match tag {
             1 => Some(SectionKind::Lexicon),
             2 => Some(SectionKind::NgramModel),
-            3 => Some(SectionKind::Layout),
             4 => Some(SectionKind::Metadata),
             5 => Some(SectionKind::Annotation),
             6 => Some(SectionKind::AnnotationCatalog),

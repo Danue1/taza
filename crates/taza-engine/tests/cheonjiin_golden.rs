@@ -1,5 +1,5 @@
 use taza_engine::contract::{Composer, ComposerEvent, EditorContext, Effect, InputEvent};
-use taza_engine::engine::{Engine, PackBytes};
+use taza_engine::engine::Engine;
 use taza_engine::keyboard::KeySignal;
 use taza_engine::lang::LanguageDescriptor;
 use taza_engine::lang::cheonjiin::CheonjiinComposer;
@@ -156,76 +156,77 @@ impl Document {
     }
 }
 
-fn cheonjiin_engine() -> Engine {
-    use taza_engine::pack::SectionKind;
-    use taza_toolchain::PackWriter;
-    let text = std::fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../data/korean-layout.txt"
-    ))
-    .unwrap();
-    let mut writer = PackWriter::new("ko");
-    writer.add_section(
-        SectionKind::Layout,
-        taza_toolchain::section::layout::serialize(
-            &taza_toolchain::section::layout::parse(&text).unwrap(),
-        ),
-    );
+fn cheonjiin_engine(layout: &str) -> Engine {
     let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap()).unwrap();
+    assert!(engine.select_layout(layout), "{layout} 배열이 없음");
     engine
-        .load_pack(std::sync::Arc::new(writer.finish()) as std::sync::Arc<dyn PackBytes>)
-        .unwrap();
-    assert!(engine.select_layout("천지인"));
-    engine
+}
+
+/// 키를 라벨로 찾아 그 한가운데를 누른다 — 멀티탭은 좌표와 시각의 문제라 합성기가
+/// 아니라 키보드를 거쳐야 드러난다. 돌려주는 것은 주기를 끊을 시한이다.
+fn press(engine: &mut Engine, document: &mut Document, label: &str) -> Option<u32> {
+    let bounds = engine
+        .frame()
+        .rows
+        .iter()
+        .flatten()
+        .find(|key| key.label == label)
+        .unwrap_or_else(|| panic!("{label} 키가 없음"))
+        .bounds;
+    let result = engine.press_at(
+        bounds.x + bounds.width / 2.0,
+        bounds.y + bounds.height / 2.0,
+        &document.context(),
+    );
+    let timer = result.effects.iter().find_map(|effect| match effect {
+        Effect::SetTimer(milliseconds) => Some(*milliseconds),
+        _ => None,
+    });
+    document.apply(result.effects);
+    timer
 }
 
 /// 같은 키를 이어 누르면 주기의 다음 글자로 **갈아 끼운다** — 덧붙이지 않는다.
 /// 아무것도 치지 않은 자리에서 시작하는 것이 이 검증의 핵심이다.
 #[test]
 fn multitap_replaces_the_previous_letter_until_the_timer_ends_it() {
-    let press = |engine: &mut Engine, document: &mut Document, label: &str| {
-        let bounds = engine
-            .frame()
-            .rows
-            .iter()
-            .flatten()
-            .find(|key| key.label == label)
-            .unwrap_or_else(|| panic!("{label} 키가 없음"))
-            .bounds;
-        let result = engine.press_at(
-            bounds.x + bounds.width / 2.0,
-            bounds.y + bounds.height / 2.0,
-            &document.context(),
-        );
-        let timer = result.effects.iter().find_map(|effect| match effect {
-            Effect::SetTimer(milliseconds) => Some(*milliseconds),
-            _ => None,
-        });
-        document.apply(result.effects);
-        timer
-    };
-
-    let mut engine = cheonjiin_engine();
+    let mut engine = cheonjiin_engine("천지인");
     let mut document = Document::default();
     assert!(
-        press(&mut engine, &mut document, "ㄱㅋㄲ").is_some(),
+        press(&mut engine, &mut document, "ㄱㅋ").is_some(),
         "멀티탭은 주기를 끊을 시한을 요청한다"
     );
     assert_eq!(document.text, "ㄱ");
-    press(&mut engine, &mut document, "ㄱㅋㄲ");
+    press(&mut engine, &mut document, "ㄱㅋ");
     assert_eq!(document.text, "ㅋ", "이어 누르면 갈아 끼운다");
-    press(&mut engine, &mut document, "ㄱㅋㄲ");
-    assert_eq!(document.text, "ㄲ");
-    press(&mut engine, &mut document, "ㄱㅋㄲ");
+    press(&mut engine, &mut document, "ㄱㅋ");
     assert_eq!(document.text, "ㄱ", "주기가 한 바퀴 돌아도 갈아 끼운다");
 
     // 시한이 다 되면 같은 키가 다시 첫 글자로 시작한다
-    let mut engine = cheonjiin_engine();
+    let mut engine = cheonjiin_engine("천지인");
     let mut document = Document::default();
-    press(&mut engine, &mut document, "ㄱㅋㄲ");
+    press(&mut engine, &mut document, "ㄱㅋ");
     engine.timer_fired();
-    press(&mut engine, &mut document, "ㄱㅋㄲ");
+    press(&mut engine, &mut document, "ㄱㅋ");
     assert_eq!(document.text, "ㄱㄱ");
+}
+
+/// 자음을 갈라 놓은 판에는 주기가 아예 없다 — 거센소리가 제 키에 있으므로 ㅋ을 내려고
+/// ㄱ을 두 번 치지 않고, 같은 키를 이어 눌러도 갈리지 않고 글자가 하나 더 붙는다.
+/// 모음 조합은 표준 천지인과 같다.
+#[test]
+fn the_split_layout_gives_each_consonant_its_own_key() {
+    for layout in ["천지인+", "넓은 천지인+"] {
+        let mut engine = cheonjiin_engine(layout);
+        let mut document = Document::default();
+        press(&mut engine, &mut document, "ㄱ");
+        press(&mut engine, &mut document, "ㅣ");
+        press(&mut engine, &mut document, "ㆍ");
+        assert_eq!(document.text, "가", "{layout}");
+
+        press(&mut engine, &mut document, "ㅋ");
+        assert_eq!(document.text, "갘", "{layout}: 거센소리는 제 키에 있다");
+    }
 }
 
 /// 스냅샷은 쌓던 타건까지 담는다 — 익스텐션이 죽었다 살아나도 모음이 이어진다.

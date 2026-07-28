@@ -1,10 +1,9 @@
-//! 정규화된 점수표 + 레이아웃 + 원천 기록을 언어팩 바이너리로 조립한다.
+//! 정규화된 점수표 + 원천 기록을 언어팩 바이너리로 조립한다.
 
 use crate::PackWriter;
 use crate::parse::Annotation;
 use crate::recipe::{LexiconEncoding, Recipe, Source};
 use crate::section::annotation::{AnnotationBuilder, AnnotationCatalogBuilder};
-use crate::section::layout;
 use crate::section::lexicon::LexiconBuilder;
 use crate::section::metadata::MetadataBuilder;
 use crate::section::ngram::NgramModelBuilder;
@@ -40,7 +39,6 @@ pub struct PackInputs<'source> {
     pub annotations: &'source [Annotation],
     pub emoji_order: &'source [(EmojiCategory, String)],
     pub affixes: &'source [String],
-    pub layout_text: Option<&'source str>,
 }
 
 pub fn assemble(inputs: PackInputs<'_>) -> Result<AssembledPack, String> {
@@ -52,7 +50,6 @@ pub fn assemble(inputs: PackInputs<'_>) -> Result<AssembledPack, String> {
         annotations,
         emoji_order,
         affixes,
-        layout_text,
     } = inputs;
     let mut lexicon = LexiconBuilder::new();
     for (word, score) in words {
@@ -133,7 +130,6 @@ pub fn assemble(inputs: PackInputs<'_>) -> Result<AssembledPack, String> {
     metadata.set(keys::DISPLAY_NAME, &recipe.display_name);
     metadata.set(keys::KEYCAP_LABEL, &recipe.keycap_label);
     metadata.set(keys::COMPOSER_SKELETON, &recipe.composer_skeleton);
-    metadata.set(keys::LAYOUT_NAME, &recipe.layout_name);
     metadata.set(
         keys::WORD_SEPARATED,
         recipe.script.word_separated.to_string(),
@@ -154,19 +150,6 @@ pub fn assemble(inputs: PackInputs<'_>) -> Result<AssembledPack, String> {
     }
     if let Some(section) = catalog_section {
         writer.add_section(SectionKind::AnnotationCatalog, section);
-    }
-    if let Some(layout_text) = layout_text {
-        let mut layouts = layout::parse(layout_text)?;
-        // 이름 없이 적힌 배열은 레시피가 이름을 댄다 — 배열이 한 벌뿐인 파일에서는
-        // 파일 안에 이름을 또 적게 하지 않는다
-        for entry in &mut layouts {
-            if entry.name.is_empty() {
-                entry.name = recipe.layout_name.clone();
-            }
-        }
-        // 첫 배열이 그 언어의 기본이므로 메타데이터의 배열 이름도 그것을 따른다
-        metadata.set(keys::LAYOUT_NAME, &layouts[0].name);
-        writer.add_section(SectionKind::Layout, layout::serialize(&layouts));
     }
     writer.add_section(SectionKind::Metadata, metadata.build());
     Ok(AssembledPack {

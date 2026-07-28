@@ -9,6 +9,7 @@ mod field;
 mod frame;
 mod geometry;
 pub mod hit;
+pub mod layout;
 pub mod layouts;
 mod metrics;
 mod press;
@@ -21,8 +22,9 @@ pub use metrics::{FormFactor, FrameMetrics, KeyboardMetrics};
 pub use press::{PressOutcome, ShellRequest};
 pub use shift::ShiftState;
 
-// 레이아웃 데이터 타입은 언어팩 와이어 타입이 원본이다 — 배열 추가는 팩 배포로 끝난다.
-pub use crate::pack::layout::{KeyAction, KeyboardLayout, KeyboardLayoutSet, LayoutKey, LayoutRow};
+pub use layout::{
+    KeyAction, KeyboardLayout, KeyboardLayoutSet, LayoutKey, LayoutRow, NamedLayoutSet,
+};
 
 use crate::contract::{Capitalization, FieldKind, FieldTraits, UserPreferences};
 use crate::lang::LanguageDescriptor;

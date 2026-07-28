@@ -6,7 +6,7 @@ use crate::support::*;
 #[test]
 fn frame_geometry_is_normalized_and_centered() {
     let keyboard = Keyboard::new(
-        layouts::qwerty(),
+        layouts::default_for(ComposerSkeleton::Latin),
         LanguageDescriptor::builtin("en").unwrap(),
     );
     let frame = keyboard.frame();
@@ -29,7 +29,7 @@ fn frame_geometry_is_normalized_and_centered() {
 #[test]
 fn hit_test_maps_coordinates_to_keys() {
     let mut keyboard = Keyboard::new(
-        layouts::qwerty(),
+        layouts::default_for(ComposerSkeleton::Latin),
         LanguageDescriptor::builtin("en").unwrap(),
     );
     let frame = keyboard.frame();
@@ -50,7 +50,7 @@ fn hit_test_maps_coordinates_to_keys() {
 #[test]
 fn coordinates_outside_snap_to_nearest_key() {
     let mut keyboard = Keyboard::new(
-        layouts::qwerty(),
+        layouts::default_for(ComposerSkeleton::Latin),
         LanguageDescriptor::builtin("en").unwrap(),
     );
     // 화면 왼쪽 위 바깥 → 첫 행 첫 키
@@ -61,7 +61,7 @@ fn coordinates_outside_snap_to_nearest_key() {
 
 #[test]
 fn row_height_comes_from_layout_data() {
-    let mut layout_set = layouts::qwerty();
+    let mut layout_set = layouts::default_for(ComposerSkeleton::Latin);
     // 낮은 숫자행을 얹는 경우 — 배치도 히트 테스트도 이 값을 따라야 한다
     layout_set.layers[0].rows[0].height_ratio = 0.5;
     let mut keyboard = Keyboard::new(layout_set, LanguageDescriptor::builtin("en").unwrap());
@@ -82,7 +82,7 @@ fn row_height_comes_from_layout_data() {
 #[test]
 fn symbol_rows_span_the_full_width() {
     let mut keyboard = Keyboard::new(
-        layouts::qwerty(),
+        layouts::default_for(ComposerSkeleton::Latin),
         LanguageDescriptor::builtin("en").unwrap(),
     );
     let (x, y) = key_center(&keyboard.frame(), "123");
@@ -161,7 +161,7 @@ fn a_key_that_spans_rows_owns_the_row_below() {
 fn the_number_row_does_not_take_probability_from_letters() {
     let signal_for = |number_row: bool| {
         let mut keyboard = Keyboard::new(
-            layouts::qwerty(),
+            layouts::default_for(ComposerSkeleton::Latin),
             LanguageDescriptor::builtin("en").unwrap(),
         );
         keyboard.set_preferences(UserPreferences {

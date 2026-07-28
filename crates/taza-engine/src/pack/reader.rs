@@ -1,5 +1,4 @@
 use crate::pack::annotation::{AnnotationCatalog, AnnotationTable};
-use crate::pack::layout::NamedLayoutSet;
 use crate::pack::lexicon::Lexicon;
 use crate::pack::metadata::Metadata;
 use crate::pack::ngram::NgramModel;
@@ -137,11 +136,6 @@ impl<'bytes> Pack<'bytes> {
     pub fn annotation_catalog(&self) -> Option<AnnotationCatalog<'bytes>> {
         self.section(SectionKind::AnnotationCatalog)
             .map(AnnotationCatalog::new)
-    }
-
-    /// 이 팩이 싣는 배열 전부 — 첫 항목이 기본 배열이다. 어느 것을 쓸지는 설정이 정한다.
-    pub fn layouts(&self) -> Option<Vec<NamedLayoutSet>> {
-        crate::pack::layout::deserialize(self.section(SectionKind::Layout)?)
     }
 
     /// 어절 뒤에 붙어 활용형을 만드는 접사 — 줄바꿈으로 나눈 표시 형태 목록.

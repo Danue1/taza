@@ -44,15 +44,17 @@ impl KeyboardSession {
         })
     }
 
-    /// 지금 쓰고 있는 언어 선언 — 팩을 실으면 팩이 밝힌 값으로 바뀐다.
+    /// 지금 쓰고 있는 언어 선언 — 팩을 실으면 팩이 밝힌 값으로 바뀐다. 배열 이름은
+    /// 언어가 아니라 지금 고른 배열의 것이다(배열은 팩이 아니라 코드에 있다).
     pub fn language(&self) -> FfiLanguageDescriptor {
         let engine = self.engine.lock().unwrap();
+        let layout_name = engine.layout_name().to_string();
         let language = engine.language();
         FfiLanguageDescriptor {
             tag: language.tag.clone(),
             display_name: language.display_name.clone(),
             keycap_label: language.keycap_label.clone(),
-            layout_name: language.layout_name.clone(),
+            layout_name,
         }
     }
 

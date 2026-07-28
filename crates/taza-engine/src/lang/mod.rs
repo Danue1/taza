@@ -17,7 +17,6 @@ pub mod jamo;
 pub mod latin;
 
 use crate::contract::{Composer, Pack};
-use crate::keyboard::{KeyboardLayoutSet, layouts};
 use crate::pack::metadata::keys;
 use crate::suggest::{KeyEncoding, SuggestionPolicy};
 
@@ -121,14 +120,6 @@ impl ComposerSkeleton {
     fn autocorrects(self) -> bool {
         self == ComposerSkeleton::Latin
     }
-
-    /// 팩에 레이아웃 섹션이 없을 때 쓰는 내장 배열.
-    fn builtin_layout(self) -> KeyboardLayoutSet {
-        match self {
-            ComposerSkeleton::Hangul | ComposerSkeleton::HangulCheonjiin => layouts::dubeolsik(),
-            _ => layouts::qwerty(),
-        }
-    }
 }
 
 /// 언어 하나의 선언. 원본은 팩 메타데이터이고, 코드에 남는 것은 팩을 아직 못 받았을 때
@@ -141,8 +132,6 @@ pub struct LanguageDescriptor {
     pub display_name: String,
     /// 언어 키에 찍히는 짧은 표기
     pub keycap_label: String,
-    /// 이 언어가 쓰는 배열의 이름 — 설정 화면의 설명
-    pub layout_name: String,
     pub skeleton: ComposerSkeleton,
     pub encoding: KeyEncoding,
 }
@@ -157,7 +146,6 @@ impl LanguageDescriptor {
             tag: pack.language().to_string(),
             display_name: metadata.get(keys::DISPLAY_NAME)?.to_string(),
             keycap_label: metadata.get(keys::KEYCAP_LABEL)?.to_string(),
-            layout_name: metadata.get(keys::LAYOUT_NAME)?.to_string(),
             skeleton,
             encoding,
         })
@@ -171,7 +159,6 @@ impl LanguageDescriptor {
                 tag: "en".to_string(),
                 display_name: "English".to_string(),
                 keycap_label: "A".to_string(),
-                layout_name: "QWERTY".to_string(),
                 skeleton: ComposerSkeleton::Latin,
                 encoding: KeyEncoding::Utf8,
             }),
@@ -179,7 +166,6 @@ impl LanguageDescriptor {
                 tag: "ko".to_string(),
                 display_name: "한국어".to_string(),
                 keycap_label: "한".to_string(),
-                layout_name: "두벌식".to_string(),
                 skeleton: ComposerSkeleton::Hangul,
                 encoding: KeyEncoding::HangulJamoDubeolsik,
             }),
@@ -194,9 +180,5 @@ impl LanguageDescriptor {
             limit: SUGGESTION_LIMIT,
             annotation_limit: ANNOTATION_SUGGESTION_LIMIT,
         }
-    }
-
-    pub(crate) fn builtin_layout(&self) -> KeyboardLayoutSet {
-        self.skeleton.builtin_layout()
     }
 }

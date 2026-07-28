@@ -1,31 +1,14 @@
-//! 팩이 실어 온 배열 — 배열 추가가 팩 배포로 끝나는가.
+//! 배열은 코드다 — 배열을 고르는 일이 팩(사전)을 받았는지와 무관하고, 골격마다 여러
+//! 배열이 코드에 실려 있다.
 
 use crate::support::*;
 
+/// 팩을 하나도 싣지 않은 세션이 그대로 배열을 그리고 누름을 받는다 — 배열이 코드에
+/// 있으므로 사전 설치가 선행 조건이 아니다.
 #[test]
-fn layout_from_pack_roundtrip_drives_keyboard() {
-    use taza_engine::pack::{Pack, SectionKind};
-    use taza_toolchain::PackWriter;
-    // 높이가 다른 행도 팩 데이터로 실려 간다 — 폼팩터별 배열 확장의 통로
-    let mut source = layouts::dubeolsik();
-    source.layers[0].rows[0].height_ratio = 0.8;
-    let named = vec![taza_engine::pack::layout::NamedLayoutSet {
-        skeleton: None,
-        name: "두벌식".to_string(),
-        layouts: source.clone(),
-    }];
-    let mut writer = PackWriter::new("ko");
-    writer.add_section(
-        SectionKind::Layout,
-        taza_toolchain::section::layout::serialize(&named),
-    );
-    let bytes = writer.finish();
-
-    let loaded = Pack::open(&bytes).unwrap().layouts().unwrap();
-    assert_eq!(loaded, named);
-
+fn code_layouts_drive_the_keyboard_without_a_pack() {
     let mut keyboard = Keyboard::new(
-        loaded[0].layouts.clone(),
+        layouts::default_for(ComposerSkeleton::Hangul),
         LanguageDescriptor::builtin("ko").unwrap(),
     );
     let frame = keyboard.frame();
@@ -33,60 +16,47 @@ fn layout_from_pack_roundtrip_drives_keyboard() {
     assert_eq!(pressed(&mut keyboard, x, y), Some('ㄱ'));
 }
 
+/// 한 골격이 배열을 여러 벌 갖고, 엔진이 이름으로 그 사이를 오간다 — 전부 팩 없이.
 #[test]
-fn pack_can_carry_several_layouts_and_the_engine_switches_between_them() {
-    use std::sync::Arc;
-    use taza_engine::engine::PackBytes;
-    use taza_engine::pack::SectionKind;
-    use taza_toolchain::PackWriter;
-    use taza_toolchain::section::metadata::MetadataBuilder;
-
-    let text = "\
-=== QWERTY
-q w e
-layer1*0.15 space*0.55 enter*0.3
----
-1 2 3
-layer0*0.15 space*0.55 enter*0.3
-=== Dvorak
-p y f
-layer1*0.15 space*0.55 enter*0.3
-";
-    let mut metadata = MetadataBuilder::new();
-    metadata.set("display_name", "English");
-    metadata.set("keycap_label", "A");
-    metadata.set("layout_name", "QWERTY");
-    metadata.set("composer_skeleton", "latin");
-    metadata.set("lexicon_encoding", "utf8");
-
-    let mut writer = PackWriter::new("en");
-    writer.add_section(
-        SectionKind::Layout,
-        taza_toolchain::section::layout::serialize(
-            &taza_toolchain::section::layout::parse(text).unwrap(),
-        ),
-    );
-    writer.add_section(SectionKind::Metadata, metadata.build());
-    let bytes = writer.finish();
-
+fn the_engine_switches_between_code_layouts_with_no_pack() {
     let mut engine = Engine::new(LanguageDescriptor::builtin("en").unwrap()).unwrap();
-    engine
-        .load_pack(Arc::new(bytes) as Arc<dyn PackBytes>)
-        .unwrap();
-    assert_eq!(engine.available_layouts(), vec!["QWERTY", "Dvorak"]);
-    assert_eq!(engine.layout_name(), "QWERTY");
-    key_center(&engine.frame(), "q");
 
-    assert!(engine.select_layout("Dvorak"));
-    assert_eq!(engine.layout_name(), "Dvorak");
-    key_center(&engine.frame(), "p");
-    // 심볼면은 첫 배열에서 물려받는다 — 배열마다 다시 싣지 않는다
+    assert_eq!(
+        engine.available_layouts(),
+        vec!["QWERTY", "QWERTZ", "AZERTY", "Colemak"]
+    );
+    assert_eq!(engine.layout_name(), "QWERTY");
+    assert_eq!(engine.frame().rows[0][0].label, "q");
+
+    assert!(engine.select_layout("AZERTY"));
+    assert_eq!(engine.layout_name(), "AZERTY");
+    // 프레임이 실제로 다시 서면 맨 앞 글자가 바뀐다
+    assert_eq!(engine.frame().rows[0][0].label, "a");
+
+    // 심볼면은 공용 부품에서 오므로 배열을 갈아도 그대로 닿는다 — 배열마다 싣지 않는다
     let frame = engine.frame();
     let (x, y) = key_center(&frame, "123");
     engine.press_at(x, y, &EditorContext::unavailable());
     key_center(&engine.frame(), "1");
 
-    // 없는 이름은 조용히 무시된다 — 팩 갱신으로 사라진 배열이 설정에 남아 있을 수 있다
-    assert!(!engine.select_layout("Colemak"));
-    assert_eq!(engine.layout_name(), "Dvorak");
+    // 판올림으로 사라진 이름이 설정에 남아 있어도 조용히 지금 배열에 머문다
+    assert!(!engine.select_layout("Dvorak"));
+    assert_eq!(engine.layout_name(), "AZERTY");
+}
+
+/// 천지인은 조합 규칙이 두벌식과 달라 자기 골격을 밝힌다 — 배열을 고르면 합성기가 함께
+/// 갈리므로, 고른 뒤 그 배열의 글자가 프레임에 선다.
+#[test]
+fn hangul_ships_several_layouts_including_cheonjiin() {
+    let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap()).unwrap();
+
+    let names = engine.available_layouts();
+    assert_eq!(names.first().map(String::as_str), Some("두벌식"));
+    assert!(names.iter().any(|name| name == "세벌식 최종"));
+    assert!(names.iter().any(|name| name == "천지인"));
+
+    assert!(engine.select_layout("천지인"));
+    assert_eq!(engine.layout_name(), "천지인");
+    // 천지인은 하늘(ㆍ)·땅(ㅡ)·사람(ㅣ)이 맨 위에 선다
+    key_center(&engine.frame(), "ㆍ");
 }

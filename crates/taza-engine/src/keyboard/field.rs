@@ -6,7 +6,7 @@
 //! 한 곳에만 있어야 눌린 자리와 그려진 자리가 어긋나지 않는다.
 
 use crate::contract::FieldKind;
-use crate::pack::layout::{KeyAction, KeyboardLayout, LayoutKey, LayoutRow};
+use crate::keyboard::layout::{KeyAction, KeyboardLayout, LayoutKey, LayoutRow};
 
 /// 숫자 패드 한 칸의 폭 — 순정처럼 3열이다.
 const NUMBER_PAD_COLUMN: f32 = 1.0 / 3.0;

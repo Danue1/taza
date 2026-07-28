@@ -16,10 +16,8 @@ language = "ko"
 # 표시 이름·키캡 표기·조합 골격은 팩이 밝힌다 — 코어와 셸은 자기 표를 두지 않는다.
 display_name = "한국어"
 keycap_label = "한"
-layout_name = "두벌식"
 composer_skeleton = "hangul"
-pack_version = 2
-layout = "../korean-layout.txt"
+pack_version = 6
 source_directory = "korean.sources.d"
 
 [lexicon]

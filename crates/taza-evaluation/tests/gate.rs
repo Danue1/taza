@@ -3,8 +3,8 @@
 use std::sync::Arc;
 use taza_engine::engine::PackBytes;
 use taza_engine::keyboard::layouts;
-use taza_engine::lang::LanguageDescriptor;
 use taza_engine::lang::jamo::{decompose_word, encode_jamo_ascii};
+use taza_engine::lang::{ComposerSkeleton, LanguageDescriptor};
 use taza_engine::pack::SectionKind;
 use taza_evaluation::synthesis::{TypedSequence, TypoSynthesizer, synthesize_cases};
 use taza_evaluation::{CompletionTask, EvaluationCase, evaluate_completions, evaluate_corrections};
@@ -44,7 +44,7 @@ fn word_list() -> Vec<&'static str> {
 
 #[test]
 fn synthesis_is_deterministic_and_produces_typos() {
-    let layout = layouts::qwerty();
+    let layout = layouts::default_for(ComposerSkeleton::Latin);
     let words = word_list();
     let first = synthesize_cases(&layout, &words, 42, 3);
     let second = synthesize_cases(&layout, &words, 42, 3);
@@ -64,7 +64,7 @@ fn synthesis_is_deterministic_and_produces_typos() {
 
 #[test]
 fn adjacent_substitution_uses_layout_neighbors() {
-    let layout = layouts::qwerty();
+    let layout = layouts::default_for(ComposerSkeleton::Latin);
     let mut synthesizer = TypoSynthesizer::new(&layout, 7);
     // 'q'의 이웃은 w(가로)·a(세로) 정도 — 합성 결과의 모든 문자는 원문 인접 범위여야 한다는
     // 완전 검증 대신, 시드 고정 산출물이 실제 오타 형태인지만 확인
@@ -78,7 +78,12 @@ fn adjacent_substitution_uses_layout_neighbors() {
 #[test]
 fn correction_quality_gate() {
     let pack: Arc<dyn PackBytes> = Arc::new(english_pack_bytes());
-    let cases = synthesize_cases(&layouts::qwerty(), &word_list(), 42, 5);
+    let cases = synthesize_cases(
+        &layouts::default_for(ComposerSkeleton::Latin),
+        &word_list(),
+        42,
+        5,
+    );
     let report = evaluate_corrections(&pack, &LanguageDescriptor::builtin("en").unwrap(), &cases);
     println!("[gate] english correction {report:?}");
 
@@ -101,7 +106,7 @@ fn correction_quality_gate() {
 #[test]
 fn completion_quality_gate() {
     let pack: Arc<dyn PackBytes> = Arc::new(english_pack_bytes());
-    let synthesizer = TypoSynthesizer::new(&layouts::qwerty(), 42);
+    let synthesizer = TypoSynthesizer::new(&layouts::default_for(ComposerSkeleton::Latin), 42);
     let tasks: Vec<CompletionTask> = word_list()
         .iter()
         .map(|word| CompletionTask {
@@ -150,7 +155,7 @@ fn korean_correction_quality_gate() {
     let pack: Arc<dyn PackBytes> = Arc::new(korean_pack_bytes());
 
     // 자모 시퀀스 위에서 두벌식 레이아웃 인접성으로 오타 합성
-    let layout = layouts::dubeolsik();
+    let layout = layouts::default_for(ComposerSkeleton::Hangul);
     let mut synthesizer = TypoSynthesizer::new(&layout, 42);
     let mut cases = Vec::new();
     for (word, _) in KOREAN_WORDS {
@@ -191,7 +196,7 @@ fn korean_correction_quality_gate() {
 #[test]
 fn korean_completion_quality_gate() {
     let pack: Arc<dyn PackBytes> = Arc::new(korean_pack_bytes());
-    let synthesizer = TypoSynthesizer::new(&layouts::dubeolsik(), 42);
+    let synthesizer = TypoSynthesizer::new(&layouts::default_for(ComposerSkeleton::Hangul), 42);
     let tasks: Vec<CompletionTask> = KOREAN_WORDS
         .iter()
         .map(|(word, _)| {

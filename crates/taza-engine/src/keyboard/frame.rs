@@ -3,8 +3,8 @@
 //! 좌표를 키로 옮기는 판정은 `hit`, 그 결과로 상태가 움직이는 것은 `press`의 몫이다.
 
 use crate::contract::{FieldKind, FieldTraits, ReturnKey, UserPreferences};
+use crate::keyboard::layout::{KeyAction, KeyboardLayout};
 use crate::lang::LanguageDescriptor;
-use crate::pack::layout::{KeyAction, KeyboardLayout};
 
 use super::field;
 use super::geometry::{KeyBounds, KeyPosition, layer_rows, panel_height_ratio, row_bounds};
@@ -273,7 +273,7 @@ impl FrameView<'_> {
             return Vec::new();
         }
         let cased = |character: char| match self.shift.engaged() {
-            true => crate::pack::layout::uppercase(character),
+            true => crate::keyboard::layout::uppercase(character),
             false => character,
         };
         let Some(character) = self.key_character(action) else {

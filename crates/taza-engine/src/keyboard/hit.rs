@@ -7,7 +7,7 @@
 //! 확률은 키 중심에서의 거리를 키 크기로 정규화한 가우시안이다. 손가락 접촉 면적·기울기
 //! 같은 것을 반영하려면 실사용 로그가 필요하므로, 그 전까지의 기하 근사다.
 
-use crate::pack::layout::{KeyAction, KeyboardLayout};
+use crate::keyboard::layout::{KeyAction, KeyboardLayout};
 
 use super::geometry::{KeyBounds, KeyPosition, panel_height_ratio, row_bounds, row_heights};
 

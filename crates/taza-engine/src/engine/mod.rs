@@ -17,10 +17,10 @@ use std::sync::Arc;
 
 use crate::contract::{Composer, EditorContext, Effect, FieldKind, FieldTraits, UserPreferences};
 use crate::keyboard::{
-    FrameKey, FrameMetrics, KeySignal, Keyboard, KeyboardFrame, KeyboardMetrics, ShellRequest,
+    FrameKey, FrameMetrics, KeySignal, Keyboard, KeyboardFrame, KeyboardMetrics, NamedLayoutSet,
+    ShellRequest, layouts,
 };
 use crate::lang::{ComposerSkeleton, LanguageDescriptor};
-use crate::pack::layout::NamedLayoutSet;
 use crate::personalization::{PersonalizationState, PersonalizationStore};
 use crate::suggest::{Suggester, Suggestion};
 
@@ -53,8 +53,8 @@ pub struct Engine {
     composer: Box<dyn Composer>,
     suggester: Suggester,
     keyboard: Keyboard,
-    /// 이 언어로 칠 수 있는 배열들 — 팩이 실은 목록이고, 팩이 없으면 골격의 내장 배열
-    /// 하나다. 어느 것으로 칠지는 설정이 정한다.
+    /// 이 골격으로 칠 수 있는 배열들 — 코드가 싣고 있는 목록이라 팩이 없어도 다 고를
+    /// 수 있다. 어느 것으로 칠지는 설정이 정한다.
     layouts: Vec<NamedLayoutSet>,
     selected_layout: usize,
     /// 지금 꽂혀 있는 합성기의 골격 — 배열이 자기 골격을 밝히면 갈아 끼우므로,
@@ -91,16 +91,17 @@ impl Engine {
     /// 언어의 기본 합성기 대신 다른 합성기를 꽂는다. 한 언어에 복수 배열·합성기를
     /// 두는 경우(인도계 음역↔네이티브 등)와 테스트가 쓰는 통로다.
     pub fn with_composer(language: LanguageDescriptor, composer: Box<dyn Composer>) -> Self {
-        let builtin = NamedLayoutSet {
-            name: language.layout_name.clone(),
-            skeleton: None,
-            layouts: language.builtin_layout(),
-        };
+        let layouts = layouts::for_skeleton(language.skeleton);
+        let first = layouts
+            .first()
+            .expect("골격마다 배열이 최소 한 벌")
+            .layouts
+            .clone();
         Engine {
             suggester: Suggester::new(language.suggestion_policy()),
             composer,
-            keyboard: Keyboard::new(builtin.layouts.clone(), language.clone()),
-            layouts: vec![builtin],
+            keyboard: Keyboard::new(first, language.clone()),
+            layouts,
             selected_layout: 0,
             active_skeleton: language.skeleton,
             language,

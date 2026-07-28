@@ -1,46 +1,31 @@
-//! 언어팩과 배열 교체. 언어를 늘리는 일이 팩 배포로 끝나는 것은 이 파일이 팩이 밝힌
-//! 선언(표시 이름·골격·배열)을 내장 선언 위에 덮어쓰기 때문이다.
+//! 언어팩과 배열 교체. 팩이 나르는 것은 사전·언어모델·곁들일 것과 언어가 자기를 밝히는
+//! 선언이고, 배열은 코드에 있다 — 배열을 고르는 일이 팩을 받았는지와 무관한 것은 그래서다.
 
 use std::sync::Arc;
 
 use crate::contract::Pack;
-use crate::keyboard::Keyboard;
-use crate::lang::{ComposerSkeleton, LanguageDescriptor};
+use crate::keyboard::{Keyboard, layouts};
+use crate::lang::LanguageDescriptor;
 use crate::pack::PackError;
-use crate::pack::layout::NamedLayoutSet;
 
 use super::{Engine, PackBytes};
 
 impl Engine {
     /// 언어팩을 갈아 끼운다. 팩이 스스로 밝힌 선언(표시 이름·골격·조회 키 인코딩)이
-    /// 내장 선언을 대신하고, 레이아웃 섹션이 있으면 배열도 함께 바뀐다 — 언어를
-    /// 늘리는 일이 팩 배포로 끝나는 것은 이 갱신 덕분이다.
+    /// 내장 선언을 대신하고, 골격이 바뀌면 그 골격의 배열들이 함께 온다 — 언어를
+    /// 늘리는 일이 팩 배포로 끝나되, 그 언어가 쓰는 골격은 이 빌드에 이미 있어야 한다.
     pub fn load_pack(&mut self, pack: Arc<dyn PackBytes>) -> Result<(), PackError> {
         let opened = Pack::open(pack.bytes())?;
-        let declared = LanguageDescriptor::from_pack(&opened);
-        let packed_layouts = opened.layouts();
-        if let Some(declared) = declared {
+        if let Some(declared) = LanguageDescriptor::from_pack(&opened) {
             // 합성기 교체는 배열을 고른 뒤에 한다(`apply_layout_skeleton`) — 골격을
             // 밝히는 쪽이 언어와 배열 둘이라 한자리에서 정해야 어긋나지 않는다
             self.language = declared;
         }
         self.refresh_suggester();
-        // 고르고 있던 배열은 이름으로 이어 간다 — 팩을 갱신했다고 배열이 되돌아가면
+        // 고르고 있던 배열은 이름으로 이어 간다 — 팩을 갈았다고 배열이 되돌아가면
         // 사용자가 고른 것이 배포 때마다 풀린다
         let chosen = self.layout_name().to_string();
-        self.layouts = packed_layouts.unwrap_or_else(|| {
-            vec![NamedLayoutSet {
-                name: String::new(),
-                skeleton: None,
-                layouts: self.language.builtin_layout(),
-            }]
-        });
-        // 이름 없이 실려 온 배열(배열이 하나뿐이던 시절의 팩)은 팩 메타데이터가 이름을 댄다
-        for entry in &mut self.layouts {
-            if entry.name.is_empty() {
-                entry.name = self.language.layout_name.clone();
-            }
-        }
+        self.layouts = layouts::for_skeleton(self.language.skeleton);
         self.selected_layout = self
             .layouts
             .iter()
@@ -55,7 +40,7 @@ impl Engine {
     pub fn available_layouts(&self) -> Vec<String> {
         self.layouts
             .iter()
-            .map(|entry| entry.name.clone())
+            .map(|entry| entry.name.to_string())
             .collect()
     }
 
@@ -63,12 +48,12 @@ impl Engine {
     pub fn layout_name(&self) -> &str {
         self.layouts
             .get(self.selected_layout)
-            .map(|entry| entry.name.as_str())
-            .unwrap_or(&self.language.layout_name)
+            .map(|entry| entry.name)
+            .unwrap_or_default()
     }
 
     /// 배열을 바꾼다. 그런 이름의 배열이 없으면 아무것도 하지 않고 false —
-    /// 설정에 남아 있는 이름이 팩 갱신으로 사라졌을 때 조용히 기본값에 머문다.
+    /// 설정에 남아 있는 이름이 판올림으로 사라졌을 때 조용히 기본값에 머문다.
     pub fn select_layout(&mut self, name: &str) -> bool {
         let Some(index) = self.layouts.iter().position(|entry| entry.name == name) else {
             return false;
@@ -92,8 +77,7 @@ impl Engine {
         let declared = self
             .layouts
             .get(self.selected_layout)
-            .and_then(|entry| entry.skeleton.as_deref())
-            .and_then(ComposerSkeleton::from_tag);
+            .and_then(|entry| entry.skeleton);
         let skeleton = declared.unwrap_or(self.language.skeleton);
         if skeleton == self.active_skeleton {
             return;
@@ -108,11 +92,13 @@ impl Engine {
     /// 배열이 바뀌어도 셸이 알려 준 표시 환경·설정·필드 성격은 이어진다.
     pub(super) fn rebuild_keyboard(&mut self) {
         self.apply_layout_skeleton();
-        let layers = self
+        let Some(layers) = self
             .layouts
             .get(self.selected_layout)
             .map(|entry| entry.layouts.clone())
-            .unwrap_or_else(|| self.language.builtin_layout());
+        else {
+            return;
+        };
         let traits = self.keyboard.traits();
         self.keyboard = Keyboard::new(layers, self.language.clone());
         self.keyboard.set_metrics(self.metrics);

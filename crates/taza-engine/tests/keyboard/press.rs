@@ -6,7 +6,7 @@ use crate::support::*;
 #[test]
 fn shift_is_one_shot() {
     let mut keyboard = Keyboard::new(
-        layouts::qwerty(),
+        layouts::default_for(ComposerSkeleton::Latin),
         LanguageDescriptor::builtin("en").unwrap(),
     );
     let frame = keyboard.frame();
@@ -32,7 +32,7 @@ fn shift_is_one_shot() {
 #[test]
 fn shift_toggles_off_when_pressed_twice() {
     let mut keyboard = Keyboard::new(
-        layouts::qwerty(),
+        layouts::default_for(ComposerSkeleton::Latin),
         LanguageDescriptor::builtin("en").unwrap(),
     );
     let frame = keyboard.frame();
@@ -46,7 +46,7 @@ fn shift_toggles_off_when_pressed_twice() {
 #[test]
 fn shift_lock_survives_typing_and_only_applies_to_cased_layouts() {
     let mut keyboard = Keyboard::new(
-        layouts::qwerty(),
+        layouts::default_for(ComposerSkeleton::Latin),
         LanguageDescriptor::builtin("en").unwrap(),
     );
     assert!(keyboard.toggle_shift_lock());
@@ -61,7 +61,7 @@ fn shift_lock_survives_typing_and_only_applies_to_cased_layouts() {
 
     // 한글은 shift가 대문자가 아니라 다른 자모라 고정할 것이 없다
     let mut hangul = Keyboard::new(
-        layouts::dubeolsik(),
+        layouts::default_for(ComposerSkeleton::Hangul),
         LanguageDescriptor::builtin("ko").unwrap(),
     );
     assert!(!hangul.toggle_shift_lock());
@@ -71,7 +71,7 @@ fn shift_lock_survives_typing_and_only_applies_to_cased_layouts() {
 #[test]
 fn dubeolsik_shift_produces_tense_consonants() {
     let mut keyboard = Keyboard::new(
-        layouts::dubeolsik(),
+        layouts::default_for(ComposerSkeleton::Hangul),
         LanguageDescriptor::builtin("ko").unwrap(),
     );
     let frame = keyboard.frame();
@@ -85,7 +85,7 @@ fn dubeolsik_shift_produces_tense_consonants() {
 #[test]
 fn layer_switch_cycles_symbol_layers() {
     let mut keyboard = Keyboard::new(
-        layouts::qwerty(),
+        layouts::default_for(ComposerSkeleton::Latin),
         LanguageDescriptor::builtin("en").unwrap(),
     );
     let frame = keyboard.frame();
@@ -113,7 +113,7 @@ fn layer_switch_cycles_symbol_layers() {
 #[test]
 fn language_key_asks_shell_to_switch() {
     let mut keyboard = Keyboard::new(
-        layouts::dubeolsik(),
+        layouts::default_for(ComposerSkeleton::Hangul),
         LanguageDescriptor::builtin("ko").unwrap(),
     );
     let frame = keyboard.frame();
@@ -127,7 +127,7 @@ fn language_key_asks_shell_to_switch() {
 #[test]
 fn alternates_reach_the_shell_and_come_back_as_input() {
     let mut keyboard = Keyboard::new(
-        layouts::qwerty(),
+        layouts::default_for(ComposerSkeleton::Latin),
         LanguageDescriptor::builtin("en").unwrap(),
     );
     let frame = keyboard.frame();
@@ -152,7 +152,7 @@ fn alternates_reach_the_shell_and_come_back_as_input() {
 #[test]
 fn alternates_follow_shift_into_uppercase() {
     let mut keyboard = Keyboard::new(
-        layouts::qwerty(),
+        layouts::default_for(ComposerSkeleton::Latin),
         LanguageDescriptor::builtin("en").unwrap(),
     );
     assert!(keyboard.toggle_shift_lock());
@@ -178,7 +178,7 @@ fn alternates_follow_shift_into_uppercase() {
 #[test]
 fn hangul_letters_offer_their_shifted_pair_as_alternate() {
     let keyboard = Keyboard::new(
-        layouts::dubeolsik(),
+        layouts::default_for(ComposerSkeleton::Hangul),
         LanguageDescriptor::builtin("ko").unwrap(),
     );
     let letters = &keyboard.frame().rows[0];
@@ -198,7 +198,7 @@ fn hangul_letters_offer_their_shifted_pair_as_alternate() {
 #[test]
 fn cursor_drag_emits_steps_once_per_threshold() {
     let mut keyboard = Keyboard::new(
-        layouts::qwerty(),
+        layouts::default_for(ComposerSkeleton::Latin),
         LanguageDescriptor::builtin("en").unwrap(),
     );
     keyboard.begin_cursor_drag(0.5);
@@ -217,7 +217,7 @@ fn cursor_drag_emits_steps_once_per_threshold() {
 #[test]
 fn cursor_drag_sensitivity_is_physical() {
     let mut narrow = Keyboard::new(
-        layouts::qwerty(),
+        layouts::default_for(ComposerSkeleton::Latin),
         LanguageDescriptor::builtin("en").unwrap(),
     );
     narrow.set_metrics(KeyboardMetrics {
@@ -226,7 +226,7 @@ fn cursor_drag_sensitivity_is_physical() {
         text_scale: 1.0,
     });
     let mut wide = Keyboard::new(
-        layouts::qwerty(),
+        layouts::default_for(ComposerSkeleton::Latin),
         LanguageDescriptor::builtin("en").unwrap(),
     );
     wide.set_metrics(KeyboardMetrics {
@@ -242,16 +242,11 @@ fn cursor_drag_sensitivity_is_physical() {
     assert_eq!(wide.update_cursor_drag(80.0 / 800.0), 16);
 }
 
-/// 세벌식은 새 합성기가 아니라 배열 데이터다 — 키가 자리를 밝힌 자모(초성 U+1100 등)를
 /// 멀티탭은 주기를 한 바퀴 돌아 첫 글자로 되돌아와도 여전히 **갈아 끼우기**다. 그것을
 /// 새 입력으로 내면 넷째 누름에서 글자가 하나 더 붙는다(ㄱ→ㅋ→ㄲ→ㄲㄱ). 주기가 끊긴
 /// 뒤에야 새 입력이다.
 #[test]
 fn multitap_replaces_even_when_the_cycle_wraps() {
-    use taza_engine::pack::layout::{
-        KeyAction, KeyboardLayout, KeyboardLayoutSet, LayoutKey, LayoutRow,
-    };
-
     let multitap = |cycle: &str| LayoutKey {
         action: KeyAction::Multitap(cycle.chars().collect()),
         width_ratio: 0.5,
@@ -295,7 +290,7 @@ fn multitap_replaces_even_when_the_cycle_wraps() {
 #[test]
 fn touch_sequence_types_hangul_through_session() {
     let mut keyboard = Keyboard::new(
-        layouts::dubeolsik(),
+        layouts::default_for(ComposerSkeleton::Hangul),
         LanguageDescriptor::builtin("ko").unwrap(),
     );
     let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap()).unwrap();

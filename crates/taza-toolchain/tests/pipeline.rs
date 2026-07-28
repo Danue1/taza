@@ -14,7 +14,6 @@ language = "tl"
 display_name = "Testish"
 keycap_label = "T"
 composer_skeleton = "latin"
-layout_name = "QWERTY"
 pack_version = 7
 
 [lexicon]

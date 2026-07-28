@@ -8,7 +8,7 @@ pub use taza_engine::keyboard::{
     FormFactor, KeyAction, KeyLegend, KeyRole, KeySignal, Keyboard, KeyboardFrame, KeyboardLayout,
     KeyboardLayoutSet, KeyboardMetrics, LayoutKey, LayoutRow, ShellRequest, layouts,
 };
-pub use taza_engine::lang::LanguageDescriptor;
+pub use taza_engine::lang::{ComposerSkeleton, LanguageDescriptor};
 
 /// 터치는 이웃 키 확률까지 담은 신호를 만든다 — 여기서는 실제로 입력된 글자만 본다.
 pub fn pressed(keyboard: &mut Keyboard, x: f32, y: f32) -> Option<char> {

@@ -17,7 +17,7 @@
 - **Unicode emoji test data** 16.0 — Unicode-3.0
   > Emoji ordering from Unicode emoji-test.txt 16.0 (https://unicode.org), Copyright © 1991-2024 Unicode, Inc., licensed under the Unicode License v3.
 
-## korean (ko) — 판 2
+## korean (ko) — 판 6
 
 표제어 120000개
 

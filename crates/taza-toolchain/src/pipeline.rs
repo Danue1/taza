@@ -299,14 +299,6 @@ fn assemble_pack(
         .collect();
     affixes.sort_unstable();
     affixes.dedup();
-    let layout_text = recipe
-        .layout
-        .as_ref()
-        .map(|path| {
-            std::fs::read_to_string(path)
-                .map_err(|error| format!("{} 읽기 실패: {error}", path.display()))
-        })
-        .transpose()?;
     assemble::assemble(assemble::PackInputs {
         recipe,
         sources: used,
@@ -315,7 +307,6 @@ fn assemble_pack(
         annotations: &annotations,
         emoji_order: &emoji_order,
         affixes: &affixes,
-        layout_text: layout_text.as_deref(),
     })
 }
 

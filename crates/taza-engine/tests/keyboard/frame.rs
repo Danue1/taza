@@ -5,7 +5,7 @@ use crate::support::*;
 #[test]
 fn control_keys_carry_a_role_the_shell_can_name() {
     let keyboard = Keyboard::new(
-        layouts::qwerty(),
+        layouts::default_for(ComposerSkeleton::Latin),
         LanguageDescriptor::builtin("en").unwrap(),
     );
     let frame = keyboard.frame();
@@ -20,7 +20,7 @@ fn control_keys_carry_a_role_the_shell_can_name() {
 #[test]
 fn korean_layer_switch_label_is_hangul() {
     let mut keyboard = Keyboard::new(
-        layouts::dubeolsik(),
+        layouts::default_for(ComposerSkeleton::Hangul),
         LanguageDescriptor::builtin("ko").unwrap(),
     );
     let frame = keyboard.frame();
@@ -33,7 +33,7 @@ fn korean_layer_switch_label_is_hangul() {
 #[test]
 fn bottom_row_order_is_symbols_emoji_language_space_enter() {
     let keyboard = Keyboard::new(
-        layouts::qwerty(),
+        layouts::default_for(ComposerSkeleton::Latin),
         LanguageDescriptor::builtin("en").unwrap(),
     );
     let frame = keyboard.frame();
@@ -64,7 +64,7 @@ fn bottom_row_order_is_symbols_emoji_language_space_enter() {
 #[test]
 fn the_annotation_panel_layer_keeps_the_keyboard_height() {
     let mut keyboard = Keyboard::new(
-        layouts::qwerty(),
+        layouts::default_for(ComposerSkeleton::Latin),
         LanguageDescriptor::builtin("en").unwrap(),
     );
     let letters = keyboard.frame();
@@ -95,7 +95,7 @@ fn the_annotation_panel_layer_keeps_the_keyboard_height() {
 #[test]
 fn form_factor_drives_measured_sizes() {
     let mut keyboard = Keyboard::new(
-        layouts::qwerty(),
+        layouts::default_for(ComposerSkeleton::Latin),
         LanguageDescriptor::builtin("en").unwrap(),
     );
     let portrait = keyboard.frame().metrics;
@@ -125,36 +125,11 @@ fn form_factor_drives_measured_sizes() {
     assert!(tablet.letter_font_size > portrait.letter_font_size);
 }
 
+/// 세벌식은 새 합성기가 아니라 배열이다 — 키가 자리를 밝힌 자모(초성 U+1100 등)를
 /// 내고, 키캡에는 사람이 읽는 호환 자모가 찍힌다.
 #[test]
 fn sebeolsik_keys_carry_their_place_and_show_compatibility_jamo() {
-    use std::sync::Arc;
-    use taza_engine::engine::PackBytes;
-    use taza_engine::pack::SectionKind;
-    use taza_toolchain::PackWriter;
-
-    let text = std::fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../data/korean-layout.txt"
-    ))
-    .unwrap();
-    let mut writer = PackWriter::new("ko");
-    writer.add_section(
-        SectionKind::Layout,
-        taza_toolchain::section::layout::serialize(
-            &taza_toolchain::section::layout::parse(&text).unwrap(),
-        ),
-    );
-    let bytes = writer.finish();
-
     let mut engine = Engine::new(LanguageDescriptor::builtin("ko").unwrap()).unwrap();
-    engine
-        .load_pack(Arc::new(bytes) as Arc<dyn PackBytes>)
-        .unwrap();
-    assert_eq!(
-        engine.available_layouts(),
-        vec!["두벌식", "세벌식 최종", "천지인"]
-    );
     assert!(engine.select_layout("세벌식 최종"));
 
     let frame = engine.frame();

@@ -3,7 +3,7 @@
 //! 표현 규칙은 `frame`에 있고 이 파일은 라벨을 짓지 않는다.
 
 use crate::contract::InputEvent;
-use crate::pack::layout::KeyAction;
+use crate::keyboard::layout::KeyAction;
 
 use super::geometry::KeyPosition;
 use super::hit::{self, KeySignal};

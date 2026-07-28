@@ -19,8 +19,6 @@ pub struct Recipe {
     pub keycap_label: String,
     /// 조합 골격 — 이 언어를 어느 합성기로 칠 것인가
     pub composer_skeleton: String,
-    /// 이 팩이 싣는 배열의 이름 — 설정 화면에 그대로 나간다
-    pub layout_name: String,
     /// 데이터 판 번호 — 같은 언어의 갱신 배포를 구분한다. 원천·규칙을 바꾸면 올린다.
     pub pack_version: u32,
     #[serde(default)]
@@ -29,8 +27,6 @@ pub struct Recipe {
     pub language_model: LanguageModelRules,
     #[serde(default)]
     pub script: ScriptTraits,
-    /// 레이아웃 DSL 파일 경로 (레시피 파일 기준 상대 경로)
-    pub layout: Option<PathBuf>,
     /// 원천 조각 디렉터리 (레시피 파일 기준 상대 경로). 이 디렉터리의 `*.toml`을
     /// 이름순으로 읽어 원천 목록 뒤에 잇는다 — 말뭉치가 늘어날 때 레시피 본문을
     /// 건드리지 않고 파일 하나를 떨구면 되도록.
@@ -411,9 +407,6 @@ impl Recipe {
         for source in &mut recipe.sources {
             source.resolve_paths(&directory);
         }
-        if let Some(layout) = recipe.layout.take() {
-            recipe.layout = Some(directory.join(layout));
-        }
         if let Some(fragments) = recipe.source_directory.take() {
             let fragments = directory.join(fragments);
             recipe.sources.extend(load_fragments(&fragments)?);
@@ -474,7 +467,6 @@ language = "ko"
 display_name = "표본"
 keycap_label = "표"
 composer_skeleton = "hangul"
-layout_name = "두벌식"
 pack_version = 1
 source_directory = "sample.sources.d"
 

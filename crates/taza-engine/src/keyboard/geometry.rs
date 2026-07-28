@@ -1,7 +1,7 @@
 //! 배치 계산. 언어·상태와 무관한 순수 기하라 레이아웃만 있으면 값이 정해진다 —
 //! 프레임을 만드는 쪽과 좌표를 판정하는 쪽이 같은 자리를 보도록 여기 한 곳에 둔다.
 
-use crate::pack::layout::{KeyAction, KeyboardLayout, LayoutKey, LayoutRow};
+use crate::keyboard::layout::{KeyAction, KeyboardLayout, LayoutKey, LayoutRow};
 
 /// 숫자 행 한 칸의 폭 — 열 칸이 한 줄을 가득 채운다.
 const NUMBER_ROW_KEY_WIDTH: f32 = 0.1;

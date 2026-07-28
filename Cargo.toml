@@ -33,7 +33,11 @@ sha2 = "0.11.0"
 tar = "0.4.46"
 thiserror = "2"
 toml = "1.1.3"
-uniffi = "0.29"
+# 기본 기능인 `cargo-metadata`는 바인딩 생성기에서만 쓰인다 — 기기에 나가는 정적
+# 라이브러리가 크레이트 그래프 조회 라이브러리를 지고 갈 이유가 없다.
+uniffi = { version = "0.29", default-features = false }
 ureq = "3.3.0"
-zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
+# zip은 읽기만 한다. 기본 `deflate`는 인코더(zopfli)와 별도 zlib 구현을 함께 켜서,
+# ureq와 나눠 쓰던 압축 백엔드를 하나 더 컴파일하게 만든다.
+zip = { version = "8.6.0", default-features = false, features = ["deflate-flate2"] }
 zstd = "0.13.3"

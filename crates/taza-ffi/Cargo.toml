@@ -16,7 +16,7 @@ required-features = ["cli"]
 
 [features]
 default = ["lang-latin", "lang-hangul"]
-cli = ["uniffi/cli"]
+cli = ["uniffi/cli", "uniffi/cargo-metadata"]
 lang-latin = ["taza-engine/lang-latin"]
 lang-hangul = ["taza-engine/lang-hangul"]
 

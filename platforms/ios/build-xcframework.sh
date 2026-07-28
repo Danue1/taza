@@ -10,17 +10,20 @@ cd "${repository_root}"
 profile=release
 library_name=libtaza_ffi.a
 
-# 의존성이 바뀌면 고지도 함께 바뀌어야 한다 — 목록을 손으로 맞추지 않는다
-cargo run --release -q -p taza-licenses
+# 의존성이 바뀌면 고지도 함께 바뀌어야 한다 — 목록을 손으로 맞추지 않는다.
+# 한 번 돌고 마는 생성 도구는 최적화해서 얻을 것이 없다 — 기기에 나가는 것만 release로 짓는다.
+cargo run -q -p taza-licenses
 
-cargo build --release -p taza-ffi --target aarch64-apple-ios
-cargo build --release -p taza-ffi --target aarch64-apple-ios-sim
+# 두 슬라이스를 한 호출로 지어야 호스트 쪽 proc-macro 컴파일과 슬라이스 사이 병렬성을 잃지 않는다
+cargo build --release -p taza-ffi \
+    --target aarch64-apple-ios \
+    --target aarch64-apple-ios-sim
 
 # Swift 바인딩 생성 (uniffi proc-macro 모드 — 라이브러리에서 메타데이터를 읽는다)
 generated="${script_directory}/Generated"
 rm -rf "${generated}"
 mkdir -p "${generated}"
-cargo run --release -p taza-ffi --features cli --bin uniffi-bindgen -- generate \
+cargo run -q -p taza-ffi --features cli --bin uniffi-bindgen -- generate \
     --library "target/aarch64-apple-ios-sim/${profile}/libtaza_ffi.dylib" \
     --language swift \
     --out-dir "${generated}"

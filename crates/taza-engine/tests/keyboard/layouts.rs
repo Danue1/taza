@@ -54,6 +54,7 @@ fn input_methods_are_found_by_tag() {
         "hangul",
         "hangul-cheonjiin",
         "hangul-naratgeul",
+        "hangul-sky",
     ] {
         let method = lang::input_method(tag).expect("기본 빌드에 실린 방식");
         assert_eq!(method.tag(), tag);
@@ -72,6 +73,7 @@ fn every_method_carries_its_own_layouts() {
         "hangul",
         "hangul-cheonjiin",
         "hangul-naratgeul",
+        "hangul-sky",
     ] {
         let method = lang::input_method(tag).unwrap();
         let layouts = method.layouts();
@@ -105,6 +107,7 @@ fn methods_of_one_script_share_the_layout_list() {
     };
     assert_eq!(names("hangul"), names("hangul-cheonjiin"));
     assert_eq!(names("hangul"), names("hangul-naratgeul"));
+    assert_eq!(names("hangul"), names("hangul-sky"));
 }
 
 /// 천지인은 조합 규칙이 두벌식과 달라 자기 방식을 밝힌다 — 배열을 고르면 합성기가 함께

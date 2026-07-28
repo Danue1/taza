@@ -155,5 +155,6 @@ pub(crate) fn layouts() -> Vec<NamedLayoutSet> {
     layouts.extend(super::danmoeum::layouts());
     layouts.extend(super::cheonjiin::layouts());
     layouts.extend(super::naratgeul::layouts());
+    layouts.extend(super::sky::layouts());
     layouts
 }

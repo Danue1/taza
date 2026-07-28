@@ -6,10 +6,11 @@
 //! **타건을 자모로 옮기는 일만** 한다. 획 추가·쌍자음 키는 자기 글자가 없으므로 배열이
 //! 사설 영역의 표식(`STROKE`·`TENSE`)을 내고, 그 뜻은 이 합성기만 안다.
 //!
-//! 모음 표를 두벌식과 나눠 갖지 않는 까닭은 천지인과 같다: 두벌식에서 ㅏ 뒤의 ㅣ는 새
-//! 글자지만 나랏글에서는 ㅐ다. 한 표로 둘을 겸하면 둘 중 하나가 틀린다.
+//! 이어 친 단모음이 이루는 복합 모음은 베가와 나눠 갖는 표(`super::vowel`)가 안다 —
+//! 단모음에 닿는 길만 다르고 그 뒤의 조합 규칙이 하나이기 때문이다.
 
 use super::hangul::HangulComposer;
+use super::vowel::vowel;
 use crate::contract::{
     CommittedText, Composer, ComposerEvent, ComposerOutput, ComposerState, EditorContext,
 };
@@ -71,33 +72,6 @@ const VOWEL_STROKE: [&str; 4] = ["ㅏㅑ", "ㅓㅕ", "ㅗㅛ", "ㅜㅠ"];
 /// 모음 키가 내는 밑글자 여섯 — 모음 타건은 반드시 이 중 하나로 시작한다.
 const BASE_VOWELS: [char; 6] = ['ㅏ', 'ㅓ', 'ㅗ', 'ㅜ', 'ㅡ', 'ㅣ'];
 
-/// 모음 타건 순서 → 모음. 쌓인 타건 **전체**를 키로 삼으므로 늘어나는 도중의 모음이
-/// 다음 모음을 가리지 않는다(ㅗㅏ는 ㅘ이고 ㅗㅏㅣ는 ㅙ다). 획을 더한 결과는 타건이
-/// 아니라 타건이 가리키는 글자이므로, 이 표의 키에는 ㅑ·ㅕ·ㅛ·ㅠ가 그대로 선다.
-const VOWELS: [(&str, char); 21] = [
-    ("ㅏ", 'ㅏ'),
-    ("ㅏㅣ", 'ㅐ'),
-    ("ㅑ", 'ㅑ'),
-    ("ㅑㅣ", 'ㅒ'),
-    ("ㅓ", 'ㅓ'),
-    ("ㅓㅣ", 'ㅔ'),
-    ("ㅕ", 'ㅕ'),
-    ("ㅕㅣ", 'ㅖ'),
-    ("ㅗ", 'ㅗ'),
-    ("ㅗㅏ", 'ㅘ'),
-    ("ㅗㅏㅣ", 'ㅙ'),
-    ("ㅗㅣ", 'ㅚ'),
-    ("ㅛ", 'ㅛ'),
-    ("ㅜ", 'ㅜ'),
-    ("ㅜㅓ", 'ㅝ'),
-    ("ㅜㅓㅣ", 'ㅞ'),
-    ("ㅜㅣ", 'ㅟ'),
-    ("ㅠ", 'ㅠ'),
-    ("ㅡ", 'ㅡ'),
-    ("ㅡㅣ", 'ㅢ'),
-    ("ㅣ", 'ㅣ'),
-];
-
 /// 고리에서 다음 차례. 어느 고리에도 없는 글자에는 더할 획이 없다.
 fn next_in_ring(rings: &[&str], current: char) -> Option<char> {
     rings.iter().find_map(|ring| {
@@ -114,14 +88,6 @@ fn toggled(pairs: &[(char, char)], current: char) -> Option<char> {
         _ if current == marked => Some(plain),
         _ => None,
     })
-}
-
-fn vowel(taps: &[char]) -> Option<char> {
-    let typed: String = taps.iter().collect();
-    VOWELS
-        .iter()
-        .find(|&&(sequence, _)| sequence == typed)
-        .map(|&(_, vowel)| vowel)
 }
 
 /// 나랏글 배열이 내는 타건인가 — 밑글자 열둘과 표식 둘. 그 밖의 글자는 이 방식이 볼

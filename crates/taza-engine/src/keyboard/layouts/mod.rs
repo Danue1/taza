@@ -22,6 +22,8 @@ pub(crate) mod latin;
 mod naratgeul;
 #[cfg(any(feature = "lang-latin", feature = "lang-hangul"))]
 mod shared;
+#[cfg(feature = "lang-hangul")]
+mod sky;
 
 #[cfg(any(feature = "lang-latin", feature = "lang-hangul"))]
 use crate::keyboard::layout::{KeyboardLayoutSet, NamedLayoutSet};

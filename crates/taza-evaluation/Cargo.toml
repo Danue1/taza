@@ -5,7 +5,9 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-taza-engine = { workspace = true, features = ["lang-latin", "lang-hangul"] }
+taza-engine = { workspace = true, features = ["lang-latin", "lang-hangul", "lang-japanese"] }
 
 [dev-dependencies]
+flate2.workspace = true
+tar.workspace = true
 taza-pack.workspace = true

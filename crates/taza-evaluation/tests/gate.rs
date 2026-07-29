@@ -304,3 +304,49 @@ fn spatial_model_reaches_the_hangul_key_space() {
         "이웃 키 오타가 먼 키 오타에 밀림 — 공간 모델이 키 공간에 닿지 못한다"
     );
 }
+
+/// 변환 회귀 게이트 — 읽기를 표기로 옮긴 결과가 정답과 얼마나 같은가.
+///
+/// 오타 합성 게이트와 달리 **실팩이 있어야 뜻이 있다**. 변환 품질은 사전이 실어 온 비용과
+/// 연접 값이 정하는 것이라, 합성 사전으로 재면 파이프라인이 아니라 격자 코드만 보게 된다.
+/// 그래서 팩이 자리에 없으면 건너뛴다 — 손으로 갖다 놓는 원천을 다루는 방식과 같다.
+///
+/// 문턱은 실측값 바로 아래에 둔다. 랭킹을 손보다 나빠지면 여기서 멈춘다.
+mod conversion {
+    use taza_engine::convert::Conversion;
+    use taza_engine::pack::Pack;
+    use taza_evaluation::conversion::{measure, parse_mozc_evaluation};
+
+    /// 실측 0.683 (mozc 2.32.5994.102 · 564문장)
+    const SENTENCE_FLOOR: f64 = 0.67;
+    /// 실측 0.868
+    const CHARACTER_FLOOR: f64 = 0.86;
+
+    #[test]
+    fn japanese_conversion_does_not_regress() {
+        let pack_path = std::path::Path::new("../../out/packs/japanese.tazapack");
+        let Ok(bytes) = std::fs::read(pack_path) else {
+            println!("일본어 팩이 없어 건너뜀 — `taza build japanese`로 만든 뒤 다시 돈다");
+            return;
+        };
+        let text = std::fs::read_to_string("../../data/languages/japanese/evaluation.tsv")
+            .expect("평가 셋");
+        let cases = parse_mozc_evaluation(&text);
+        assert!(cases.len() > 500, "평가 셋이 줄었다: {}", cases.len());
+
+        let pack = Pack::open(&bytes).expect("팩 열기");
+        let conversion =
+            Conversion::new(pack.conversion().expect("변환표"), pack.connection(), None);
+        let metrics = measure(&conversion, &cases);
+        assert!(
+            metrics.sentence >= SENTENCE_FLOOR,
+            "문장 정확도 {:.3} < {SENTENCE_FLOOR}",
+            metrics.sentence
+        );
+        assert!(
+            metrics.character >= CHARACTER_FLOOR,
+            "글자 정확도 {:.3} < {CHARACTER_FLOOR}",
+            metrics.character
+        );
+    }
+}

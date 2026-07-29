@@ -4,6 +4,7 @@
 //! 만든다. 시드 고정 xorshift로 결정론을 보장하므로 CI에서 임계값 검증에 쓸 수 있다.
 //! 랭킹 가중치·사전 변경은 이 게이트를 통과해야 병합한다.
 
+pub mod conversion;
 pub mod synthesis;
 
 use synthesis::TypedSequence;

@@ -146,6 +146,7 @@ impl Engine {
     pub fn sync_auto_shift(&mut self, context: &EditorContext) -> bool {
         let text = context.text_before_cursor.as_deref();
         let engaged = self.preferences.auto_capitalization
+            && self.active_method.auto_capitalizes()
             && !self.composer.is_composing()
             && self.keyboard.capitalizes(
                 crate::policy::sentence_start(text),

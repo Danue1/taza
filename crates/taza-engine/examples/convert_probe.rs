@@ -50,4 +50,18 @@ fn main() {
         let candidates = conversion.candidates(reading);
         println!("{reading}: {:?}", &candidates[..candidates.len().min(8)]);
     }
+    // 변환 전 후보 바에 서는 것 — 친 읽기 · 지금까지의 변환 · 더 긴 낱말들
+    for reading in ["がっこうが", "にほんごが", "きょうは"] {
+        let converted: String = conversion
+            .convert(reading)
+            .iter()
+            .map(|segment| segment.surface.as_str())
+            .collect();
+        let predictions: Vec<String> = conversion
+            .predictions(reading, 4)
+            .into_iter()
+            .map(|(_, surface)| surface)
+            .collect();
+        println!("{reading} → 변환 {converted} · 예측 {predictions:?}");
+    }
 }

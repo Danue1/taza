@@ -89,6 +89,14 @@ pub trait InputMethod: Send + Sync {
         ComposingDisplay::Inline
     }
 
+    /// 문장 첫 자리에서 shift를 미리 올리는가. 대문자가 있는 스크립트의 관습이므로, 라틴
+    /// 글자를 **읽기를 적는 수단으로만** 쓰는 방식(로마자 입력)은 따르지 않는다 — 올려 두면
+    /// 첫 타건이 대문자로 나가 읽기가 되지 못한다. 자판이 무엇으로 짜였는지가 아니라 그
+    /// 글자가 무엇이 되는지의 문제라 방식이 정한다.
+    fn auto_capitalizes(&self) -> bool {
+        true
+    }
+
     /// 단어 경계에서 자동교정을 시도하는가. 원문(as-typed) 후보를 함께 노출할지도
     /// 이 값에 딸린다 — 교정을 피해 원문을 고르는 것이 곧 학습 경로이기 때문이다.
     /// 한글처럼 조합 자체가 표시 단위인 스크립트는 경계 교정 대신 후보 선택으로 고친다.
@@ -136,6 +144,10 @@ const REGISTRY: &[&dyn InputMethod] = &[
     &naratgeul::NARATGEUL,
     #[cfg(feature = "lang-hangul")]
     &sky::SKY,
+    #[cfg(feature = "lang-japanese")]
+    &japanese::ROMAJI,
+    #[cfg(feature = "lang-japanese")]
+    &japanese::KANA,
 ];
 
 /// 태그가 가리키는 입력 방식. 이 빌드에 없으면 None — 셸은 해당 언어를 비활성 처리한다.

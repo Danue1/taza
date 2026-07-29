@@ -55,12 +55,25 @@ fn input_methods_are_found_by_tag() {
         "hangul-cheonjiin",
         "hangul-naratgeul",
         "hangul-sky",
+        "japanese-romaji",
+        "japanese-kana",
     ] {
         let method = lang::input_method(tag).expect("기본 빌드에 실린 방식");
         assert_eq!(method.tag(), tag);
     }
     // 아직 싣지 않은 방식(일본어 플릭)은 조용히 None이다
     assert!(lang::input_method("japanese-flick").is_none());
+}
+
+/// 내장 선언이 가리키는 방식은 이 빌드에 실려 있다. 하나라도 빠지면 그 언어는 세션조차
+/// 서지 않아 셸의 언어 목록에서 조용히 사라진다 — 팩을 받아도 살아나지 않는 자리다.
+#[test]
+fn builtin_languages_resolve_to_a_shipped_method() {
+    for tag in ["en", "ko", "ja"] {
+        let descriptor = LanguageDescriptor::builtin(tag).expect("내장 선언이 있는 언어");
+        assert_eq!(descriptor.tag, tag);
+        assert!(!Engine::new(descriptor).available_layouts().is_empty());
+    }
 }
 
 /// 방식 하나가 자기 배열과 자기 합성기를 함께 갖는다 — 배열만 있고 합성기가 없거나
@@ -74,6 +87,8 @@ fn every_method_carries_its_own_layouts() {
         "hangul-cheonjiin",
         "hangul-naratgeul",
         "hangul-sky",
+        "japanese-romaji",
+        "japanese-kana",
     ] {
         let method = lang::input_method(tag).unwrap();
         let layouts = method.layouts();
@@ -108,6 +123,7 @@ fn methods_of_one_script_share_the_layout_list() {
     assert_eq!(names("hangul"), names("hangul-cheonjiin"));
     assert_eq!(names("hangul"), names("hangul-naratgeul"));
     assert_eq!(names("hangul"), names("hangul-sky"));
+    assert_eq!(names("japanese-romaji"), names("japanese-kana"));
 }
 
 /// 천지인은 조합 규칙이 두벌식과 달라 자기 방식을 밝힌다 — 배열을 고르면 합성기가 함께

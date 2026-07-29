@@ -57,6 +57,10 @@ impl InputMethod for RomajiMethod {
         false
     }
 
+    fn auto_capitalizes(&self) -> bool {
+        false
+    }
+
     fn composing_display(&self) -> ComposingDisplay {
         ComposingDisplay::Marked
     }
@@ -82,6 +86,10 @@ impl InputMethod for KanaMethod {
     }
 
     fn space_inserts_text(&self) -> bool {
+        false
+    }
+
+    fn auto_capitalizes(&self) -> bool {
         false
     }
 
@@ -201,7 +209,29 @@ impl JapaneseComposer {
                 // 지금 읽기 그대로가 늘 첫 자리다 — 사전이 무엇을 대든 친 대로 두는 길이
                 // 열려 있어야 한다
                 let mut candidates = vec![(self.reading.clone(), self.reading.clone())];
+                // 그 다음은 **지금까지 친 것을 변환한 결과**다. 이것이 없으면 「がっこうが」에
+                // 学校側·学校帰り만 서고 정작 사람이 원한 学校が가 어디에도 없다 — 그것은
+                // 낱말과 조사라 사전에 표제어로 실릴 수 없고, 표제어를 찾는 예측만으로는
+                // 닿을 길이 없기 때문이다.
+                let converted: String = conversion
+                    .convert(&self.reading)
+                    .iter()
+                    .map(|segment| segment.surface.as_str())
+                    .collect();
+                if !converted.is_empty() {
+                    candidates.push((self.reading.clone(), converted));
+                }
+                // 아직 다 치지 않았을 수 있으므로 더 긴 낱말도 함께 내놓는다
                 candidates.extend(conversion.predictions(&self.reading, PREDICTION_LIMIT));
+                // 같은 표기가 여러 길로 올라오면 앞선 자리만 남긴다
+                let mut seen = Vec::new();
+                candidates.retain(|(_, text)| match seen.contains(text) {
+                    true => false,
+                    false => {
+                        seen.push(text.clone());
+                        true
+                    }
+                });
                 SuggestionRequest::Ready { candidates }
             }
         }

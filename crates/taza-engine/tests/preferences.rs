@@ -179,6 +179,23 @@ fn typing_a_period_and_space_raises_shift_without_waiting_for_the_shell() {
     assert_eq!(engine.key_at(x, y).label, "A");
 }
 
+/// 로마자 판의 알파벳은 읽기를 적는 수단이라 대문자로 열 자리가 없다 — 문장 첫 자리에
+/// 서도 소문자 그대로다. 자판이 라틴 글자로 짜였다는 것만으로는 갈리지 않는 자리다.
+#[test]
+fn auto_capitalization_leaves_japanese_alone() {
+    let mut engine = Engine::new(LanguageDescriptor::builtin("ja").unwrap());
+    engine.set_preferences(UserPreferences::default());
+    let (x, y) = key_center(&engine.frame(), "q");
+
+    engine.sync_auto_shift(&context(""));
+    assert_eq!(engine.key_at(x, y).label, "q");
+
+    // shift를 손으로 올리는 길까지 막지는 않는다 — 라틴 낱말을 그대로 넣는 자리가 있다
+    let (shift_x, shift_y) = key_center(&engine.frame(), "⇧");
+    engine.press_at(shift_x, shift_y, &context(""));
+    assert_eq!(engine.key_at(x, y).label, "Q");
+}
+
 #[test]
 fn auto_capitalization_leaves_email_fields_alone() {
     let mut engine = engine(UserPreferences::default());

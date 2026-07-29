@@ -8,14 +8,14 @@
 //! 설정이 바뀌거나(추출 선언), 파서 자체가 바뀌었을 때(`parse::parser_version`).
 
 use crate::declaration::Extraction;
-use crate::parse::{Annotation, Signal, parser_version};
+use crate::parse::{Annotation, Connection, Conversion, Signal, parser_version};
 use crate::source::acquire::hex_digest;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use taza_engine::contract::{CandidateGroup, EmojiCategory};
 
 /// 캐시 파일 형식의 판. 형식을 바꾸면 올린다 — 낡은 파일은 읽히지 않고 버려진다.
-const FORMAT: u8 = 4;
+const FORMAT: u8 = 5;
 const MAGIC: &[u8; 6] = b"TZSIG\0";
 
 /// 캐시 압축 수준. 캐시는 오래 두는 것이 아니라 다음 실행까지만 사는 것이므로,
@@ -112,6 +112,29 @@ fn encode(signal: &Signal) -> Vec<u8> {
         bytes.push(category.tag());
         write_text(&mut bytes, emoji);
     }
+    write_length(&mut bytes, signal.conversions.len());
+    for conversion in &signal.conversions {
+        write_text(&mut bytes, &conversion.reading);
+        write_text(&mut bytes, &conversion.surface);
+        bytes.extend_from_slice(&conversion.left_id.to_le_bytes());
+        bytes.extend_from_slice(&conversion.right_id.to_le_bytes());
+        bytes.extend_from_slice(&conversion.cost.to_le_bytes());
+        bytes.push(conversion.dependent as u8);
+    }
+    match &signal.connection {
+        Some(connection) => {
+            bytes.push(1);
+            bytes.extend_from_slice(&connection.rows.to_le_bytes());
+            bytes.extend_from_slice(&connection.columns.to_le_bytes());
+            write_length(&mut bytes, connection.costs.len());
+            for (row, column, cost) in &connection.costs {
+                bytes.extend_from_slice(&row.to_le_bytes());
+                bytes.extend_from_slice(&column.to_le_bytes());
+                bytes.extend_from_slice(&cost.to_le_bytes());
+            }
+        }
+        None => bytes.push(0),
+    }
     bytes
 }
 
@@ -159,6 +182,31 @@ fn decode(bytes: &[u8]) -> Option<Signal> {
         let category = EmojiCategory::from_tag(cursor.take(1)?[0])?;
         signal.emoji_order.push((category, cursor.text()?));
     }
+    for _ in 0..cursor.length()? {
+        let reading = cursor.text()?;
+        let surface = cursor.text()?;
+        signal.conversions.push(Conversion {
+            reading,
+            surface,
+            left_id: cursor.small()?,
+            right_id: cursor.small()?,
+            cost: cursor.small()?,
+            dependent: cursor.take(1)?[0] != 0,
+        });
+    }
+    if cursor.take(1)?[0] == 1 {
+        let rows = cursor.small()?;
+        let columns = cursor.small()?;
+        let mut costs = Vec::new();
+        for _ in 0..cursor.length()? {
+            costs.push((cursor.small()?, cursor.small()?, cursor.small()? as i16));
+        }
+        signal.connection = Some(Connection {
+            rows,
+            columns,
+            costs,
+        });
+    }
     Some(signal)
 }
 
@@ -191,6 +239,10 @@ impl<'bytes> Cursor<'bytes> {
         Some(u64::from_le_bytes(self.eight()?) as usize)
     }
 
+    fn small(&mut self) -> Option<u16> {
+        Some(u16::from_le_bytes(self.take(2)?.try_into().ok()?))
+    }
+
     fn number(&mut self) -> Option<u32> {
         Some(u32::from_le_bytes(self.take(4)?.try_into().ok()?))
     }
@@ -219,6 +271,19 @@ mod tests {
             stems: vec!["하".to_string()],
             affixes: vec!["는".to_string()],
             emoji_order: vec![(EmojiCategory::SmileysAndPeople, "😀".to_string())],
+            conversions: vec![Conversion {
+                reading: "きしゃ".to_string(),
+                surface: "記者".to_string(),
+                left_id: 3,
+                right_id: 4,
+                cost: 120,
+                dependent: false,
+            }],
+            connection: Some(Connection {
+                rows: 2,
+                columns: 2,
+                costs: vec![(0, 1, -400)],
+            }),
         };
         let decoded = decode(&encode(&signal)).unwrap();
         assert_eq!(decoded.attested, signal.attested);
@@ -228,6 +293,8 @@ mod tests {
         assert_eq!(decoded.stems, signal.stems);
         assert_eq!(decoded.affixes, signal.affixes);
         assert_eq!(decoded.emoji_order, signal.emoji_order);
+        assert_eq!(decoded.conversions, signal.conversions);
+        assert_eq!(decoded.connection, signal.connection);
     }
 
     /// 캐시가 낡는 세 경우가 모두 키에 들어가는가 — 원천이 바뀌거나, 파서 설정이

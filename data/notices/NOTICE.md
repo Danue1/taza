@@ -17,6 +17,15 @@
 - **Unicode emoji test data** 16.0 — Unicode-3.0
   > Emoji ordering from Unicode emoji-test.txt 16.0 (https://unicode.org), Copyright © 1991-2024 Unicode, Inc., licensed under the Unicode License v3.
 
+## japanese (ja) — 판 1
+
+표제어 0개
+
+### 원천
+
+- **Mozc** 2.32.5994.102 — BSD-3-Clause
+  > Japanese conversion dictionary from Mozc 2.32.5994.102 (https://github.com/google/mozc), Copyright 2010-2018 Google Inc., licensed under the BSD 3-Clause License. Vocabulary derived from IPAdic, Copyright 2000-2003 Nara Institute of Science and Technology.
+
 ## korean (ko) — 판 6
 
 표제어 120000개

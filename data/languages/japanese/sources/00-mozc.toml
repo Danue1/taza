@@ -1,0 +1,47 @@
+# mozc 사전 — 읽기·표기·비용·연접·단漢字·기호를 한 우산 아래 싣는다.
+#
+# BSD 계열 후보 넷을 견주고 이것을 골랐다. 갈린 자리는 라이선스가 아니라 **비용이 어느
+# 방향으로 매겨졌는가**다.
+#
+# | 후보 | 라이선스 | 표제어 | 비용의 방향 | 읽기 |
+# |---|---|---|---|---|
+# | mozc dictionary_oss | BSD-3 (+IPAdic 고지) | 약 120만 | **변환** | 히라가나 |
+# | mecab-ipadic | BSD 계열 | 약 39만 | 분석 | 가타카나 |
+# | NAIST-jdic | BSD | 약 48만 | 분석 | 가타카나 |
+# | UniDic | BSD 선택 가능 | 약 87만 | 분석 | 가타카나, 短単位라 과분할 |
+#
+# 형태소 분석 사전의 비용은 표기가 이미 주어진 글에서 경계를 가르도록 학습된 값이라
+# 동음이의 선택에 쓸 정보가 사실상 없다. 분석기는 「きしゃ」를 만날 일이 없다. mozc는
+# 그 반대 방향으로 매겨져 있고, 어휘도 IPAdic에 웹에서 모은 가타카나어·복합어·고유명사를
+# 더해 세 배가 되었다.
+#
+# **다른 사전을 섞지 않는 까닭**: 연접 행렬은 문맥 id 공간 하나에 묶여 있다. 다른 사전을
+# 더하려면 id를 옮겨야 하고, 그 순간 사전 비용과 연접 비용이 같은 눈금 위에서 학습된
+# 짝이라는 전제가 깨진다. 그래서 조합은 **같은 배포본 안에서** 한다 — 주 어휘·접미사·
+# 단漢字·기호·얼굴 문자 다섯이 모두 여기서 온다.
+
+[[sources]]
+name = "Mozc"
+version = "2.32.5994.102"
+license = "BSD-3-Clause"
+attribution = "Japanese conversion dictionary from Mozc 2.32.5994.102 (https://github.com/google/mozc), Copyright 2010-2018 Google Inc., licensed under the BSD 3-Clause License. Vocabulary derived from IPAdic, Copyright 2000-2003 Nara Institute of Science and Technology."
+url = "https://codeload.github.com/google/mozc/tar.gz/refs/tags/2.32.5994.102"
+sha256 = "ad427bd2ef001f6bbfec9e443cfc26b5cde74df13450cf6f03b44ef309ef44c2"
+role = "inventory"
+weight = 1.0
+format = "mozc-dictionary"
+dictionary_files = [
+    "dictionary00.txt",
+    "dictionary01.txt",
+    "dictionary02.txt",
+    "dictionary03.txt",
+    "dictionary04.txt",
+    "dictionary05.txt",
+    "dictionary06.txt",
+    "dictionary07.txt",
+    "dictionary08.txt",
+    "dictionary09.txt",
+]
+# 홀로 서지 못하고 앞말에 붙는 품사 — 변환 결과를 문절로 묶는 근거다. 이것이 없으면
+# 「庭」과 「に」가 따로 서서 사람이 문절 단위로 고를 수 없다.
+dependent_tags = ["助詞", "助動詞", "接尾", "非自立"]

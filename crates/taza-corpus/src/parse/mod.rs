@@ -9,6 +9,7 @@ mod cldr;
 mod corpus;
 mod emoji_test;
 mod mecab;
+mod mozc;
 mod nikl;
 mod scowl;
 mod tatoeba;
@@ -27,6 +28,30 @@ pub struct Annotation {
     pub word: String,
     pub group: CandidateGroup,
     pub text: String,
+}
+
+/// 읽기 하나에 딸리는 표기 하나 — 조회 키를 되돌릴 수 없는 언어(일본어)의 사전이 낸다.
+/// 낱말 신호(`attested`·`observed`)와 나뉜 까닭은 **키가 답이 아니기 때문**이다: 표제어
+/// 목록만으로는 「きしゃ」가 무엇으로 보일지 말할 수 없다.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Conversion {
+    pub reading: String,
+    pub surface: String,
+    pub left_id: u16,
+    pub right_id: u16,
+    pub cost: u16,
+    /// 홀로 서지 못하고 앞말에 붙는 말인가 — 변환 결과를 문절로 묶는 근거다
+    pub dependent: bool,
+}
+
+/// 말과 말이 이어질 때 드는 값의 표.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Connection {
+    /// 앞말이 나가는 자리(우문맥 ID)의 가짓수
+    pub rows: u16,
+    /// 뒷말이 들어오는 자리(좌문맥 ID)의 가짓수
+    pub columns: u16,
+    pub costs: Vec<(u16, u16, i16)>,
 }
 
 /// 한 원천에서 뽑은 신호.
@@ -54,6 +79,10 @@ pub struct Signal {
     /// 어절 뒤에 붙어 활용형을 만드는 접사. 팩에 실려 코어가 학습한 어휘의 결합형을
     /// 제안하는 데 쓴다 — 사전을 넓히는 것과 같은 목록이어야 둘이 어긋나지 않는다.
     pub affixes: Vec<String>,
+    /// 읽기 → 표기. 변환하는 언어의 사전만 낸다.
+    pub conversions: Vec<Conversion>,
+    /// 말과 말이 이어질 때 드는 값. 사전 배포본이 함께 싣는다.
+    pub connection: Option<Connection>,
 }
 
 impl Signal {
@@ -84,6 +113,7 @@ pub fn parser_version(extraction: &Extraction) -> u32 {
         Extraction::EmojiTest => 1,
         Extraction::AnnotationList { .. } => 3,
         Extraction::WordList { .. } => 3,
+        Extraction::MozcDictionary { .. } => 3,
     }
 }
 
@@ -128,5 +158,9 @@ pub fn parse(extraction: &Extraction, path: &Path, language: &str) -> Result<Sig
             rank,
             minimum_count,
         } => word_list::parse(path, *rank, *minimum_count),
+        Extraction::MozcDictionary {
+            dictionary_files,
+            dependent_tags,
+        } => mozc::parse(path, dictionary_files, dependent_tags),
     }
 }

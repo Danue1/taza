@@ -81,6 +81,16 @@ impl From<AnnotationGroupName> for CandidateGroup {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(tag = "format", rename_all = "kebab-case")]
 pub enum Extraction {
+    /// mozc 배포본 — 읽기·표기·비용·연접·단漢字를 한 우산 아래 싣는다. 형태소 분석
+    /// 사전과 달리 비용이 **변환 방향으로** 매겨져 있고 읽기가 이미 히라가나다.
+    MozcDictionary {
+        /// 주 어휘 파일들(`dictionary00.txt`…). 접미사·단漢字·연접·기호는 이름이 정해져
+        /// 있으므로 여기 적지 않는다.
+        dictionary_files: Vec<String>,
+        /// 앞말에 붙는 말로 볼 품사 이름들(助詞·助動詞·接尾 등) — 문절을 가르는 값이다.
+        #[serde(default)]
+        dependent_tags: Vec<String>,
+    },
     /// SCOWL 배포본 — `final/<방언>-<범주>.<크기>` 파일들. 크기 등급이 곧 흔함의 등급이다.
     Scowl {
         dialects: Vec<String>,

@@ -14,7 +14,7 @@ use crate::assemble::{self, AssembledPack};
 use crate::distribute::{self, Catalog, CatalogEntry};
 use crate::normalize::{BigramReport, NormalizeReport, SourceSignal, normalize, normalize_bigrams};
 use crate::recipe::{Recipe, Source};
-use taza_corpus::parse::Annotation;
+use taza_corpus::parse::{Annotation, Conversion};
 use taza_corpus::source::{self, Prepared, acquire::hex_digest};
 
 pub struct BuildOptions {
@@ -275,7 +275,7 @@ fn extract<'recipe>(
         let Prepared::Extracted { signal, from_cache } = prepared? else {
             continue;
         };
-        extracted.push((source, signal, from_cache));
+        extracted.push((source, *signal, from_cache));
     }
     Ok(extracted)
 }
@@ -312,6 +312,16 @@ fn assemble_pack(
         .collect();
     affixes.sort_unstable();
     affixes.dedup();
+    // 읽기 → 표기와 연접 표는 사전이 통째로 낸다 — 정규화가 손댈 것이 없다. 점수를 다시
+    // 매기지 않는 까닭은 사전 비용과 연접 비용이 **같은 눈금 위에서 학습된 짝**이라,
+    // 한쪽만 옮기면 라티스의 합이 뜻을 잃기 때문이다.
+    let conversions: Vec<Conversion> = extracted
+        .iter()
+        .flat_map(|(_, signal, _)| signal.conversions.iter().cloned())
+        .collect();
+    let connection = extracted
+        .iter()
+        .find_map(|(_, signal, _)| signal.connection.clone());
     assemble::assemble(assemble::PackInputs {
         recipe,
         sources: used,
@@ -320,6 +330,8 @@ fn assemble_pack(
         annotations: &annotations,
         emoji_order: &emoji_order,
         affixes: &affixes,
+        conversions: &conversions,
+        connection: connection.as_ref(),
     })
 }
 

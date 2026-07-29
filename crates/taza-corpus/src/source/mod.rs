@@ -18,8 +18,10 @@ use std::path::Path;
 
 /// 원천 하나를 처리한 결과.
 pub enum Prepared {
+    /// 신호를 상자에 담는 까닭은 두 갈래의 크기 차 때문이다 — `Signal`은 갈래가 늘 때마다
+    /// 커지는데, 건너뛴 원천까지 그 크기를 지고 다닐 이유가 없다.
     Extracted {
-        signal: Signal,
+        signal: Box<Signal>,
         from_cache: bool,
     },
     /// 자리에 없는 선택 원천 — 손으로 받아야 하는 말뭉치가 아직 없어도 팩은 나와야 한다.
@@ -50,7 +52,7 @@ pub fn prepare(
     )?;
     if use_cache && let Some(signal) = cache::load(&cache_path) {
         return Ok(Prepared::Extracted {
-            signal,
+            signal: Box::new(signal),
             from_cache: true,
         });
     }
@@ -61,7 +63,7 @@ pub fn prepare(
         cache::store(&cache_path, &signal)?;
     }
     Ok(Prepared::Extracted {
-        signal,
+        signal: Box::new(signal),
         from_cache: false,
     })
 }

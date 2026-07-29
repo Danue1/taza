@@ -173,6 +173,8 @@ pub enum LexiconEncoding {
     #[default]
     Utf8,
     HangulJamoDubeolsik,
+    /// 히라가나 정규형 — 되돌릴 수 없는 유일한 인코딩이라 표기는 변환표가 따로 갖는다
+    Kana,
 }
 
 impl From<LexiconEncoding> for KeyEncoding {
@@ -180,6 +182,7 @@ impl From<LexiconEncoding> for KeyEncoding {
         match encoding {
             LexiconEncoding::Utf8 => KeyEncoding::Utf8,
             LexiconEncoding::HangulJamoDubeolsik => KeyEncoding::HangulJamoDubeolsik,
+            LexiconEncoding::Kana => KeyEncoding::Kana,
         }
     }
 }
@@ -192,6 +195,8 @@ pub enum CharacterSet {
     LatinLowercase,
     /// 한글 음절만 (자모 낱글자·한자·라틴 혼입 배제)
     HangulSyllables,
+    /// 가나만 — 조회 키가 서는 자리다. 표기(한자·가타카나)는 변환표가 따로 갖는다.
+    Kana,
 }
 
 impl CharacterSet {
@@ -203,6 +208,12 @@ impl CharacterSet {
             CharacterSet::HangulSyllables => word
                 .chars()
                 .all(|character| ('가'..='힣').contains(&character)),
+            CharacterSet::Kana => {
+                !word.is_empty()
+                    && taza_engine::suggest::KeyEncoding::Kana
+                        .encode(word)
+                        .is_some()
+            }
         }
     }
 }

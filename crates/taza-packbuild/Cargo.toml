@@ -8,7 +8,11 @@ license.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 taza-corpus.workspace = true
-taza-engine = { workspace = true, features = ["lang-hangul"] }
+taza-engine = { workspace = true, features = ["lang-hangul", "lang-japanese"] }
 taza-pack.workspace = true
 toml.workspace = true
 zstd.workspace = true
+
+[dev-dependencies]
+flate2.workspace = true
+tar.workspace = true

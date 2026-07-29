@@ -8,11 +8,16 @@ use taza_engine::pack::metadata::keys;
 use taza_engine::suggest::KeyEncoding;
 use taza_pack::PackWriter;
 use taza_pack::section::annotation::{AnnotationBuilder, AnnotationCatalogBuilder};
+use taza_pack::section::conversion::{
+    ConnectionBuilder, ConversionBuilder, Entry as ConversionEntry,
+};
 use taza_pack::section::lexicon::LexiconBuilder;
 use taza_pack::section::metadata::MetadataBuilder;
 use taza_pack::section::ngram::NgramModelBuilder;
 
 pub struct AssembledPack {
+    /// 변환표에 실린 읽기 수 — 변환하는 언어가 아니면 0이다
+    pub conversion_count: usize,
     pub bytes: Vec<u8>,
     pub word_count: usize,
     pub lexicon_bytes: usize,
@@ -39,6 +44,10 @@ pub struct PackInputs<'source> {
     pub annotations: &'source [Annotation],
     pub emoji_order: &'source [(EmojiCategory, String)],
     pub affixes: &'source [String],
+    /// 읽기 → 표기. 변환하는 언어만 낸다.
+    pub conversions: &'source [taza_corpus::parse::Conversion],
+    /// 말과 말이 이어질 때 드는 값. 사전이 함께 싣지 않으면 없다.
+    pub connection: Option<&'source taza_corpus::parse::Connection>,
 }
 
 pub fn assemble(inputs: PackInputs<'_>) -> Result<AssembledPack, String> {
@@ -50,6 +59,8 @@ pub fn assemble(inputs: PackInputs<'_>) -> Result<AssembledPack, String> {
         annotations,
         emoji_order,
         affixes,
+        conversions,
+        connection,
     } = inputs;
     let mut lexicon = LexiconBuilder::new();
     for (word, score) in words {
@@ -58,8 +69,10 @@ pub fn assemble(inputs: PackInputs<'_>) -> Result<AssembledPack, String> {
         }
     }
     let word_count = lexicon.word_count();
-    if word_count == 0 {
-        return Err("표제어가 하나도 남지 않았음".to_string());
+    // 팩이 비었는가는 표제어 수만으로 셀 수 없다 — 변환하는 언어의 팩은 lexicon 대신
+    // 변환표가 그 자리를 갖는다(읽기 하나에 표기가 여럿이라 표제어 목록으로 담기지 않는다)
+    if word_count == 0 && conversions.is_empty() {
+        return Err("표제어도 변환표도 하나 없음".to_string());
     }
     let lexicon_section = lexicon.build();
     let lexicon_bytes = lexicon_section.len();
@@ -80,10 +93,20 @@ pub fn assemble(inputs: PackInputs<'_>) -> Result<AssembledPack, String> {
     let language_model_section = (bigram_count > 0).then(|| language_model.build());
     let language_model_bytes = language_model_section.as_ref().map_or(0, Vec::len);
 
-    // 곁들일 것의 키도 lexicon과 같은 조회 키 공간에 있어야 지금 치고 있는 어절로 물어볼
+    // 곁들일 것의 키도 표제어와 같은 조회 키 공간에 있어야 지금 치고 있는 어절로 물어볼
     // 수 있다. 표제어가 아닌 낱말에 달린 것은 내놓을 길이 없으므로 담지 않는다.
-    let in_lexicon: std::collections::HashSet<&str> =
-        words.iter().map(|(word, _)| word.as_str()).collect();
+    //
+    // "표제어인가"를 묻는 자리가 팩마다 다르다 — 변환하는 언어는 lexicon 대신 변환표가
+    // 그 자리를 갖는다. 한쪽만 보면 일본어 팩에서 곁들임이 통째로 사라진다.
+    let in_lexicon: std::collections::HashSet<&str> = words
+        .iter()
+        .map(|(word, _)| word.as_str())
+        .chain(
+            conversions
+                .iter()
+                .map(|conversion| conversion.reading.as_str()),
+        )
+        .collect();
     let mut annotation_table = AnnotationBuilder::new();
     for annotation in annotations {
         if !in_lexicon.contains(annotation.word.as_str()) {
@@ -144,7 +167,10 @@ pub fn assemble(inputs: PackInputs<'_>) -> Result<AssembledPack, String> {
     metadata.set(keys::SOURCES, source_lines(sources));
 
     let mut writer = PackWriter::new(&recipe.pack.language);
-    writer.add_section(SectionKind::Lexicon, lexicon_section);
+    // 표제어가 없는 팩에는 lexicon 섹션을 싣지 않는다 — 빈 trie는 조회를 늦추기만 한다
+    if word_count > 0 {
+        writer.add_section(SectionKind::Lexicon, lexicon_section);
+    }
     if let Some(section) = language_model_section {
         writer.add_section(SectionKind::NgramModel, section);
     }
@@ -154,8 +180,42 @@ pub fn assemble(inputs: PackInputs<'_>) -> Result<AssembledPack, String> {
     if let Some(section) = catalog_section {
         writer.add_section(SectionKind::AnnotationCatalog, section);
     }
+    // 변환표는 조회 키 공간(가나 정규형)에 들어간다 — 정규화할 수 없는 읽기는 원천
+    // 잡음이므로 버린다
+    let mut conversion_count = 0usize;
+    if !conversions.is_empty() {
+        let mut builder = ConversionBuilder::new();
+        for conversion in conversions {
+            let Some(reading) = encode(&conversion.reading, recipe.build.lexicon.encoding) else {
+                continue;
+            };
+            builder.insert(
+                &reading,
+                ConversionEntry {
+                    surface: conversion.surface.clone(),
+                    left_id: conversion.left_id,
+                    right_id: conversion.right_id,
+                    cost: conversion.cost,
+                    dependent: conversion.dependent,
+                },
+            );
+        }
+        conversion_count = builder.reading_count();
+        let (trie, store) = builder.build();
+        writer.add_section(SectionKind::Conversion, trie);
+        writer.add_section(SectionKind::ConversionEntry, store);
+    }
+    if let Some(connection) = connection {
+        let mut builder = ConnectionBuilder::new(connection.rows, connection.columns);
+        for (row, column, cost) in &connection.costs {
+            builder.set(*row, *column, *cost);
+        }
+        writer.add_section(SectionKind::Connection, builder.build());
+    }
+    metadata.set(keys::CONVERSION_COUNT, conversion_count.to_string());
     writer.add_section(SectionKind::Metadata, metadata.build());
     Ok(AssembledPack {
+        conversion_count,
         bytes: writer.finish(),
         word_count,
         lexicon_bytes,

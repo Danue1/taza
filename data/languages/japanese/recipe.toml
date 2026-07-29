@@ -1,0 +1,32 @@
+# 일본어 언어팩 — 읽기에서 표기로. 다른 두 언어와 **팩의 뼈대가 다르다**.
+#
+# 영어·한국어 팩의 중심은 lexicon(표제어 목록)이다. 조회 키에서 표시 형태를 되돌릴 수
+# 있으므로 목록 하나면 완성·교정·제안이 모두 성립한다. 일본어는 그 되돌림이 성립하지
+# 않는다 — 「きしゃ」에는 汽車·記者·貴社가 함께 딸린다. 그래서 이 팩은 lexicon 대신
+# conversion(읽기 trie) · conversion_entry(표기 곳간) · connection(연접 표) 셋을 싣고,
+# 조회 키는 히라가나 정규형이다.
+#
+# 사전 비용과 연접 비용은 **같은 눈금 위에서 학습된 짝**이므로 파이프라인이 점수를 다시
+# 매기지 않는다. 한쪽만 옮기면 라티스가 더하는 합이 뜻을 잃는다.
+
+[pack]
+language = "ja"
+display_name = "日本語"
+keycap_label = "あ"
+composer_skeleton = "japanese-romaji"
+pack_version = 1
+
+# 일본어는 어절을 공백으로 가르지 않는다. 코퍼스에서 낱말 빈도를 관측하려면 형태소
+# 분석이 앞서야 하므로, 그 단계가 설 때까지 코퍼스 원천을 두지 않는다.
+[pack.script]
+word_separated = false
+right_to_left = false
+
+[build.lexicon]
+# 조회 키 — 가타카나·반각·따로 온 탁점을 히라가나 정규형으로 모은다
+encoding = "kana"
+character_set = "kana"
+# 변환표는 이 상한을 쓰지 않는다(사전이 낸 것을 그대로 싣는다). lexicon 섹션을 싣지
+# 않는 팩이므로 이 값은 자리만 지킨다.
+max_words = 0
+minimum_word_length = 1

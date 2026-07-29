@@ -20,6 +20,8 @@ pub mod keys {
     pub const WORD_COUNT: &str = "word_count";
     /// 언어모델 섹션에 담긴 bigram 수 (0이면 섹션 없음)
     pub const BIGRAM_COUNT: &str = "bigram_count";
+    /// 변환표에 실린 읽기 수 — 변환하는 언어의 팩만 갖는다
+    pub const CONVERSION_COUNT: &str = "conversion_count";
     /// lexicon 표제어의 저장 인코딩 — `utf8` 또는 `hangul-jamo-dubeolsik`
     pub const LEXICON_ENCODING: &str = "lexicon_encoding";
     /// 언어가 자기를 부르는 이름 — 스페이스바와 언어 목록에 그대로 나간다

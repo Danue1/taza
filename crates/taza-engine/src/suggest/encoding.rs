@@ -10,6 +10,10 @@ pub enum KeyEncoding {
     /// 한글을 자모 분해 후 두벌식 ASCII로. trie의 바이트 편집거리가 그대로 자모
     /// 편집거리가 되므로 교정을 자모 수준에서 다룰 수 있다.
     HangulJamoDubeolsik,
+    /// 일본어를 히라가나 정규형으로. **이 인코딩만 되돌릴 수 없다** — 읽기 하나에 표기가
+    /// 여럿이므로 표시 형태는 키에서 복원되지 않고 팩의 변환표가 따로 갖는다. `decode`가
+    /// 읽기를 그대로 내는 것은 표가 없을 때의 바닥값이다(가나로만 적는 말은 그것이 곧 표기다).
+    Kana,
 }
 
 impl KeyEncoding {
@@ -17,6 +21,7 @@ impl KeyEncoding {
         match self {
             KeyEncoding::Utf8 => "utf8",
             KeyEncoding::HangulJamoDubeolsik => "hangul-jamo-dubeolsik",
+            KeyEncoding::Kana => "kana",
         }
     }
 
@@ -24,6 +29,7 @@ impl KeyEncoding {
         match tag {
             "utf8" => Some(KeyEncoding::Utf8),
             "hangul-jamo-dubeolsik" => Some(KeyEncoding::HangulJamoDubeolsik),
+            "kana" => Some(KeyEncoding::Kana),
             _ => None,
         }
     }
@@ -34,6 +40,7 @@ impl KeyEncoding {
         match self {
             KeyEncoding::Utf8 => Some(display.to_string()),
             KeyEncoding::HangulJamoDubeolsik => encode_hangul(display),
+            KeyEncoding::Kana => encode_kana(display),
         }
     }
 
@@ -42,6 +49,7 @@ impl KeyEncoding {
         match self {
             KeyEncoding::Utf8 => Some(key.to_string()),
             KeyEncoding::HangulJamoDubeolsik => decode_hangul(key),
+            KeyEncoding::Kana => Some(key.to_string()),
         }
     }
 
@@ -54,7 +62,7 @@ impl KeyEncoding {
     pub(crate) fn fold(self, key: &str) -> Option<(String, super::lookup::Restore)> {
         match self {
             KeyEncoding::Utf8 => super::lookup::fold(key),
-            KeyEncoding::HangulJamoDubeolsik => None,
+            KeyEncoding::HangulJamoDubeolsik | KeyEncoding::Kana => None,
         }
     }
 
@@ -99,5 +107,15 @@ fn encode_hangul(_display: &str) -> Option<String> {
 
 #[cfg(not(feature = "lang-hangul"))]
 fn decode_hangul(_key: &str) -> Option<String> {
+    None
+}
+
+#[cfg(feature = "lang-japanese")]
+fn encode_kana(display: &str) -> Option<String> {
+    crate::lang::kana::normalize(display)
+}
+
+#[cfg(not(feature = "lang-japanese"))]
+fn encode_kana(_display: &str) -> Option<String> {
     None
 }

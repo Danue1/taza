@@ -1,6 +1,10 @@
+use taza_engine::pack::connection::DEFAULT_CONNECTION_COST;
 use taza_engine::pack::{Pack, PackError, SectionKind};
 use taza_engine::suggest::{Dictionary, Entry, KeyEncoding, Query};
 use taza_pack::PackWriter;
+use taza_pack::section::conversion::{
+    ConnectionBuilder, ConversionBuilder, Entry as ConversionEntry,
+};
 use taza_pack::section::lexicon::LexiconBuilder;
 
 /// 진행 중인 낱말의 완성 조회 — 뒤에 남는 글자에 비용을 물리지 않는다.
@@ -212,4 +216,115 @@ fn annotations_accompany_word_suggestions() {
             .iter()
             .all(|suggestion| suggestion.group == CandidateGroup::Word)
     );
+}
+
+/// 읽기 하나에 표기가 여럿 딸리는 표 — 조회 키를 되돌릴 수 없는 언어가 서는 자리다.
+fn build_conversion_pack(readings: &[(&str, &[(&str, u16)])]) -> Vec<u8> {
+    let mut conversion = ConversionBuilder::new();
+    for (reading, surfaces) in readings {
+        for (surface, cost) in *surfaces {
+            conversion.insert(
+                reading,
+                ConversionEntry {
+                    surface: surface.to_string(),
+                    left_id: 1,
+                    right_id: 1,
+                    cost: *cost,
+                    dependent: false,
+                },
+            );
+        }
+    }
+    let (trie, store) = conversion.build();
+    let mut writer = PackWriter::new("ja");
+    writer.add_section(SectionKind::Conversion, trie);
+    writer.add_section(SectionKind::ConversionEntry, store);
+    writer.finish()
+}
+
+#[test]
+fn conversion_lookup_returns_every_surface_cheapest_first() {
+    let bytes = build_conversion_pack(&[
+        ("きしゃ", &[("汽車", 300), ("記者", 100), ("貴社", 500)]),
+        ("は", &[("は", 10)]),
+    ]);
+    let pack = Pack::open(&bytes).unwrap();
+    let table = pack.conversion().unwrap();
+    let surfaces: Vec<&str> = table
+        .lookup("きしゃ")
+        .unwrap()
+        .iter()
+        .map(|entry| entry.surface)
+        .collect();
+    assert_eq!(surfaces, ["記者", "汽車", "貴社"]);
+    assert_eq!(table.lookup("きし"), None);
+    assert_eq!(table.lookup("は").unwrap().best().unwrap().surface, "は");
+}
+
+/// 라티스가 마디를 세우는 통로 — 한 자리에서 시작하는 표제어를 한 번의 순회로 모은다.
+#[test]
+fn conversion_prefixes_stop_at_character_boundaries() {
+    let bytes = build_conversion_pack(&[
+        ("に", &[("に", 10)]),
+        ("にわ", &[("庭", 20)]),
+        ("にわに", &[("にわに", 900)]),
+    ]);
+    let pack = Pack::open(&bytes).unwrap();
+    let table = pack.conversion().unwrap();
+    let reading = "にわにはにわ";
+    let found: Vec<usize> = table
+        .prefixes(reading, 0)
+        .into_iter()
+        .map(|(end, _)| end)
+        .collect();
+    // 가나 하나가 3바이트 — に·にわ·にわに 셋이 선다
+    assert_eq!(found, [3, 6, 9]);
+    // 넷째 글자(は) 자리에서 다시 세우면 그 자리의 표제어만 나온다
+    assert!(table.prefixes(reading, 9).is_empty());
+}
+
+#[test]
+fn conversion_completions_come_cheapest_first() {
+    let bytes = build_conversion_pack(&[
+        ("かい", &[("回", 100)]),
+        ("かいしゃ", &[("会社", 50)]),
+        ("かいだん", &[("階段", 300)]),
+        ("さくら", &[("桜", 10)]),
+    ]);
+    let pack = Pack::open(&bytes).unwrap();
+    let table = pack.conversion().unwrap();
+    let readings: Vec<String> = table
+        .completions("か", 3)
+        .into_iter()
+        .map(|(reading, _)| reading)
+        .collect();
+    assert_eq!(readings, ["かいしゃ", "かい", "かいだん"]);
+    assert!(table.completions("ま", 3).is_empty());
+}
+
+#[test]
+fn connection_matrix_falls_back_outside_the_table() {
+    let mut connection = ConnectionBuilder::new(2, 2);
+    connection.set(0, 1, -400);
+    connection.set(1, 0, 700);
+    let mut writer = PackWriter::new("ja");
+    writer.add_section(SectionKind::Connection, connection.build());
+    let bytes = writer.finish();
+    let pack = Pack::open(&bytes).unwrap();
+    let matrix = pack.connection().unwrap();
+    assert_eq!(matrix.cost(0, 1), -400);
+    assert_eq!(matrix.cost(1, 0), 700);
+    assert_eq!(matrix.cost(0, 0), 0);
+    // 표 밖의 자리는 기본값으로 물러난다 — 사전과 표의 판이 어긋나도 변환은 돈다
+    assert_eq!(matrix.cost(9, 9), DEFAULT_CONNECTION_COST);
+}
+
+/// 변환표가 반쪽만 실린 팩 — trie와 곳간은 짝이라 하나만으로는 표가 서지 않는다.
+#[test]
+fn conversion_needs_both_sections() {
+    let (trie, _) = ConversionBuilder::new().build();
+    let mut writer = PackWriter::new("ja");
+    writer.add_section(SectionKind::Conversion, trie);
+    let bytes = writer.finish();
+    assert!(Pack::open(&bytes).unwrap().conversion().is_none());
 }

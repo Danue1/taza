@@ -2,6 +2,7 @@
 //! (`PackWriter`)은 섹션이 아니므로 크레이트 뿌리에 있다.
 
 pub mod annotation;
+pub mod conversion;
 pub mod lexicon;
 pub mod metadata;
 pub mod ngram;

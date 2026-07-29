@@ -13,6 +13,8 @@
 //! 모든 정수는 little-endian이며 offset은 파일 시작 기준.
 
 pub mod annotation;
+pub mod connection;
+pub mod conversion;
 pub mod lexicon;
 pub mod metadata;
 pub mod ngram;
@@ -35,6 +37,12 @@ pub enum SectionKind {
     Annotation,
     /// 곁들일 것들의 갈래별 표시 순서 — 검색하지 않았을 때 보이는 목록이다.
     AnnotationCatalog,
+    /// 읽기 → 표기를 찾는 trie. 되돌릴 수 없는 조회 키(가나)를 쓰는 언어만 싣는다.
+    Conversion,
+    /// 그 표기들이 담긴 곳간 — trie의 종단 노드가 이 안의 자리를 가리킨다.
+    ConversionEntry,
+    /// 말과 말이 이어질 때 드는 값. 없으면 이음마다 같은 값이 든다.
+    Connection,
 }
 
 impl SectionKind {
@@ -45,6 +53,9 @@ impl SectionKind {
             SectionKind::Metadata => 4,
             SectionKind::Annotation => 5,
             SectionKind::AnnotationCatalog => 6,
+            SectionKind::Conversion => 7,
+            SectionKind::ConversionEntry => 8,
+            SectionKind::Connection => 9,
         }
     }
 
@@ -55,6 +66,9 @@ impl SectionKind {
             4 => Some(SectionKind::Metadata),
             5 => Some(SectionKind::Annotation),
             6 => Some(SectionKind::AnnotationCatalog),
+            7 => Some(SectionKind::Conversion),
+            8 => Some(SectionKind::ConversionEntry),
+            9 => Some(SectionKind::Connection),
             _ => None,
         }
     }

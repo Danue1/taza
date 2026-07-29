@@ -1,4 +1,6 @@
 use crate::pack::annotation::{AnnotationCatalog, AnnotationTable};
+use crate::pack::connection::ConnectionMatrix;
+use crate::pack::conversion::ConversionTable;
 use crate::pack::lexicon::Lexicon;
 use crate::pack::metadata::Metadata;
 use crate::pack::ngram::NgramModel;
@@ -136,6 +138,20 @@ impl<'bytes> Pack<'bytes> {
     pub fn annotation_catalog(&self) -> Option<AnnotationCatalog<'bytes>> {
         self.section(SectionKind::AnnotationCatalog)
             .map(AnnotationCatalog::new)
+    }
+
+    /// 읽기에서 표기로 가는 표 — 조회 키가 되돌릴 수 없는 언어(일본어)만 싣는다.
+    /// trie와 곳간이 짝이므로 둘 중 하나라도 없으면 표가 서지 않는다.
+    pub fn conversion(&self) -> Option<ConversionTable<'bytes>> {
+        let trie = self.section(SectionKind::Conversion)?;
+        let entries = self.section(SectionKind::ConversionEntry)?;
+        Some(ConversionTable::new(trie, entries))
+    }
+
+    /// 말과 말이 이어질 때 드는 값. 없으면 변환은 낱말 비용만으로 이뤄진다.
+    pub fn connection(&self) -> Option<ConnectionMatrix<'bytes>> {
+        self.section(SectionKind::Connection)
+            .map(ConnectionMatrix::new)
     }
 
     /// 어절 뒤에 붙어 활용형을 만드는 접사 — 줄바꿈으로 나눈 표시 형태 목록.

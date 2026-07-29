@@ -15,10 +15,11 @@ path = "src/bindgen.rs"
 required-features = ["cli"]
 
 [features]
-default = ["lang-latin", "lang-hangul"]
+default = ["lang-latin", "lang-hangul", "lang-japanese"]
 cli = ["uniffi/cli", "uniffi/cargo-metadata"]
 lang-latin = ["taza-engine/lang-latin"]
 lang-hangul = ["taza-engine/lang-hangul"]
+lang-japanese = ["taza-engine/lang-japanese"]
 
 [dependencies]
 memmap2.workspace = true

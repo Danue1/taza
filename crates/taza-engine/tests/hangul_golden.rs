@@ -1,5 +1,6 @@
 use taza_engine::contract::{
-    Composer, ComposerEvent, EditorContext, Effect, InputEvent, SuggestionRequest, UserPreferences,
+    Composer, ComposerEnvironment, ComposerEvent, EditorContext, Effect, InputEvent,
+    SuggestionRequest, UserPreferences,
 };
 use taza_engine::engine::Engine;
 use taza_engine::keyboard::KeySignal;
@@ -172,7 +173,10 @@ fn sebeolsik_and_dubeolsik_look_up_the_same_key() {
         let mut request = SuggestionRequest::None;
         for character in events.chars() {
             request = composer
-                .feed(ComposerEvent::Key(character), &context)
+                .feed(
+                    ComposerEvent::Key(character),
+                    &ComposerEnvironment::new(&context),
+                )
                 .suggest;
         }
         request
@@ -275,15 +279,27 @@ fn cursor_move_finalizes_composing() {
 fn snapshot_roundtrip_preserves_composing() {
     let context = EditorContext::unavailable();
     let mut composer = HangulComposer::new();
-    composer.feed(ComposerEvent::Key('ㄱ'), &context);
-    composer.feed(ComposerEvent::Key('ㅏ'), &context);
-    composer.feed(ComposerEvent::Key('ㅂ'), &context);
+    composer.feed(
+        ComposerEvent::Key('ㄱ'),
+        &ComposerEnvironment::new(&context),
+    );
+    composer.feed(
+        ComposerEvent::Key('ㅏ'),
+        &ComposerEnvironment::new(&context),
+    );
+    composer.feed(
+        ComposerEvent::Key('ㅂ'),
+        &ComposerEnvironment::new(&context),
+    );
     let state = composer.snapshot();
     assert_eq!(state.text(), Some("ㄱㅏㅂ\tㄱㅏㅂ"));
 
     let mut restored = HangulComposer::new();
     restored.restore(state);
-    let output = restored.feed(ComposerEvent::Key('ㅏ'), &context);
+    let output = restored.feed(
+        ComposerEvent::Key('ㅏ'),
+        &ComposerEnvironment::new(&context),
+    );
     assert_eq!(output.composing.unwrap().text, "가바");
 }
 
@@ -299,18 +315,27 @@ fn the_word_follows_the_caret() {
     };
     // 세 음절을 치면 첫 음절은 조합 창 밖으로 확정되고 어절 자모에만 남는다
     for character in "ㄱㅏㄴㅏㄷㅏ".chars() {
-        composer.feed(ComposerEvent::Key(character), &typing);
+        composer.feed(
+            ComposerEvent::Key(character),
+            &ComposerEnvironment::new(&typing),
+        );
     }
     // 조합 창을 다 물러 비운다 — 어절 자모에는 확정된 앞부분이 남는다
     let unavailable = EditorContext::unavailable();
     for _ in 0..4 {
-        composer.feed(ComposerEvent::Backspace, &unavailable);
+        composer.feed(
+            ComposerEvent::Backspace,
+            &ComposerEnvironment::new(&unavailable),
+        );
     }
     let elsewhere = EditorContext {
         text_before_cursor: Some("abc".to_string()),
         ..typing.clone()
     };
-    let output = composer.feed(ComposerEvent::Key('ㅁ'), &elsewhere);
+    let output = composer.feed(
+        ComposerEvent::Key('ㅁ'),
+        &ComposerEnvironment::new(&elsewhere),
+    );
     assert_eq!(
         output.suggest,
         SuggestionRequest::Word {
@@ -320,7 +345,10 @@ fn the_word_follows_the_caret() {
     assert_eq!(output.delete_before_commit, 0);
 
     // 경계에서 지우는 것도 그 자리의 어절뿐이다
-    let boundary = composer.feed(ComposerEvent::Separator(' '), &elsewhere);
+    let boundary = composer.feed(
+        ComposerEvent::Separator(' '),
+        &ComposerEnvironment::new(&elsewhere),
+    );
     assert_eq!(
         boundary.boundary.map(|boundary| boundary.surface),
         Some("ㅁ".to_string())

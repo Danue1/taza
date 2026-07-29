@@ -12,7 +12,7 @@
 use super::hangul::HangulComposer;
 use super::vowel::vowel;
 use crate::contract::{
-    CommittedText, Composer, ComposerEvent, ComposerOutput, ComposerState, EditorContext,
+    CommittedText, Composer, ComposerEnvironment, ComposerEvent, ComposerOutput, ComposerState,
 };
 use crate::keyboard::{NamedLayoutSet, layouts};
 use crate::lang::InputMethod;
@@ -153,30 +153,30 @@ impl NaratgeulComposer {
 
     /// 만들던 자모를 새 자모로 갈아 끼운다. 지우고 넣는 두 걸음을 속 합성기에 그대로
     /// 넘기므로 조합 창·어절 추적이 따로 볼 것이 없다.
-    fn replace(&mut self, jamo: char, context: &EditorContext) -> ComposerOutput {
-        let removed = self.inner.feed(ComposerEvent::Backspace, context);
+    fn replace(&mut self, jamo: char, environment: &ComposerEnvironment<'_>) -> ComposerOutput {
+        let removed = self.inner.feed(ComposerEvent::Backspace, environment);
         let mut output = self
             .inner
-            .feed(ComposerEvent::Key(jamo), &context.unapplied());
+            .feed(ComposerEvent::Key(jamo), &environment.unapplied());
         output.delete_before_commit += removed.delete_before_commit;
         output
     }
 
     /// 타건을 하나 쌓아 본다 — 쌓은 것이 자모를 가리키면 갈아 끼우고, 아니면 이 타건에서
     /// 새 자모가 시작한다.
-    fn push(&mut self, press: char, context: &EditorContext) -> ComposerOutput {
+    fn push(&mut self, press: char, environment: &ComposerEnvironment<'_>) -> ComposerOutput {
         let mut extended = self.presses.clone();
         extended.push(press);
         if !self.presses.is_empty()
             && let Some(jamo) = resolve(&extended)
         {
             self.presses = extended;
-            return self.replace(jamo, context);
+            return self.replace(jamo, environment);
         }
         match resolve(&[press]) {
             Some(jamo) => {
                 self.presses = vec![press];
-                self.inner.feed(ComposerEvent::Key(jamo), context)
+                self.inner.feed(ComposerEvent::Key(jamo), environment)
             }
             // 밑글자 없이 눌린 표식 — 더할 획이 없으므로 아무 일도 일어나지 않는다
             None => self.inner.unchanged(),
@@ -185,21 +185,25 @@ impl NaratgeulComposer {
 
     /// 타건을 하나 무른다 — 획을 더해 만든 자모는 더하기 전으로 돌아간다. 표식도 누름
     /// 하나이므로 지우는 단위도 누름 하나다.
-    fn pop(&mut self, context: &EditorContext) -> ComposerOutput {
+    fn pop(&mut self, environment: &ComposerEnvironment<'_>) -> ComposerOutput {
         self.presses.pop();
         let jamo = resolve(&self.presses).expect("쌓인 타건의 앞부분도 자모를 가리킨다");
-        self.replace(jamo, context)
+        self.replace(jamo, environment)
     }
 }
 
 impl Composer for NaratgeulComposer {
-    fn feed(&mut self, event: ComposerEvent, context: &EditorContext) -> ComposerOutput {
+    fn feed(
+        &mut self,
+        event: ComposerEvent,
+        environment: &ComposerEnvironment<'_>,
+    ) -> ComposerOutput {
         match event {
-            ComposerEvent::Key(press) if is_press(press) => self.push(press, context),
-            ComposerEvent::Backspace if self.presses.len() > 1 => self.pop(context),
+            ComposerEvent::Key(press) if is_press(press) => self.push(press, environment),
+            ComposerEvent::Backspace if self.presses.len() > 1 => self.pop(environment),
             event => {
                 self.presses.clear();
-                self.inner.feed(event, context)
+                self.inner.feed(event, environment)
             }
         }
     }

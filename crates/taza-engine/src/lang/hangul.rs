@@ -1,7 +1,7 @@
 use super::jamo::{compose_word, encode_jamo_ascii, is_jamo, recompose, render_all};
 use crate::contract::{
-    CommittedText, Composer, ComposerEvent, ComposerOutput, ComposerState, ComposingText,
-    EditorContext, SuggestionRequest, WordBoundary,
+    CommittedText, Composer, ComposerEnvironment, ComposerEvent, ComposerOutput, ComposerState,
+    ComposingText, SuggestionRequest, WordBoundary,
 };
 
 use super::jamo::decompose;
@@ -49,11 +49,11 @@ impl HangulComposer {
     /// 한글 연속 구간 **전체**로 다시 세우고(커서가 옮겨 갔으면 그 자리의 어절이다),
     /// composing 창에는 마지막 1글자만 되가져온다. 반환값은 치환을 위해 지워야 할
     /// 확정 글자 수.
-    fn try_adopt(&mut self, context: &EditorContext) -> usize {
+    fn try_adopt(&mut self, environment: &ComposerEnvironment<'_>) -> usize {
         if !self.composing_jamo.is_empty() {
             return 0;
         }
-        let Some(text) = &context.text_before_cursor else {
+        let Some(text) = &environment.context().text_before_cursor else {
             return 0;
         };
         // 커서 앞이 한글이 아니면 어절도 거기서 끝난 것이다 — 쥐고 있던 자모를
@@ -88,8 +88,7 @@ impl HangulComposer {
         let composing = if text.is_empty() {
             None
         } else {
-            let caret = text.chars().count();
-            Some(ComposingText { text, caret })
+            Some(ComposingText::whole(text))
         };
         ComposerOutput {
             commit,
@@ -144,10 +143,14 @@ impl HangulComposer {
 }
 
 impl Composer for HangulComposer {
-    fn feed(&mut self, event: ComposerEvent, context: &EditorContext) -> ComposerOutput {
+    fn feed(
+        &mut self,
+        event: ComposerEvent,
+        environment: &ComposerEnvironment<'_>,
+    ) -> ComposerOutput {
         match event {
             ComposerEvent::Key(character) if is_jamo(character) => {
-                let adopted = self.try_adopt(context);
+                let adopted = self.try_adopt(environment);
                 let mut output = self.push_jamo(character);
                 output.delete_before_commit = adopted;
                 output
@@ -163,7 +166,7 @@ impl Composer for HangulComposer {
                 self.end_word(character)
             }
             ComposerEvent::Backspace => {
-                let adopted = self.try_adopt(context);
+                let adopted = self.try_adopt(environment);
                 if adopted == 0 && self.composing_jamo.is_empty() {
                     self.word_jamo.clear();
                     return ComposerOutput {
@@ -177,7 +180,7 @@ impl Composer for HangulComposer {
                 output.delete_before_commit = adopted;
                 output
             }
-            ComposerEvent::CandidateSelected(text) => {
+            ComposerEvent::CandidateSelected { text, .. } => {
                 // 어절 중 composing 창 밖으로 이미 확정된 앞부분을 지우고, commit이
                 // composing 구간을 치환한다. 선택 뒤 타이핑은 새 입력 시퀀스.
                 let word_length = compose_word(&self.word_jamo).chars().count();

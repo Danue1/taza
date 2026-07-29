@@ -2146,14 +2146,22 @@ public struct FfiLanguageDescriptor {
     public var displayName: String
     public var keycapLabel: String
     public var layoutName: String
+    /**
+     * 조합 중인 글자를 문서에 어떻게 앉힐지 — 언어 관습이므로 코어가 정한다.
+     */
+    public var composingDisplay: FfiComposingDisplay
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(tag: String, displayName: String, keycapLabel: String, layoutName: String) {
+    public init(tag: String, displayName: String, keycapLabel: String, layoutName: String, 
+        /**
+         * 조합 중인 글자를 문서에 어떻게 앉힐지 — 언어 관습이므로 코어가 정한다.
+         */composingDisplay: FfiComposingDisplay) {
         self.tag = tag
         self.displayName = displayName
         self.keycapLabel = keycapLabel
         self.layoutName = layoutName
+        self.composingDisplay = composingDisplay
     }
 }
 
@@ -2176,6 +2184,9 @@ extension FfiLanguageDescriptor: Equatable, Hashable {
         if lhs.layoutName != rhs.layoutName {
             return false
         }
+        if lhs.composingDisplay != rhs.composingDisplay {
+            return false
+        }
         return true
     }
 
@@ -2184,6 +2195,7 @@ extension FfiLanguageDescriptor: Equatable, Hashable {
         hasher.combine(displayName)
         hasher.combine(keycapLabel)
         hasher.combine(layoutName)
+        hasher.combine(composingDisplay)
     }
 }
 
@@ -2199,7 +2211,8 @@ public struct FfiConverterTypeFfiLanguageDescriptor: FfiConverterRustBuffer {
                 tag: FfiConverterString.read(from: &buf), 
                 displayName: FfiConverterString.read(from: &buf), 
                 keycapLabel: FfiConverterString.read(from: &buf), 
-                layoutName: FfiConverterString.read(from: &buf)
+                layoutName: FfiConverterString.read(from: &buf), 
+                composingDisplay: FfiConverterTypeFfiComposingDisplay.read(from: &buf)
         )
     }
 
@@ -2208,6 +2221,7 @@ public struct FfiConverterTypeFfiLanguageDescriptor: FfiConverterRustBuffer {
         FfiConverterString.write(value.displayName, into: &buf)
         FfiConverterString.write(value.keycapLabel, into: &buf)
         FfiConverterString.write(value.layoutName, into: &buf)
+        FfiConverterTypeFfiComposingDisplay.write(value.composingDisplay, into: &buf)
     }
 }
 
@@ -2991,6 +3005,85 @@ extension FfiCapitalization: Equatable, Hashable {}
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * 조합 중인 글자를 문서에 앉히는 방식.
+ */
+
+public enum FfiComposingDisplay {
+    
+    /**
+     * 밑줄 없이 글자를 그대로 — 한국어 순정이 그렇다. 셸은 조합 구간을 지우고 다시 넣는다.
+     */
+    case inline
+    /**
+     * 밑줄 친 조합 구간으로 — 변환이 그렇다. 셸은 marked text로 옮긴다.
+     */
+    case marked
+}
+
+
+#if compiler(>=6)
+extension FfiComposingDisplay: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiComposingDisplay: FfiConverterRustBuffer {
+    typealias SwiftType = FfiComposingDisplay
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiComposingDisplay {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .inline
+        
+        case 2: return .marked
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: FfiComposingDisplay, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .inline:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .marked:
+            writeInt(&buf, Int32(2))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiComposingDisplay_lift(_ buf: RustBuffer) throws -> FfiComposingDisplay {
+    return try FfiConverterTypeFfiComposingDisplay.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiComposingDisplay_lower(_ value: FfiComposingDisplay) -> RustBuffer {
+    return FfiConverterTypeFfiComposingDisplay.lower(value)
+}
+
+
+extension FfiComposingDisplay: Equatable, Hashable {}
+
+
+
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 
 public enum FfiCursorSensitivity {
     
@@ -3073,7 +3166,11 @@ public enum FfiEffect {
     
     case commitText(text: String
     )
-    case setComposing(text: String, caret: UInt32
+    case setComposing(text: String, caret: UInt32, 
+        /**
+         * 지금 사람이 손대고 있는 구간(코드포인트 [시작, 끝)) — 변환의 주목 문절이다.
+         * 셸은 이 값이 있을 때 조합 구간의 선택 범위로 옮긴다.
+         */focusStart: UInt32?, focusEnd: UInt32?
     )
     case clearComposing
     case deleteBackward(codePoints: UInt32
@@ -3108,7 +3205,7 @@ public struct FfiConverterTypeFfiEffect: FfiConverterRustBuffer {
         case 1: return .commitText(text: try FfiConverterString.read(from: &buf)
         )
         
-        case 2: return .setComposing(text: try FfiConverterString.read(from: &buf), caret: try FfiConverterUInt32.read(from: &buf)
+        case 2: return .setComposing(text: try FfiConverterString.read(from: &buf), caret: try FfiConverterUInt32.read(from: &buf), focusStart: try FfiConverterOptionUInt32.read(from: &buf), focusEnd: try FfiConverterOptionUInt32.read(from: &buf)
         )
         
         case 3: return .clearComposing
@@ -3138,10 +3235,12 @@ public struct FfiConverterTypeFfiEffect: FfiConverterRustBuffer {
             FfiConverterString.write(text, into: &buf)
             
         
-        case let .setComposing(text,caret):
+        case let .setComposing(text,caret,focusStart,focusEnd):
             writeInt(&buf, Int32(2))
             FfiConverterString.write(text, into: &buf)
             FfiConverterUInt32.write(caret, into: &buf)
+            FfiConverterOptionUInt32.write(focusStart, into: &buf)
+            FfiConverterOptionUInt32.write(focusEnd, into: &buf)
             
         
         case .clearComposing:
@@ -4351,6 +4450,30 @@ extension FfiReturnKey: Equatable, Hashable {}
 
 
 
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionUInt32: FfiConverterRustBuffer {
+    typealias SwiftType = UInt32?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterUInt32.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterUInt32.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
 
 #if swift(>=5.8)
 @_documentation(visibility: private)

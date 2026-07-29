@@ -10,7 +10,7 @@
 use super::hangul::HangulComposer;
 use super::vowel::vowel;
 use crate::contract::{
-    CommittedText, Composer, ComposerEvent, ComposerOutput, ComposerState, EditorContext,
+    CommittedText, Composer, ComposerEnvironment, ComposerEvent, ComposerOutput, ComposerState,
 };
 use crate::keyboard::{NamedLayoutSet, layouts};
 use crate::lang::InputMethod;
@@ -63,46 +63,50 @@ impl SkyComposer {
 
     /// 쌓던 모음을 새 모음으로 갈아 끼운다. 지우고 넣는 두 걸음을 속 합성기에 그대로
     /// 넘기므로 조합 창·어절 추적이 따로 볼 것이 없다.
-    fn replace(&mut self, vowel: char, context: &EditorContext) -> ComposerOutput {
-        let removed = self.inner.feed(ComposerEvent::Backspace, context);
+    fn replace(&mut self, vowel: char, environment: &ComposerEnvironment<'_>) -> ComposerOutput {
+        let removed = self.inner.feed(ComposerEvent::Backspace, environment);
         let mut output = self
             .inner
-            .feed(ComposerEvent::Key(vowel), &context.unapplied());
+            .feed(ComposerEvent::Key(vowel), &environment.unapplied());
         output.delete_before_commit += removed.delete_before_commit;
         output
     }
 
     /// 타건을 하나 쌓아 본다 — 쌓은 것이 모음을 이루면 갈아 끼우고, 아니면 이 타건에서
     /// 새 모음이 시작한다.
-    fn push(&mut self, tap: char, context: &EditorContext) -> ComposerOutput {
+    fn push(&mut self, tap: char, environment: &ComposerEnvironment<'_>) -> ComposerOutput {
         let mut extended = self.taps.clone();
         extended.push(tap);
         if !self.taps.is_empty()
             && let Some(grown) = vowel(&extended)
         {
             self.taps = extended;
-            return self.replace(grown, context);
+            return self.replace(grown, environment);
         }
         self.taps = vec![tap];
-        self.inner.feed(ComposerEvent::Key(tap), context)
+        self.inner.feed(ComposerEvent::Key(tap), environment)
     }
 
     /// 모음 타건을 하나 무른다 — 지운 뒤에도 쌓던 모음이 남아 있으면 그것으로 돌아간다.
-    fn pop(&mut self, context: &EditorContext) -> ComposerOutput {
+    fn pop(&mut self, environment: &ComposerEnvironment<'_>) -> ComposerOutput {
         self.taps.pop();
         let stayed = vowel(&self.taps).expect("쌓인 타건의 앞부분도 모음을 이룬다");
-        self.replace(stayed, context)
+        self.replace(stayed, environment)
     }
 }
 
 impl Composer for SkyComposer {
-    fn feed(&mut self, event: ComposerEvent, context: &EditorContext) -> ComposerOutput {
+    fn feed(
+        &mut self,
+        event: ComposerEvent,
+        environment: &ComposerEnvironment<'_>,
+    ) -> ComposerOutput {
         match event {
-            ComposerEvent::Key(tap) if is_vowel_tap(tap) => self.push(tap, context),
-            ComposerEvent::Backspace if self.taps.len() > 1 => self.pop(context),
+            ComposerEvent::Key(tap) if is_vowel_tap(tap) => self.push(tap, environment),
+            ComposerEvent::Backspace if self.taps.len() > 1 => self.pop(environment),
             event => {
                 self.taps.clear();
-                self.inner.feed(event, context)
+                self.inner.feed(event, environment)
             }
         }
     }

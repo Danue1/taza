@@ -8,7 +8,11 @@
 //! 배열을 늘리는 일은 파일 하나에 함수 하나를 더하고 그 스크립트의 `layouts()`에 한 줄을
 //! 잇는 일이다. 대신 새 배열은 앱 판올림으로 나간다.
 
-#[cfg(any(feature = "lang-latin", feature = "lang-hangul"))]
+#[cfg(any(
+    feature = "lang-latin",
+    feature = "lang-hangul",
+    feature = "lang-japanese"
+))]
 mod builder;
 #[cfg(feature = "lang-hangul")]
 mod cheonjiin;
@@ -16,21 +20,35 @@ mod cheonjiin;
 mod danmoeum;
 #[cfg(feature = "lang-hangul")]
 pub(crate) mod hangul;
+#[cfg(feature = "lang-japanese")]
+pub(crate) mod japanese;
 #[cfg(feature = "lang-latin")]
 pub(crate) mod latin;
 #[cfg(feature = "lang-hangul")]
 mod naratgeul;
-#[cfg(any(feature = "lang-latin", feature = "lang-hangul"))]
+#[cfg(any(
+    feature = "lang-latin",
+    feature = "lang-hangul",
+    feature = "lang-japanese"
+))]
 mod shared;
 #[cfg(feature = "lang-hangul")]
 mod sky;
 
-#[cfg(any(feature = "lang-latin", feature = "lang-hangul"))]
+#[cfg(any(
+    feature = "lang-latin",
+    feature = "lang-hangul",
+    feature = "lang-japanese"
+))]
 use crate::keyboard::layout::{KeyboardLayoutSet, NamedLayoutSet};
-#[cfg(feature = "lang-hangul")]
+#[cfg(any(feature = "lang-hangul", feature = "lang-japanese"))]
 use crate::lang::InputMethod;
 
-#[cfg(any(feature = "lang-latin", feature = "lang-hangul"))]
+#[cfg(any(
+    feature = "lang-latin",
+    feature = "lang-hangul",
+    feature = "lang-japanese"
+))]
 fn named(name: &'static str, layouts: KeyboardLayoutSet) -> NamedLayoutSet {
     NamedLayoutSet {
         name,
@@ -41,7 +59,7 @@ fn named(name: &'static str, layouts: KeyboardLayoutSet) -> NamedLayoutSet {
 
 /// 같은 언어 안에서 조합 규칙이 다른 배열은 자기 방식을 밝힌다 — 배열을 고르면 합성기가
 /// 함께 갈린다.
-#[cfg(feature = "lang-hangul")]
+#[cfg(any(feature = "lang-hangul", feature = "lang-japanese"))]
 fn named_with_method(
     name: &'static str,
     method: &'static dyn InputMethod,

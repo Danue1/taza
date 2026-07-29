@@ -10,6 +10,17 @@ pub struct FfiLanguageDescriptor {
     pub display_name: String,
     pub keycap_label: String,
     pub layout_name: String,
+    /// 조합 중인 글자를 문서에 어떻게 앉힐지 — 언어 관습이므로 코어가 정한다.
+    pub composing_display: FfiComposingDisplay,
+}
+
+/// 조합 중인 글자를 문서에 앉히는 방식.
+#[derive(uniffi::Enum, PartialEq, Eq)]
+pub enum FfiComposingDisplay {
+    /// 밑줄 없이 글자를 그대로 — 한국어 순정이 그렇다. 셸은 조합 구간을 지우고 다시 넣는다.
+    Inline,
+    /// 밑줄 친 조합 구간으로 — 변환이 그렇다. 셸은 marked text로 옮긴다.
+    Marked,
 }
 
 #[derive(uniffi::Enum)]
@@ -164,6 +175,10 @@ pub enum FfiEffect {
     SetComposing {
         text: String,
         caret: u32,
+        /// 지금 사람이 손대고 있는 구간(코드포인트 [시작, 끝)) — 변환의 주목 문절이다.
+        /// 셸은 이 값이 있을 때 조합 구간의 선택 범위로 옮긴다.
+        focus_start: Option<u32>,
+        focus_end: Option<u32>,
     },
     ClearComposing,
     DeleteBackward {

@@ -54,6 +54,7 @@ extension KeyboardViewController {
         if sessions[currentLanguage] == nil {
             currentLanguage = languages.first { sessions[$0] != nil } ?? currentLanguage
         }
+        composingDisplay = activeSession?.language().composingDisplay ?? .inline
     }
 
     /// 라틴 글자를 넣는 칸(이메일·URL·비밀번호)에서 라틴 배열로 연다. 어느 언어가
@@ -87,6 +88,8 @@ extension KeyboardViewController {
         }
         currentLanguage = language
         preferences.lastUsedLanguage = language
+        // 조합을 앉히는 방식은 언어를 타므로 함께 갈아 끼운다
+        composingDisplay = activeSession?.language().composingDisplay ?? .inline
         candidateBar.setCandidates([])
         refreshFrame()
         // 새 언어의 세션은 자기 shift 상태를 갖는다 — 지금 문맥에 맞춰 준다

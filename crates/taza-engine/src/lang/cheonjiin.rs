@@ -11,7 +11,7 @@
 
 use super::hangul::HangulComposer;
 use crate::contract::{
-    CommittedText, Composer, ComposerEvent, ComposerOutput, ComposerState, EditorContext,
+    CommittedText, Composer, ComposerEnvironment, ComposerEvent, ComposerOutput, ComposerState,
 };
 use crate::keyboard::{NamedLayoutSet, layouts};
 use crate::lang::InputMethod;
@@ -113,33 +113,37 @@ impl CheonjiinComposer {
 
     /// 쌓던 모음을 새 모음으로 갈아 끼운다. 지우고 넣는 두 걸음을 속 합성기에 그대로
     /// 넘기므로 조합 창·어절 추적이 따로 볼 것이 없다.
-    fn replace(&mut self, vowel: char, context: &EditorContext) -> ComposerOutput {
-        let removed = self.inner.feed(ComposerEvent::Backspace, context);
+    fn replace(&mut self, vowel: char, environment: &ComposerEnvironment<'_>) -> ComposerOutput {
+        let removed = self.inner.feed(ComposerEvent::Backspace, environment);
         let mut output = self
             .inner
-            .feed(ComposerEvent::Key(vowel), &context.unapplied());
+            .feed(ComposerEvent::Key(vowel), &environment.unapplied());
         output.delete_before_commit += removed.delete_before_commit;
         output
     }
 
     /// 쌓인 타건이 이룬 모음을 조합 창에 반영한다. 아직 글자가 아니면(하늘만 친 상태)
     /// 조합 창은 그대로 두고 다음 타건을 기다린다.
-    fn show(&mut self, context: &EditorContext) -> ComposerOutput {
+    fn show(&mut self, environment: &ComposerEnvironment<'_>) -> ComposerOutput {
         match (vowel(&self.taps), self.shown) {
-            (Some(grown), true) => self.replace(grown, context),
+            (Some(grown), true) => self.replace(grown, environment),
             (Some(grown), false) => {
                 self.shown = true;
-                self.inner.feed(ComposerEvent::Key(grown), context)
+                self.inner.feed(ComposerEvent::Key(grown), environment)
             }
             (None, true) => {
                 self.shown = false;
-                self.inner.feed(ComposerEvent::Backspace, context)
+                self.inner.feed(ComposerEvent::Backspace, environment)
             }
             (None, false) => self.inner.unchanged(),
         }
     }
 
-    fn push_component(&mut self, component: char, context: &EditorContext) -> ComposerOutput {
+    fn push_component(
+        &mut self,
+        component: char,
+        environment: &ComposerEnvironment<'_>,
+    ) -> ComposerOutput {
         let mut extended = self.taps.clone();
         extended.push(component);
         // 늘어날 수 없으면 이 타건에서 새 모음이 시작한다
@@ -150,27 +154,31 @@ impl CheonjiinComposer {
                 vec![component]
             }
         };
-        self.show(context)
+        self.show(environment)
     }
 
     /// 모음 타건을 하나 무른다 — 지운 뒤에도 쌓던 모음이 남아 있으면 그것으로 돌아간다.
-    fn pop_component(&mut self, context: &EditorContext) -> ComposerOutput {
+    fn pop_component(&mut self, environment: &ComposerEnvironment<'_>) -> ComposerOutput {
         self.taps.pop();
-        self.show(context)
+        self.show(environment)
     }
 }
 
 impl Composer for CheonjiinComposer {
-    fn feed(&mut self, event: ComposerEvent, context: &EditorContext) -> ComposerOutput {
+    fn feed(
+        &mut self,
+        event: ComposerEvent,
+        environment: &ComposerEnvironment<'_>,
+    ) -> ComposerOutput {
         match event {
             ComposerEvent::Key(character) if is_component(character) => {
-                self.push_component(character, context)
+                self.push_component(character, environment)
             }
-            ComposerEvent::Backspace if !self.taps.is_empty() => self.pop_component(context),
+            ComposerEvent::Backspace if !self.taps.is_empty() => self.pop_component(environment),
             event => {
                 self.taps.clear();
                 self.shown = false;
-                self.inner.feed(event, context)
+                self.inner.feed(event, environment)
             }
         }
     }

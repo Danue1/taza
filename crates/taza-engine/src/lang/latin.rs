@@ -1,5 +1,5 @@
 use crate::contract::{
-    CommittedText, Composer, ComposerEvent, ComposerOutput, ComposerState, EditorContext,
+    CommittedText, Composer, ComposerEnvironment, ComposerEvent, ComposerOutput, ComposerState,
     SuggestionRequest, WordBoundary,
 };
 use crate::keyboard::{NamedLayoutSet, layouts};
@@ -52,8 +52,8 @@ impl LatinComposer {
     /// 있던 것과 다르면 그쪽을 따른다. 커서가 다른 자리로 옮겨 갔을 때(셸이 알려 주지
     /// 못한 경우까지) 남의 자리 어절을 들고 교정·학습하지 않기 위한 재동기화다.
     /// 문맥을 못 받는 앱에서는 추적하던 값을 그대로 믿는다.
-    fn sync_with_context(&mut self, context: &EditorContext) {
-        let Some(text) = &context.text_before_cursor else {
+    fn sync_with_context(&mut self, environment: &ComposerEnvironment<'_>) {
+        let Some(text) = &environment.context().text_before_cursor else {
             return;
         };
         let word: Vec<char> = text
@@ -89,10 +89,14 @@ impl LatinComposer {
 }
 
 impl Composer for LatinComposer {
-    fn feed(&mut self, event: ComposerEvent, context: &EditorContext) -> ComposerOutput {
+    fn feed(
+        &mut self,
+        event: ComposerEvent,
+        environment: &ComposerEnvironment<'_>,
+    ) -> ComposerOutput {
         // 무엇을 하든 어절부터 문맥에 맞춘다 — 커서가 옮겨 간 뒤에도 남의 자리 어절을
         // 들고 교정·학습하지 않기 위해서다
-        self.sync_with_context(context);
+        self.sync_with_context(environment);
         match event {
             ComposerEvent::Key(character) if is_word_character(character) => {
                 self.current_word.push(character);
@@ -119,7 +123,7 @@ impl Composer for LatinComposer {
                     ..ComposerOutput::default()
                 }
             }
-            ComposerEvent::CandidateSelected(text) => {
+            ComposerEvent::CandidateSelected { text, .. } => {
                 let original = std::mem::take(&mut self.current_word);
                 // 선택 확정 뒤의 타이핑은 새 입력 시퀀스 — 후행 공백이 그 경계다
                 ComposerOutput {

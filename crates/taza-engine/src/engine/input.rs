@@ -183,7 +183,10 @@ impl Engine {
                     }
                 }
                 self.feed(
-                    ComposerEvent::CandidateSelected(selected.text.clone()),
+                    ComposerEvent::CandidateSelected {
+                        text: selected.text.clone(),
+                        key: selected.key.clone(),
+                    },
                     context,
                     Some(selected),
                 )

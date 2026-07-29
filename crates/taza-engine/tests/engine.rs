@@ -1,7 +1,8 @@
 use std::sync::Arc;
 use taza_engine::contract::{
-    Candidate, CandidateGroup, CandidateKind, CommittedText, Composer, ComposerEvent,
-    ComposerOutput, ComposerState, EditorContext, Effect, InputEvent, SuggestionRequest,
+    Candidate, CandidateGroup, CandidateKind, CommittedText, Composer, ComposerEnvironment,
+    ComposerEvent, ComposerOutput, ComposerState, EditorContext, Effect, InputEvent,
+    SuggestionRequest,
 };
 use taza_engine::engine::Engine;
 use taza_engine::keyboard::KeySignal;
@@ -38,7 +39,11 @@ fn direct_composer_commits_every_key() {
 struct ReplacingComposer;
 
 impl Composer for ReplacingComposer {
-    fn feed(&mut self, event: ComposerEvent, _context: &EditorContext) -> ComposerOutput {
+    fn feed(
+        &mut self,
+        event: ComposerEvent,
+        _environment: &ComposerEnvironment<'_>,
+    ) -> ComposerOutput {
         match event {
             ComposerEvent::Key(_) => ComposerOutput {
                 suggest: SuggestionRequest::Word {
@@ -46,7 +51,7 @@ impl Composer for ReplacingComposer {
                 },
                 ..ComposerOutput::default()
             },
-            ComposerEvent::CandidateSelected(text) => ComposerOutput {
+            ComposerEvent::CandidateSelected { text, .. } => ComposerOutput {
                 delete_before_commit: 3,
                 commit: Some(CommittedText::plain(text)),
                 ..ComposerOutput::default()

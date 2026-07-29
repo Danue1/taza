@@ -1,4 +1,6 @@
-use taza_engine::contract::{Composer, ComposerEvent, EditorContext, Effect, InputEvent};
+use taza_engine::contract::{
+    Composer, ComposerEnvironment, ComposerEvent, EditorContext, Effect, InputEvent,
+};
 use taza_engine::engine::Engine;
 use taza_engine::keyboard::KeySignal;
 use taza_engine::lang::LanguageDescriptor;
@@ -23,7 +25,7 @@ fn run(events: &str) -> (String, Option<String>) {
             text_before_cursor: Some(format!("{committed}{}", composing.as_deref().unwrap_or(""))),
             ..EditorContext::unavailable()
         };
-        let output = composer.feed(event, &context);
+        let output = composer.feed(event, &ComposerEnvironment::new(&context));
         for _ in 0..output.delete_before_commit {
             committed.pop();
         }
@@ -235,11 +237,17 @@ fn snapshot_keeps_the_taps() {
     let context = EditorContext::unavailable();
     let mut composer = CheonjiinComposer::new();
     for character in "ㄱㅣㆍ".chars() {
-        composer.feed(ComposerEvent::Key(character), &context);
+        composer.feed(
+            ComposerEvent::Key(character),
+            &ComposerEnvironment::new(&context),
+        );
     }
     let mut restored = CheonjiinComposer::new();
     restored.restore(composer.snapshot());
-    let output = restored.feed(ComposerEvent::Key('ㆍ'), &context);
+    let output = restored.feed(
+        ComposerEvent::Key('ㆍ'),
+        &ComposerEnvironment::new(&context),
+    );
     assert_eq!(output.composing.unwrap().text, "갸");
 }
 
@@ -251,9 +259,6 @@ fn retap_deletes_before_inserting() {
     engine.handle(InputEvent::Key(KeySignal::certain('ㄱ')), &context);
     let effects = engine.handle(InputEvent::Retap('ㅋ'), &context);
     assert!(effects.contains(&Effect::SetComposing(
-        taza_engine::contract::ComposingText {
-            text: "ㅋ".to_string(),
-            caret: 1,
-        }
+        taza_engine::contract::ComposingText::whole("ㅋ")
     )));
 }

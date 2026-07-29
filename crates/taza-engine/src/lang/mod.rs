@@ -17,16 +17,22 @@ pub mod direct;
 pub mod hangul;
 #[cfg(feature = "lang-hangul")]
 pub mod jamo;
+#[cfg(feature = "lang-japanese")]
+pub mod japanese;
+#[cfg(feature = "lang-japanese")]
+pub mod kana;
 #[cfg(feature = "lang-latin")]
 pub mod latin;
 #[cfg(feature = "lang-hangul")]
 pub mod naratgeul;
+#[cfg(feature = "lang-japanese")]
+pub mod romaji;
 #[cfg(feature = "lang-hangul")]
 pub mod sky;
 #[cfg(feature = "lang-hangul")]
 mod vowel;
 
-use crate::contract::{Composer, Pack};
+use crate::contract::{Composer, ComposingDisplay, Pack};
 use crate::keyboard::{KeyboardLayoutSet, NamedLayoutSet};
 use crate::pack::metadata::keys;
 use crate::suggest::{KeyEncoding, SuggestionPolicy};
@@ -67,6 +73,21 @@ pub trait InputMethod: Send + Sync {
     fn layouts(&self) -> Vec<NamedLayoutSet>;
 
     fn composer(&self) -> Box<dyn Composer>;
+
+    /// 스페이스가 글자를 넣는 키인가. 변환하는 방식에서 스페이스는 変換을 거는 키라
+    /// 글자를 넣지 않으므로, 스페이스에 걸린 관습(더블 스페이스 마침표)도 함께 성립하지
+    /// 않는다. 자동교정 여부와는 다른 축이다 — 한국어는 경계 교정을 하지 않지만 스페이스는
+    /// 여전히 글자를 넣는다.
+    fn space_inserts_text(&self) -> bool {
+        true
+    }
+
+    /// 조합 중인 글자를 문서에 어떻게 앉히는가. 대개 밑줄 없이 그대로 두지만(순정 한국어),
+    /// 변환처럼 조합 창의 길이가 크게 출렁이고 그 안에서 한 도막만 골라 바꾸는 방식은
+    /// 밑줄 친 조합 구간이라야 한다.
+    fn composing_display(&self) -> ComposingDisplay {
+        ComposingDisplay::Inline
+    }
 
     /// 단어 경계에서 자동교정을 시도하는가. 원문(as-typed) 후보를 함께 노출할지도
     /// 이 값에 딸린다 — 교정을 피해 원문을 고르는 것이 곧 학습 경로이기 때문이다.
@@ -168,6 +189,13 @@ impl LanguageDescriptor {
                 keycap_label: "한".to_string(),
                 method: input_method("hangul")?,
                 encoding: KeyEncoding::HangulJamoDubeolsik,
+            }),
+            "ja" => Some(LanguageDescriptor {
+                tag: "ja".to_string(),
+                display_name: "日本語".to_string(),
+                keycap_label: "あ".to_string(),
+                method: input_method("japanese-romaji")?,
+                encoding: KeyEncoding::Kana,
             }),
             _ => None,
         }

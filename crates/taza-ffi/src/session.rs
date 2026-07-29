@@ -4,7 +4,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use taza_engine::contract::CandidateGroup;
+use taza_engine::contract::{CandidateGroup, ComposingDisplay};
 use taza_engine::engine::{Engine, PackBytes};
 use taza_engine::keyboard::{KeyboardMetrics, ShellRequest};
 use taza_engine::lang::LanguageDescriptor;
@@ -54,6 +54,10 @@ impl KeyboardSession {
             display_name: language.display_name.clone(),
             keycap_label: language.keycap_label.clone(),
             layout_name,
+            composing_display: match language.method.composing_display() {
+                ComposingDisplay::Inline => FfiComposingDisplay::Inline,
+                ComposingDisplay::Marked => FfiComposingDisplay::Marked,
+            },
         }
     }
 
@@ -301,6 +305,9 @@ impl KeyboardSession {
             let Some(tag) = group.tag() else { continue };
             lines.push(format!("a\t{tag}\t{text}"));
         }
+        for (reading, surface, count) in snapshot.conversions {
+            lines.push(format!("c\t{reading}\t{surface}\t{count}"));
+        }
         lines
     }
 
@@ -324,6 +331,7 @@ impl KeyboardSession {
         };
         let mut entries = Vec::new();
         let mut recent_annotations = Vec::new();
+        let mut conversions = Vec::new();
         for line in entry_lines {
             match line.split('\t').collect::<Vec<&str>>().as_slice() {
                 ["w", word, count, last_used] => {
@@ -338,6 +346,10 @@ impl KeyboardSession {
                     };
                     recent_annotations.push((group, text.to_string()));
                 }
+                ["c", reading, surface, count] => {
+                    let Ok(count) = count.parse() else { continue };
+                    conversions.push((reading.to_string(), surface.to_string(), count));
+                }
                 _ => continue,
             }
         }
@@ -348,6 +360,7 @@ impl KeyboardSession {
                 entries,
                 clock,
                 recent_annotations,
+                conversions,
             });
     }
 }

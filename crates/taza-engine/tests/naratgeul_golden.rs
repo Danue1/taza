@@ -1,4 +1,6 @@
-use taza_engine::contract::{Composer, ComposerEvent, EditorContext, Effect, InputEvent};
+use taza_engine::contract::{
+    Composer, ComposerEnvironment, ComposerEvent, EditorContext, Effect, InputEvent,
+};
 use taza_engine::engine::Engine;
 use taza_engine::keyboard::KeySignal;
 use taza_engine::lang::LanguageDescriptor;
@@ -25,7 +27,7 @@ fn run(events: &str) -> (String, Option<String>) {
             text_before_cursor: Some(format!("{committed}{}", composing.as_deref().unwrap_or(""))),
             ..EditorContext::unavailable()
         };
-        let output = composer.feed(event, &context);
+        let output = composer.feed(event, &ComposerEnvironment::new(&context));
         for _ in 0..output.delete_before_commit {
             committed.pop();
         }
@@ -169,7 +171,12 @@ fn the_lookup_key_stays_dubeolsik() {
     let mut request = Default::default();
     // ㅇ에 획을 더하면 ㅎ이다 → "학"의 조회 키는 두벌식 타건 그대로 g(ㅎ) k(ㅏ) r(ㄱ)
     for press in ['ㅇ', STROKE, 'ㅏ', 'ㄱ'] {
-        request = composer.feed(ComposerEvent::Key(press), &context).suggest;
+        request = composer
+            .feed(
+                ComposerEvent::Key(press),
+                &ComposerEnvironment::new(&context),
+            )
+            .suggest;
     }
     assert_eq!(
         request,

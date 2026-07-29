@@ -36,6 +36,8 @@ pub struct PersonalizationState {
     pub clock: u64,
     /// 최근에 고른 이모지·기호·얼굴 문자 — 최근순
     pub recent_annotations: Vec<(CandidateGroup, String)>,
+    /// 사람이 고른 표기 — (읽기, 표기, 횟수)
+    pub conversions: Vec<(String, String, u32)>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -45,6 +47,10 @@ pub struct PersonalizationStore {
     /// 최근에 고른 이모지·기호·얼굴 문자 — 최근순. 낱말 학습과 달리 랭킹에 쓰이지 않고
     /// 통합 검색면의 "자주 쓰는"만 채우므로 점수 없이 순서만 갖는다.
     recent_annotations: Vec<(CandidateGroup, String)>,
+    /// 읽기 하나에서 사람이 고른 표기와 그 횟수. 낱말 학습(`entries`)과 나뉘어 있는 까닭은
+    /// **키가 답이 아니기 때문**이다 — 「きしゃ」를 배웠다는 사실은 汽車를 골랐는지 記者를
+    /// 골랐는지 말해 주지 않는다. 한 표에 합치면 접두 완성이 표기까지 긁어 온다.
+    conversions: BTreeMap<(String, String), u32>,
 }
 
 impl PersonalizationStore {
@@ -103,6 +109,32 @@ impl PersonalizationStore {
             .retain(|(kept_group, kept)| !(*kept_group == group && kept == text));
         self.recent_annotations.insert(0, (group, text.to_string()));
         self.recent_annotations.truncate(RECENT_ANNOTATION_CAPACITY);
+    }
+
+    /// 읽기 하나에서 이 표기를 골랐다. 변환 랭킹이 이 횟수만큼 그 표기를 당긴다.
+    pub fn record_conversion(&mut self, reading: &str, surface: &str) {
+        if reading.is_empty() || surface.is_empty() {
+            return;
+        }
+        let key = (reading.to_string(), surface.to_string());
+        *self.conversions.entry(key).or_insert(0) += 1;
+        if self.conversions.len() > CAPACITY {
+            let evicted = self
+                .conversions
+                .iter()
+                .min_by_key(|(_, count)| *count)
+                .map(|(key, _)| key.clone())
+                .unwrap();
+            self.conversions.remove(&evicted);
+        }
+    }
+
+    /// 이 읽기에서 이 표기를 고른 횟수.
+    pub fn conversion_weight(&self, reading: &str, surface: &str) -> u32 {
+        self.conversions
+            .get(&(reading.to_string(), surface.to_string()))
+            .copied()
+            .unwrap_or(0)
     }
 
     pub fn recent_annotations(&self) -> &[(CandidateGroup, String)] {
@@ -167,6 +199,11 @@ impl PersonalizationStore {
                 .collect(),
             clock: self.clock,
             recent_annotations: self.recent_annotations.clone(),
+            conversions: self
+                .conversions
+                .iter()
+                .map(|((reading, surface), count)| (reading.clone(), surface.clone(), *count))
+                .collect(),
         }
     }
 
@@ -179,6 +216,11 @@ impl PersonalizationStore {
                 .collect(),
             clock: state.clock,
             recent_annotations: state.recent_annotations,
+            conversions: state
+                .conversions
+                .into_iter()
+                .map(|(reading, surface, count)| ((reading, surface), count))
+                .collect(),
         }
     }
 }

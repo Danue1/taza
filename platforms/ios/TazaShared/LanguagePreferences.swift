@@ -16,6 +16,7 @@ public struct TazaLanguage: Hashable, Sendable {
     public static let all: [TazaLanguage] = [
         TazaLanguage(tag: "en", packName: "english"),
         TazaLanguage(tag: "ko", packName: "korean"),
+        TazaLanguage(tag: "ja", packName: "japanese"),
     ]
 
     public static func named(_ tag: String) -> TazaLanguage? {

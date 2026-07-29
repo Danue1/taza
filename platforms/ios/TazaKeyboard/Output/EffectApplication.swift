@@ -28,6 +28,48 @@ extension KeyboardViewController {
     /// 지금 어긋나지 않는 것은 코어가 내는 어절에 그래핌을 늘리는 글자가 들어오지 않기
     /// 때문이며(`ComposerOutput.delete_before_commit`), 데바나가리·타이처럼 모음 기호가
     /// 어절 안에 서는 스크립트를 실으면 여기부터 코드포인트 단위로 고쳐야 한다.
+    /// 조합 중인 글자를 문서에 앉힌다. **두 길이 있고 어느 길인지는 코어가 정한다**
+    /// (`composingDisplay`) — 순정 한국어는 밑줄 없이 글자를 그대로 두고, 일본어 변환은
+    /// 밑줄 친 조합 구간을 쓴다.
+    ///
+    /// 변환에 밑줄 구간이 필요한 까닭은 길이가 크게 출렁이기 때문이다. 「きしゃ」가 「記者」가
+    /// 되는 자리를 지웠다 넣었다로 흉내 내면 확정 전 글자가 문서 이력에 그만큼 쌓이고,
+    /// 주목 문절을 밝힐 길도 사라진다.
+    private func setComposing(_ text: String, focusStart: UInt32?, focusEnd: UInt32?) {
+        guard composingDisplay == .marked else {
+            // 밑줄 없는 길 — 겹치는 앞부분은 그대로 두고 달라진 꼬리만 갈아 끼운다
+            let common = zip(composingOnScreen, text)
+                .prefix(while: { $0 == $1 })
+                .count
+            deleteCharacters(composingOnScreen.count - common)
+            textDocumentProxy.insertText(String(text.dropFirst(common)))
+            composingOnScreen = text
+            return
+        }
+        // 주목 문절이 곧 선택 범위다 — 밝히지 않으면 캐럿을 끝에 둔다
+        let range: NSRange
+        if let start = focusStart, let end = focusEnd {
+            range = NSRange(location: Int(start), length: Int(end) - Int(start))
+        } else {
+            range = NSRange(location: text.count, length: 0)
+        }
+        textDocumentProxy.setMarkedText(text, selectedRange: range)
+        composingOnScreen = text
+    }
+
+    /// 조합 구간을 비운다. iOS `unmarkText`는 "확정"이므로 그대로 쓰면 안 된다 —
+    /// 빈 문자열로 치환한 뒤 끝낸다(셸 계약).
+    private func clearComposingOnScreen() {
+        guard !composingOnScreen.isEmpty else { return }
+        if composingDisplay == .marked {
+            textDocumentProxy.setMarkedText("", selectedRange: NSRange(location: 0, length: 0))
+            textDocumentProxy.unmarkText()
+        } else {
+            deleteCharacters(composingOnScreen.count)
+        }
+        composingOnScreen = ""
+    }
+
     private func deleteCharacters(_ count: Int) {
         for _ in 0..<count {
             textDocumentProxy.deleteBackward()
@@ -45,19 +87,12 @@ extension KeyboardViewController {
             switch effect {
             case .commitText(let text):
                 // 코어 의미론: 활성 composing 구간을 치환하며 확정
-                deleteCharacters(composingOnScreen.count)
-                composingOnScreen = ""
+                clearComposingOnScreen()
                 textDocumentProxy.insertText(text)
-            case .setComposing(let text, _):
-                let common = zip(composingOnScreen, text)
-                    .prefix(while: { $0 == $1 })
-                    .count
-                deleteCharacters(composingOnScreen.count - common)
-                textDocumentProxy.insertText(String(text.dropFirst(common)))
-                composingOnScreen = text
+            case .setComposing(let text, _, let focusStart, let focusEnd):
+                setComposing(text, focusStart: focusStart, focusEnd: focusEnd)
             case .clearComposing:
-                deleteCharacters(composingOnScreen.count)
-                composingOnScreen = ""
+                clearComposingOnScreen()
             case .deleteBackward(let codePoints):
                 deleteCharacters(Int(codePoints))
             case .updateCandidates(let candidates):

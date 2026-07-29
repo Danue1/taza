@@ -3,6 +3,7 @@
 //! 키보드가 떠 있는 동안 기기에서 도는가.
 
 pub mod contract;
+pub mod convert;
 pub mod engine;
 pub mod keyboard;
 pub mod lang;

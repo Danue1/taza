@@ -51,10 +51,13 @@ final class KeyboardViewController: UIInputViewController {
     /// 설정 앱이 값을 고쳤다는 신호를 듣는 자리 — 키보드가 떠 있는 동안에도 바뀐다
     var settingsObserver: SettingsBroadcast.Observer?
 
-    /// 순정 한국어 키보드 관행(iOS 안전 모드): marked text를 쓰지 않고 composing을
-    /// 일반 텍스트로 내보낸 뒤 diff로 갱신한다 — 밑줄이 없고, marked text를 제대로
-    /// 다루지 못하는 앱에서도 동작이 같다. 화면에 나가 있는 composing을 추적한다.
+    /// 화면에 나가 있는 composing. 이것을 어떻게 앉히는지는 **코어가 정한다**
+    /// (`composingDisplay`) — 한국어는 순정 관행대로 marked text 없이 일반 텍스트로
+    /// 내보낸 뒤 diff로 갱신하고(밑줄이 없고 비협조 앱에서도 같게 동작한다), 일본어 변환은
+    /// 길이가 크게 출렁이고 주목 문절을 밝혀야 하므로 marked text를 쓴다.
     var composingOnScreen = ""
+    /// 지금 언어가 요구하는 조합 표시 방식. 언어를 바꿀 때 코어에서 다시 읽는다.
+    var composingDisplay: FfiComposingDisplay = .inline
     var applyingEffects = false
     /// 우리가 마지막으로 남긴 커서 앞 텍스트. 조합 창이 없는 언어에서도 커서가 옮겨 간
     /// 것을 알아보려면 견줄 것이 있어야 한다 — 아직 아무것도 넣지 않았으면 nil이다.

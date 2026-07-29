@@ -5,9 +5,10 @@
 //! 그 자리에 무엇이 들어갈지 정하고, `finish_word`가 그것을 배우고 다음 낱말을 고른다.
 
 use crate::contract::{
-    Candidate, ComposerEvent, ComposerOutput, EditorContext, Effect, Pack, SuggestionRequest,
-    WordBoundary,
+    Candidate, CandidateGroup, CandidateKind, ComposerEnvironment, ComposerEvent, ComposerOutput,
+    EditorContext, Effect, Pack, SuggestionRequest, WordBoundary,
 };
+use crate::convert::Conversion;
 use crate::keyboard::KeySignal;
 use crate::policy::Assistance;
 use crate::suggest::{Suggestion, SuggestionSources};
@@ -56,9 +57,9 @@ impl Engine {
             .as_ref()
             .and_then(|holder| Pack::open(holder.bytes()).ok());
         let was_composing = self.composer.is_composing();
-        let output = self.run_composer(event, context);
         let assistance =
             crate::policy::assistance(&self.preferences, self.keyboard.traits(), context);
+        let output = self.run_composer(event, context, pack.as_ref(), assistance);
 
         let ComposerOutput {
             mut delete_before_commit,
@@ -67,6 +68,15 @@ impl Engine {
             boundary,
             suggest,
         } = output;
+        // 확정된 것이 읽기를 달고 오면 그 짝을 배운다 — 「きしゃ」에서 汽車를 골랐다는
+        // 사실은 낱말 학습(키만 세는 쪽)이 담을 수 없다. 시크릿 필드에서는 남기지 않는다.
+        if let Some(reading) = commit.as_ref().and_then(|text| text.reading.as_deref())
+            && assistance.personalizing
+            && !context.incognito
+        {
+            let surface = commit.as_ref().map(|text| text.surface.clone()).unwrap();
+            self.personalization.record_conversion(reading, &surface);
+        }
         let mut commit_text = commit.map(|text| text.surface).unwrap_or_default();
 
         // 되돌릴 교정은 바로 다음 입력까지만 유효하다 (순정 키보드 관습)
@@ -89,6 +99,15 @@ impl Engine {
                 SuggestionRequest::Word { key } if assistance.predicting => self
                     .suggester
                     .suggest(key, &self.sources(pack.as_ref(), assistance)),
+                SuggestionRequest::Ready { candidates } if assistance.predicting => candidates
+                    .iter()
+                    .map(|(key, text)| Suggestion {
+                        key: key.clone(),
+                        text: text.clone(),
+                        kind: CandidateKind::Conversion,
+                        group: CandidateGroup::Word,
+                    })
+                    .collect(),
                 _ => Vec::new(),
             },
         };
@@ -185,15 +204,33 @@ impl Engine {
 
     /// 합성기를 돌리기 전에 언어와 무관한 규칙을 먼저 본다. 지금은 더블 스페이스
     /// 마침표 하나뿐이고, 조합 중에는 성립할 수 없으므로 합성기 상태를 건드리지 않는다.
-    fn run_composer(&mut self, event: ComposerEvent, context: &EditorContext) -> ComposerOutput {
+    fn run_composer(
+        &mut self,
+        event: ComposerEvent,
+        context: &EditorContext,
+        pack: Option<&Pack<'_>>,
+        assistance: Assistance,
+    ) -> ComposerOutput {
+        // 더블 스페이스 마침표는 언어 무관 규칙이 아니었다 — 일본어에서 스페이스는 글자를
+        // 넣는 키가 아니라 변환을 거는 키라, 두 번 눌렀다고 마침표가 되면 안 된다.
         if event == ComposerEvent::Separator(' ')
             && self.preferences.double_space_period
+            && self.language.method.space_inserts_text()
             && !self.composer.is_composing()
             && let Some(output) = crate::policy::double_space_period(context)
         {
             return output;
         }
-        self.composer.feed(event, context)
+        // 변환하는 방식만 사전에 닿는다 — 팩이 변환표를 싣지 않았으면 창구 자체가 없다
+        let conversion = pack.and_then(|pack| pack.conversion()).map(|table| {
+            Conversion::new(
+                table,
+                pack.and_then(|pack| pack.connection()),
+                assistance.personalizing.then_some(&self.personalization),
+            )
+        });
+        let environment = ComposerEnvironment::new(context).with_conversion(conversion);
+        self.composer.feed(event, &environment)
     }
 
     /// 자동교정 직후의 Backspace — 교정 결과를 지우고 사용자가 친 원문을 되살린다.

@@ -15,8 +15,8 @@ pub use candidate::{
     CandidateKind, EmojiCategory,
 };
 pub use composer::{
-    CommittedText, Composer, ComposerEvent, ComposerOutput, ComposerState, ComposingText,
-    SuggestionRequest, WordBoundary,
+    CommittedText, Composer, ComposerEnvironment, ComposerEvent, ComposerOutput, ComposerState,
+    ComposingDisplay, ComposingText, SuggestionRequest, WordBoundary,
 };
 pub use event::{Effect, InputEvent};
 pub use shell::{

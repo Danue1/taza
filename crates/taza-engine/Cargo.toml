@@ -5,9 +5,11 @@ edition.workspace = true
 license.workspace = true
 
 [features]
-default = ["lang-latin", "lang-hangul"]
+default = ["lang-latin", "lang-hangul", "lang-japanese"]
 lang-latin = []
 lang-hangul = []
+lang-japanese = []
 
 [dev-dependencies]
+memmap2.workspace = true
 taza-pack.workspace = true

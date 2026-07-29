@@ -1,5 +1,5 @@
 use crate::contract::{
-    CommittedText, Composer, ComposerEvent, ComposerOutput, ComposerState, EditorContext,
+    CommittedText, Composer, ComposerEnvironment, ComposerEvent, ComposerOutput, ComposerState,
 };
 use crate::keyboard::{NamedLayoutSet, layouts};
 use crate::lang::InputMethod;
@@ -36,7 +36,11 @@ impl DirectComposer {
 }
 
 impl Composer for DirectComposer {
-    fn feed(&mut self, event: ComposerEvent, _context: &EditorContext) -> ComposerOutput {
+    fn feed(
+        &mut self,
+        event: ComposerEvent,
+        _environment: &ComposerEnvironment<'_>,
+    ) -> ComposerOutput {
         match event {
             ComposerEvent::Key(character) | ComposerEvent::Separator(character) => ComposerOutput {
                 commit: Some(CommittedText::plain(character.to_string())),
@@ -46,7 +50,7 @@ impl Composer for DirectComposer {
                 delete_before_commit: 1,
                 ..ComposerOutput::default()
             },
-            ComposerEvent::CandidateSelected(_) => ComposerOutput::default(),
+            ComposerEvent::CandidateSelected { .. } => ComposerOutput::default(),
         }
     }
 

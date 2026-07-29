@@ -40,6 +40,7 @@ public struct CandidateModel {
 public final class CandidateBarView: UIView {
     public var onSelect: ((Int) -> Void)?
 
+    private let scrollView = UIScrollView()
     private let stack = UIStackView()
 
     public init() {
@@ -48,12 +49,27 @@ public final class CandidateBarView: UIView {
         // 그룹은 제 폭을 갖고 낱말 그룹만 늘어난다 — 구분선 1pt를 지키려면 fill이어야 한다
         stack.distribution = .fill
         stack.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(stack)
+        // 후보가 자리보다 많으면 가로로 훑는다 — 변환은 한 문절에 표기가 열 몇 개씩 달리고,
+        // 순정도 그것을 접지 않고 옆으로 밀어 둔다. 자리에 다 들어가는 예측 후보(셋)에서는
+        // 폭이 남지 않으므로 스크롤이 있는지조차 보이지 않는다.
+        scrollView.showsHorizontalScrollIndicator = false
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(scrollView)
+        scrollView.addSubview(stack)
         NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: topAnchor),
-            stack.bottomAnchor.constraint(equalTo: bottomAnchor),
-            stack.leadingAnchor.constraint(equalTo: leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: trailingAnchor),
+            scrollView.topAnchor.constraint(equalTo: topAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: bottomAnchor),
+            scrollView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            stack.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor),
+            stack.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor),
+            stack.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor),
+            stack.heightAnchor.constraint(equalTo: scrollView.frameLayoutGuide.heightAnchor),
+            // 후보가 적어도 바는 폭을 다 쓴다 — 자리와 구분선이 그대로 보여야 한다
+            stack.widthAnchor.constraint(
+                greaterThanOrEqualTo: scrollView.frameLayoutGuide.widthAnchor
+            ),
         ])
     }
 
@@ -73,10 +89,11 @@ public final class CandidateBarView: UIView {
             groupStack.axis = .horizontal
             groupStack.distribution = .fill
             groupStack.spacing = group.kind == .word ? 0 : Metrics.itemSpacing
-            // 낱말 자리는 후보가 모자라도 셋을 지킨다 — 자리와 구분선이 그대로 있어야
-            // 후보가 바뀔 때마다 바가 다시 짜이지 않는다(순정 예측 바)
+            // 낱말 자리는 후보가 모자라도 셋을 지키고(순정 예측 바 — 자리와 구분선이
+            // 그대로 있어야 후보가 바뀔 때마다 바가 다시 짜이지 않는다), 더 오면 온 만큼
+            // 늘어난다. 변환 후보는 셋으로 접을 수 있는 것이 아니다.
             let slots = group.kind == .word
-                ? Metrics.wordSlots
+                ? max(Metrics.wordSlots, group.items.count)
                 : group.items.count
             for slot in 0..<slots {
                 // 후보 사이도 그룹 사이와 같은 선으로 가른다
@@ -140,7 +157,8 @@ public final class CandidateBarView: UIView {
     // MARK: - 그리기
 
     private enum Metrics {
-        /// 낱말 후보가 서는 자리 수 — 순정 예측 바와 같다
+        /// 낱말 후보가 서는 **최소** 자리 수 — 순정 예측 바와 같다. 후보가 더 오면
+        /// 그만큼 늘고 넘치는 만큼 가로로 훑는다.
         static let wordSlots = 3
         static let itemSpacing: CGFloat = 8
         static let groupInset: CGFloat = 12

@@ -167,6 +167,8 @@ pub(crate) fn convert_effect(effect: Effect) -> FfiEffect {
         Effect::SetComposing(composing) => FfiEffect::SetComposing {
             text: composing.text,
             caret: composing.caret as u32,
+            focus_start: composing.focus.map(|(start, _)| start as u32),
+            focus_end: composing.focus.map(|(_, end)| end as u32),
         },
         Effect::ClearComposing => FfiEffect::ClearComposing,
         Effect::DeleteBackward(count) => FfiEffect::DeleteBackward {
